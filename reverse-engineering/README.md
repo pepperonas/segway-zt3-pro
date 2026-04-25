@@ -6,7 +6,7 @@ Statische Analyse von Android-Apps rund um den Segway-Ninebot **ZT3 Pro** E-Scoo
 
 | App | Package | Größe | Schutz | Doku |
 |---|---|---|---|---|
-| **Segway Mobility** (offizielle Ninebot-App) | `com.ninebot.segway` v7.6.3 | 116 MB | NetEase NIS Wrapper – Code verschlüsselt | [`apps/ninebot-segway/docs/`](apps/ninebot-segway/docs/) |
+| **Segway Mobility** (offizielle Ninebot-App) | `com.ninebot.segway` v7.6.3 | 116 MB | NetEase NIS Wrapper – Code verschlüsselt | [`apps/ninebot-segway/ANALYSIS.md`](apps/ninebot-segway/ANALYSIS.md) |
 | **ScooterHacking Utility (SHU)** | `sh.cfw.utility.pre_release.open_beta` v3.0+pre_release.open_beta | 5.7 MB | nur R8-Name-Obfuscation, **Open Source** | [`apps/shu/ANALYSIS.md`](apps/shu/ANALYSIS.md) |
 
 ## Projekt-Struktur
@@ -17,22 +17,10 @@ reverse-engineering/
 └── apps/
     ├── ninebot-segway/
     │   ├── com.ninebot.segway.apk
-    │   ├── decompiled/
-    │   │   ├── raw/                 # ZIP-Extraktion
-    │   │   ├── apktool/             # smali + decoded resources
-    │   │   ├── jadx/                # Java-Source (nur Wrapper-Klassen sichtbar)
-    │   │   └── extracted/           # entpackte Sub-Archive
-    │   └── docs/                    # 10 Dokumente
-    │       ├── README.md
-    │       ├── 00-OVERVIEW.md
-    │       ├── 01-MANIFEST.md
-    │       ├── 02-NETEASE-SHIELDING.md
-    │       ├── 03-NETWORK-ENDPOINTS.md
-    │       ├── 04-SDKS-LIBRARIES.md
-    │       ├── 05-ASSETS-INVENTORY.md
-    │       ├── 06-COMPONENTS.md
-    │       ├── 07-SECRETS-FOUND.md
-    │       └── 08-LIMITATIONS-NEXT-STEPS.md
+    │   ├── decompiled/              # gitignored
+    │   └── ANALYSIS.md              # konsolidierte Analyse (Manifest, NetEase Shielding,
+    │                                #   Network, SDKs, Assets, Components, Secrets,
+    │                                #   Limitations & nächste Schritte)
     └── shu/
         ├── ScooterHackingUtility-pre_release.open_beta-5.apk
         ├── decompiled/              # gitignored
@@ -58,7 +46,7 @@ reverse-engineering/
 ## Top-Findings über beide Apps hinweg
 
 ### 🔴 Kritisch (Ninebot)
-- **Mapbox Secret-Token** (`sk.…`) hartcodiert im Manifest (Details siehe `apps/ninebot-segway/docs/07-SECRETS-FOUND.md`)
+- **Mapbox Secret-Token** (`sk.…`) hartcodiert im Manifest (Details siehe `apps/ninebot-segway/ANALYSIS.md#hartcodierte-secrets`)
 - App komplett mit NetEase NIS gepackt – BLE-Crypto-Code aus statisch nicht extrahierbar
 
 ### 🟢 Positiv (SHU)

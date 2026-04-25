@@ -18,7 +18,7 @@
 
 [![Ninebot APK](https://img.shields.io/badge/Ninebot%20Segway-v7.6.3%20%7C%20116%20MB-lightgrey.svg)](reverse-engineering/apps/ninebot-segway/)
 [![SHU APK](https://img.shields.io/badge/SHU-v3.0%20open__beta--5%20%7C%205.7%20MB-lightgrey.svg)](reverse-engineering/apps/shu/)
-[![NetEase NIS Pack](https://img.shields.io/badge/Ninebot%20Pack-NetEase%20NIS-critical.svg)](reverse-engineering/apps/ninebot-segway/docs/02-NETEASE-SHIELDING.md)
+[![NetEase NIS Pack](https://img.shields.io/badge/Ninebot%20Pack-NetEase%20NIS-critical.svg)](reverse-engineering/apps/ninebot-segway/ANALYSIS.md#netease-nis-app-shielding-hauptbefund)
 [![SHU: Open Source](https://img.shields.io/badge/SHU-Open%20Source-success.svg)](reverse-engineering/apps/shu/ANALYSIS.md)
 
 [![BLE: Nordic UART](https://img.shields.io/badge/BLE-Nordic%20UART%20Service-blue.svg)](reverse-engineering/apps/shu/ANALYSIS.md#ble-protokoll-hauptbefund)
@@ -98,7 +98,7 @@ git clone https://github.com/pepperonas/segway-zt3-pro.git
 
 | # | Finding |
 |---|---|
-| 🔴 | **Mapbox Secret-Token (`sk.…`) hartcodiert** in der Ninebot-App (siehe [`07-SECRETS-FOUND.md`](reverse-engineering/apps/ninebot-segway/docs/07-SECRETS-FOUND.md)) |
+| 🔴 | **Mapbox Secret-Token (`sk.…`) hartcodiert** in der Ninebot-App (siehe [`07-SECRETS-FOUND.md`](reverse-engineering/apps/ninebot-segway/ANALYSIS.md#hartcodierte-secrets)) |
 | 🟠 | Ninebot-App vollständig **NetEase-NIS-gepackt** – BLE-Crypto nicht statisch extrahierbar |
 | 🟢 | SHU liefert das **komplette ECDH-Pairing-Protokoll im Klartext** – damit ist eigene Tool-Entwicklung möglich |
 
@@ -117,17 +117,7 @@ zt3pro/
         ├── ninebot-segway/
         │   ├── com.ninebot.segway.apk              # via Git LFS (116 MB)
         │   ├── decompiled/                         # gitignored
-        │   └── docs/                               # 10 Markdown-Dateien
-        │       ├── 00-OVERVIEW.md
-        │       ├── 01-MANIFEST.md
-        │       ├── 02-NETEASE-SHIELDING.md
-        │       ├── 03-NETWORK-ENDPOINTS.md
-        │       ├── 04-SDKS-LIBRARIES.md
-        │       ├── 05-ASSETS-INVENTORY.md
-        │       ├── 06-COMPONENTS.md
-        │       ├── 07-SECRETS-FOUND.md
-        │       ├── 08-LIMITATIONS-NEXT-STEPS.md
-        │       └── README.md
+        │   └── ANALYSIS.md                         # konsolidierte Komplett-Analyse
         └── shu/
             ├── ScooterHackingUtility-pre_release.open_beta-5.apk
             ├── decompiled/                         # gitignored

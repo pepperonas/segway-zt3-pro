@@ -273,6 +273,6 @@ Aus `reverse-engineering/apps/shu/ANALYSIS.md` (Abschnitt "BLE-Protokoll"):
 - Pairing nutzt **ECDH (secp256r1) + AES-CCM** – falls beim NBT-Key-Vorgang Probleme auftreten, ist das BLE-Pairing-Stack die wahrscheinlichste Ursache
 - Manufacturer-Specific-Bytes im Adv-Frame sind `FF 4E 43` ("NC" = Ninebot Crypto) – Diagnose mit nRF Connect
 
-Aus `reverse-engineering/apps/ninebot-segway/docs/03-NETWORK-ENDPOINTS.md`:
+Aus `reverse-engineering/apps/ninebot-segway/ANALYSIS.md (Abschnitt "Network-Endpoints")`:
 
 - Wenn die Ninebot-App nach einem Tuning-Vorgang Login-Probleme hat: das Backend ist `eu-oms-gateway.ninebot.com` für die Overseas-Variante. Region-Mismatch in der SN kann zu API-Fehlern führen, die teils mit App-Cache-Clear oder Re-Login lösbar sind.

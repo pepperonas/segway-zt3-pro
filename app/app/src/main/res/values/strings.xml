@@ -74,4 +74,23 @@
     <string name="action_retry">Retry</string>
     <string name="action_grant">Grant</string>
     <string name="action_enable">Enable</string>
+
+    <!-- Speed profiles -->
+    <string name="profiles_title">Speed profiles</string>
+    <string name="profiles_boot">Boot default</string>
+    <string name="profiles_quick">Quick actions</string>
+    <string name="profiles_unlock">Unlock profile</string>
+    <string name="profiles_pin">PIN</string>
+    <string name="profiles_pin_hint">Empty = no PIN (recommended for stealth use)</string>
+    <string name="profiles_accessibility">Vol-Down-3× stealth trigger</string>
+    <string name="profiles_accessibility_hint">Lets the unlock fire even when the screen is off. Requires Accessibility permission.</string>
+    <string name="profiles_auto_revert">Auto-revert after</string>
+    <string name="unlock_dialog_title">Unlock %1$d km/h</string>
+    <string name="unlock_dialog_pin_label">Enter PIN</string>
+    <string name="unlock_apply">Apply</string>
+    <string name="unlock_failed">Wrong PIN</string>
+    <string name="quick_action_applied">Applied %1$s (%2$d km/h)</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_description">Listens for the Volume-Down-3x stealth gesture. Does not read screen content.</string>
 </resources>

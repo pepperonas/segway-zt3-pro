@@ -12,6 +12,7 @@ import androidx.compose.material.icons.outlined.ElectricMoped
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -31,6 +32,7 @@ fun MineScreen(
     onFirmwareClick: () -> Unit,
     onDiagnosticsClick: () -> Unit,
     onAirLockClick: () -> Unit,
+    onProfilesClick: () -> Unit,
 ) {
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_mine)) }) }
@@ -38,6 +40,12 @@ fun MineScreen(
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
         ) {
+            ListItem(
+                headlineContent = { Text("Speed profiles") },
+                supportingContent = { Text("Boot, quick actions, unlock") },
+                leadingContent = { Icon(Icons.Outlined.Speed, null) },
+                modifier = Modifier.clickable { onProfilesClick() }
+            )
             ListItem(
                 headlineContent = { Text("Garage") },
                 supportingContent = { Text("Manage paired scooters") },

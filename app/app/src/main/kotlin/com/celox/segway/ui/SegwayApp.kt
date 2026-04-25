@@ -31,6 +31,7 @@ import com.celox.segway.feature.garage.GarageScreen
 import com.celox.segway.feature.home.VehicleScreen
 import com.celox.segway.feature.mine.MineScreen
 import com.celox.segway.feature.pair.PairScreen
+import com.celox.segway.feature.profiles.ProfilesScreen
 import com.celox.segway.feature.settings.SettingsScreen
 import com.celox.segway.feature.track.TrackScreen
 
@@ -73,6 +74,7 @@ fun SegwayApp() {
                     onFirmwareClick = { navController.navigate(Route.Firmware.route) },
                     onDiagnosticsClick = { navController.navigate(Route.Diagnostics.route) },
                     onAirLockClick = { navController.navigate(Route.AirLock.route) },
+                    onProfilesClick = { navController.navigate(Route.Profiles.route) },
                 )
             }
             composable(Route.Pair.route) {
@@ -98,6 +100,9 @@ fun SegwayApp() {
             }
             composable(Route.AirLock.route) {
                 AirLockScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Route.Profiles.route) {
+                ProfilesScreen(onBack = { navController.popBackStack() })
             }
         }
     }
@@ -142,4 +147,5 @@ sealed class Route(val route: String) {
     data object Firmware : Route("firmware")
     data object Diagnostics : Route("diagnostics")
     data object AirLock : Route("airlock")
+    data object Profiles : Route("profiles")
 }

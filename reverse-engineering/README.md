@@ -55,7 +55,7 @@ reverse-engineering/
 - Keine Secrets, keine Telemetrie
 
 ### 📌 Synthese
-Die SHU-App liefert genau die Information, die in der Ninebot-App fehlt: das BLE-Pairing-Protokoll. Wenn der ZT3 Pro im SHU-Modell-Repo (`bootstrap.zip` von `apps-content.cfw.sh`) gelistet ist, ist eine eigenständige Steuerung ohne Reverse-Engineering möglich.
+Die SHU-App liefert genau die Information, die in der Ninebot-App fehlt: das BLE-Pairing-Protokoll. **Update April 2026**: Die in diesem Repo enthaltene SHU-Beta-APK (`pre_release.open_beta-5`) unterstützt die x3-Reihe (G3, ZT3, F3) sogar offiziell – via FLASH-Repo-Workflow und Region-Change auf US. Voraussetzung: VPN außerhalb der EU, Android-Phone. Anleitung: [`UNLOCK-PLAN.md`](../UNLOCK-PLAN.md) Phase 1.
 
 ## Reproduktion
 

@@ -372,7 +372,9 @@ curl -o bootstrap.zip https://apps-content.cfw.sh/repo/v4/bootstrap.zip
 unzip -p bootstrap.zip beacons.json | jq '.[] | select(.humanReadable | test("ZT3|Z3T"; "i"))'
 ```
 
-> ⚠ **Achtung**: Das [bastelpichi-Wiki](https://wiki.bastelpichi.de/compatibility.html) listet ZT3 Pro **explizit als nicht unterstützt** für SHU/SHFW. Kein direkter Use-Case mit dieser App – aber das Protokoll-Wissen daraus ist wertvoll für eigene Tools (siehe `UNLOCK-PLAN.md`, Phase 3 mit ZT3Tools).
+> ✅ **Stand April 2026**: SHU **v3 Beta** (genau diese APK!) unterstützt die "**x3-Reihe**" – G3, ZT3 und F3 – **vollständig** über den FLASH-Repo-Workflow (VCU + MCU laden → Region auf US ändern). Voraussetzung: VPN außerhalb EU, Android-Phone. Konkrete Anleitung: [`UNLOCK-PLAN.md`](../../../UNLOCK-PLAN.md) Phase 1.
+>
+> Das ältere [bastelpichi-Wiki](https://wiki.bastelpichi.de/compatibility.html), das ZT3 noch als "nicht unterstützt" listet, ist veraltet.
 
 ### Pairing-Skelett für eigene Python-Tools
 
@@ -434,7 +436,7 @@ async def pair(mac: str):
 | Custom Profile | nein | ja |
 | Source verfügbar | nein, gepackt | **ja** |
 | Funktioniert offline | nein (Login) | ja (nach 1× bootstrap) |
-| ZT3 Pro Support | offiziell ja | aktuell nein, aber Protokoll-Wissen nutzbar |
+| ZT3 Pro Support | offiziell ja (gedrosselt) | ✅ ja, in v3 Beta (mit VPN außerhalb EU) |
 
 ---
 

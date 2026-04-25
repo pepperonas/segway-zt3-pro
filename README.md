@@ -60,11 +60,13 @@
 
 | # | Methode | Kosten | Reversibel | Endgeschw. | Schwierigkeit |
 |---|---|---|---|---|---|
-| 1 | **NBT Unlock Key** (Web-BLE) | ~129 € | ✅ ja | 38–40 km/h | ⭐ trivial |
-| 2 | **Dashboard-Tausch** (China/US) | ~50–60 € | ✅ ja | 31–40 km/h | ⭐⭐⭐ |
-| 3 | **ZT3Tools + ST-Link V2** (DIY) | ~15–25 € | ⚠ nur mit Backup | 40 km/h | ⭐⭐⭐⭐ |
-| 4 | **XiaoDash Custom Firmware** | Lizenz | ⚠ teils | 40 km/h + Profile | ⭐⭐⭐⭐ |
-| ❌ | SHU / SHFW | – | – | – | **NICHT für ZT3 Pro** |
+| **1** ⭐ | **SHU v3 Beta + Region-Change** (VPN nötig) | **kostenlos** | ✅ ja | **40 km/h** | ⭐ trivial |
+| 2 | NBT Unlock Key (Web-BLE) | ~129 € | ✅ ja | 38–40 km/h | ⭐ trivial |
+| 3 | Dashboard-Tausch (China/US) | ~50–60 € | ✅ ja | 31–40 km/h | ⭐⭐⭐ |
+| 4 | ZT3Tools + ST-Link V2 (DIY) | ~15–25 € | ⚠ nur mit Backup | 40 km/h | ⭐⭐⭐⭐ |
+| 5 | XiaoDash Custom Firmware | Lizenz | ⚠ teils | 40 km/h + Profile | ⭐⭐⭐⭐ |
+
+> 🎯 **Methode 1** ist die klar empfohlene: Open Source, kostenlos, ohne Werkzeug. Verwendet die SHU-Beta aus diesem Repo + Android + VPN außerhalb der EU.
 
 Vollständige Anleitung: [`UNLOCK-PLAN.md`](UNLOCK-PLAN.md).
 
@@ -94,13 +96,14 @@ brew install git-lfs && git lfs install
 git clone https://github.com/pepperonas/segway-zt3-pro.git
 ```
 
-## Top-3 Findings
+## Top-Findings
 
 | # | Finding |
 |---|---|
-| 🔴 | **Mapbox Secret-Token (`sk.…`) hartcodiert** in der Ninebot-App (siehe [`07-SECRETS-FOUND.md`](reverse-engineering/apps/ninebot-segway/ANALYSIS.md#hartcodierte-secrets)) |
-| 🟠 | Ninebot-App vollständig **NetEase-NIS-gepackt** – BLE-Crypto nicht statisch extrahierbar |
-| 🟢 | SHU liefert das **komplette ECDH-Pairing-Protokoll im Klartext** – damit ist eigene Tool-Entwicklung möglich |
+| 🟢 | **SHU v3 Beta unterstützt die x3-Reihe (G3, ZT3, F3)** – über FLASH-Repo + Region-Change auf US werden 40 km/h freigeschaltet (VPN außerhalb EU + Android nötig) |
+| 🟢 | SHU liefert das **komplette ECDH-Pairing-Protokoll im Klartext** – damit ist eigene Tool-Entwicklung jederzeit möglich |
+| 🔴 | **Mapbox Secret-Token (`sk.…`) hartcodiert** in der Ninebot-App (siehe [Hartcodierte Secrets](reverse-engineering/apps/ninebot-segway/ANALYSIS.md#hartcodierte-secrets)) |
+| 🟠 | Ninebot-App vollständig **NetEase-NIS-gepackt** – BLE-Crypto nicht statisch extrahierbar (aber durch SHU bereits dokumentiert) |
 
 ## Doku-Struktur (Detail)
 

@@ -267,7 +267,7 @@ Du suchst Custom Profiles + experimentell?    → ZT3Tools nackt + eigenes Moddi
 
 ## Anhang – Was wir aus der Decompile-Analyse wissen, das hier hilft
 
-Aus `reverse-engineering/apps/shu/docs/02-BLE-PROTOCOL.md`:
+Aus `reverse-engineering/apps/shu/ANALYSIS.md` (Abschnitt "BLE-Protokoll"):
 
 - BLE-Service ist **Nordic UART** (`6e400001-b5a3-f393-e0a9-e50e24dcca9e`) – das nutzen NBT-Key-WebApp und alle Tuning-Tools
 - Pairing nutzt **ECDH (secp256r1) + AES-CCM** – falls beim NBT-Key-Vorgang Probleme auftreten, ist das BLE-Pairing-Stack die wahrscheinlichste Ursache

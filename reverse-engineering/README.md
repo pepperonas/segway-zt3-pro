@@ -7,7 +7,7 @@ Statische Analyse von Android-Apps rund um den Segway-Ninebot **ZT3 Pro** E-Scoo
 | App | Package | Größe | Schutz | Doku |
 |---|---|---|---|---|
 | **Segway Mobility** (offizielle Ninebot-App) | `com.ninebot.segway` v7.6.3 | 116 MB | NetEase NIS Wrapper – Code verschlüsselt | [`apps/ninebot-segway/docs/`](apps/ninebot-segway/docs/) |
-| **ScooterHacking Utility (SHU)** | `sh.cfw.utility.pre_release.open_beta` v3.0+pre_release.open_beta | 5.7 MB | nur R8-Name-Obfuscation, **Open Source** | [`apps/shu/docs/`](apps/shu/docs/) |
+| **ScooterHacking Utility (SHU)** | `sh.cfw.utility.pre_release.open_beta` v3.0+pre_release.open_beta | 5.7 MB | nur R8-Name-Obfuscation, **Open Source** | [`apps/shu/ANALYSIS.md`](apps/shu/ANALYSIS.md) |
 
 ## Projekt-Struktur
 
@@ -35,17 +35,8 @@ reverse-engineering/
     │       └── 08-LIMITATIONS-NEXT-STEPS.md
     └── shu/
         ├── ScooterHackingUtility-pre_release.open_beta-5.apk
-        ├── decompiled/
-        │   ├── raw/
-        │   ├── apktool/
-        │   └── jadx/
-        └── docs/                    # 6 Dokumente
-            ├── 00-OVERVIEW.md
-            ├── 01-MANIFEST.md
-            ├── 02-BLE-PROTOCOL.md   ← Nordic-UART, Frame-Format, ECDH-Pairing
-            ├── 03-BACKEND.md
-            ├── 04-CODE-MAP.md
-            └── 05-RELEVANCE-FOR-ZT3.md
+        ├── decompiled/              # gitignored
+        └── ANALYSIS.md              # konsolidierte Analyse (Manifest, BLE, Crypto, Backend, Code-Map, ZT3-Bezug)
 ```
 
 ## Quick-Reference – ZT3 Pro BLE-Stack (synthese aus beiden Apps)

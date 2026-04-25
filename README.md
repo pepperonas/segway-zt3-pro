@@ -19,13 +19,13 @@
 [![Ninebot APK](https://img.shields.io/badge/Ninebot%20Segway-v7.6.3%20%7C%20116%20MB-lightgrey.svg)](reverse-engineering/apps/ninebot-segway/)
 [![SHU APK](https://img.shields.io/badge/SHU-v3.0%20open__beta--5%20%7C%205.7%20MB-lightgrey.svg)](reverse-engineering/apps/shu/)
 [![NetEase NIS Pack](https://img.shields.io/badge/Ninebot%20Pack-NetEase%20NIS-critical.svg)](reverse-engineering/apps/ninebot-segway/docs/02-NETEASE-SHIELDING.md)
-[![SHU: Open Source](https://img.shields.io/badge/SHU-Open%20Source-success.svg)](reverse-engineering/apps/shu/docs/00-OVERVIEW.md)
+[![SHU: Open Source](https://img.shields.io/badge/SHU-Open%20Source-success.svg)](reverse-engineering/apps/shu/ANALYSIS.md)
 
-[![BLE: Nordic UART](https://img.shields.io/badge/BLE-Nordic%20UART%20Service-blue.svg)](reverse-engineering/apps/shu/docs/02-BLE-PROTOCOL.md)
-[![Crypto: ECDH P-256](https://img.shields.io/badge/Crypto-ECDH%20secp256r1-yellow.svg)](reverse-engineering/apps/shu/docs/02-BLE-PROTOCOL.md)
-[![AES-CCM](https://img.shields.io/badge/AES--128-CCM-yellow.svg)](reverse-engineering/apps/shu/docs/02-BLE-PROTOCOL.md)
-[![HKDF-SHA-256](https://img.shields.io/badge/KDF-HKDF--SHA--256-yellow.svg)](reverse-engineering/apps/shu/docs/02-BLE-PROTOCOL.md)
-[![Frame Magic](https://img.shields.io/badge/Frame-0x55%200xAB-purple.svg)](reverse-engineering/apps/shu/docs/02-BLE-PROTOCOL.md)
+[![BLE: Nordic UART](https://img.shields.io/badge/BLE-Nordic%20UART%20Service-blue.svg)](reverse-engineering/apps/shu/ANALYSIS.md#ble-protokoll-hauptbefund)
+[![Crypto: ECDH P-256](https://img.shields.io/badge/Crypto-ECDH%20secp256r1-yellow.svg)](reverse-engineering/apps/shu/ANALYSIS.md#ble-protokoll-hauptbefund)
+[![AES-CCM](https://img.shields.io/badge/AES--128-CCM-yellow.svg)](reverse-engineering/apps/shu/ANALYSIS.md#ble-protokoll-hauptbefund)
+[![HKDF-SHA-256](https://img.shields.io/badge/KDF-HKDF--SHA--256-yellow.svg)](reverse-engineering/apps/shu/ANALYSIS.md#ble-protokoll-hauptbefund)
+[![Frame Magic](https://img.shields.io/badge/Frame-0x55%200xAB-purple.svg)](reverse-engineering/apps/shu/ANALYSIS.md#ble-protokoll-hauptbefund)
 
 > ⚠ **Rechtlicher Hinweis**: Tuning eines StVZO-zugelassenen E-Scooters führt zu Verlust der Betriebserlaubnis, Versicherungsschutz und Garantie. Inhalte hier sind ausschließlich für **Reverse-Engineering / Privatgelände** dokumentiert.
 
@@ -91,7 +91,7 @@ Die APKs selbst sind via **Git LFS** versioniert (siehe `.gitattributes`). LFS m
 
 ```bash
 brew install git-lfs && git lfs install
-git clone https://github.com/pepperonas/zt3pro-research.git
+git clone https://github.com/pepperonas/segway-zt3-pro.git
 ```
 
 ## Top-3 Findings
@@ -131,13 +131,7 @@ zt3pro/
         └── shu/
             ├── ScooterHackingUtility-pre_release.open_beta-5.apk
             ├── decompiled/                         # gitignored
-            └── docs/                               # 6 Markdown-Dateien
-                ├── 00-OVERVIEW.md
-                ├── 01-MANIFEST.md
-                ├── 02-BLE-PROTOCOL.md
-                ├── 03-BACKEND.md
-                ├── 04-CODE-MAP.md
-                └── 05-RELEVANCE-FOR-ZT3.md
+            └── ANALYSIS.md                         # konsolidierte Komplett-Analyse
 ```
 
 ## Lizenz & Quellen

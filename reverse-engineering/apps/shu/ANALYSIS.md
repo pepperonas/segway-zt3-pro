@@ -128,6 +128,8 @@ Genau eine LAN-IP – **leeres Dev-Relikt**. Keine echten Cleartext-Domains. Kei
 
 ## BLE-Protokoll (Hauptbefund)
 
+> 🔬 **Wire-Verified Update (April 2026)**: Eine HCI-Snoop-Analyse einer realen SHU-Session mit dem ZT3 Pro D zeigt, dass auf der Wire **der klassische NinebotCrypto-Pfad** (`5A A5`-Magic, AES + SHA-1, 8-Bit-Counter) verwendet wird — *nicht* der hier dokumentierte ECDH-Pfad. Der ECDH-Pfad in `crypto/elliptic/d.java` ist offenbar für **andere Modelle** (G3/F-Series-neuere) zuständig. Details: [`ble-captures/2026-04-25-shu-flash-session.md`](../../ble-captures/2026-04-25-shu-flash-session.md). Konsequenz für den ZT3 Pro D: Der Crypto-Stack ist eine ältere Variante; ECDH/AES-CCM/HKDF wird nicht aufgerufen.
+
 ### GATT-Service-Topologie
 
 Konstanten aus `sh.cfw.utility.services.g.java`:
@@ -250,7 +252,7 @@ Rekonstruiert aus `crypto.elliptic.h.java` + bekanntem Ninebot-2nd-Gen-Verhalten
 
 - **Klassisch (Xiaomi M365)** – kein Crypto, einfache Frames mit `0x55 0xAA` (statt `0xAB`!)
 - **Ninebot 1st-Gen** – KeyExchange mit fixem Default-Key
-- **Ninebot 2nd-Gen** – ECDH+AES-CCM (oben beschrieben), in der App `elliptic` genannt — **ZT3 Pro fällt hier rein**
+- **Ninebot 2nd-Gen** – ECDH+AES-CCM (oben beschrieben), in der App `elliptic` genannt — gedacht für G3/F-Series-neuere Modelle. **ZT3 Pro D nutzt laut HCI-Capture jedoch den 1st-Gen-Pfad** ([Beleg](../../ble-captures/2026-04-25-shu-flash-session.md))
 
 ---
 

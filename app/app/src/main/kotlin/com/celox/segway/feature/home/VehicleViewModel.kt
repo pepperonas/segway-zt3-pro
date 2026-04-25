@@ -37,6 +37,13 @@ class VehicleViewModel @Inject constructor(
         profileRepo.flow.stateIn(viewModelScope, SharingStarted.Eagerly, SpeedProfileSettings())
 
     val activeProfileId: StateFlow<String?> = profileManager.activeProfileId
+    val autoRevertAt: StateFlow<Long?> = profileManager.autoRevertAt
+    val isUnlockActive: StateFlow<Boolean> = profileManager.isUnlockModeActive
+
+    private val _snackbar = kotlinx.coroutines.flow.MutableSharedFlow<String>(
+        extraBufferCapacity = 4
+    )
+    val snackbar: kotlinx.coroutines.flow.SharedFlow<String> = _snackbar
 
     fun toggleLock() = vehicle.value?.let { v ->
         viewModelScope.launch {
@@ -57,7 +64,10 @@ class VehicleViewModel @Inject constructor(
     }
 
     fun applyProfile(profile: SpeedProfile) {
-        viewModelScope.launch { profileManager.applyProfile(profile) }
+        viewModelScope.launch {
+            profileManager.applyProfile(profile)
+            _snackbar.tryEmit("Applied ${profile.label} (${profile.speedKmh} km/h)")
+        }
     }
 
     /** Returns whether a PIN is required (caller must show the dialog). */

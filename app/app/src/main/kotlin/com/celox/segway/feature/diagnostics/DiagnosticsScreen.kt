@@ -74,6 +74,10 @@ class DiagnosticsViewModel @Inject constructor(
     fun readBlackBox() = sendCmd(VehicleCommand.ReadBlackBox)
     fun readStatus() = sendCmd(VehicleCommand.ReadRegister(0xB0, 32))
 
+    fun sendSpeedLimit(kmh: Int) = sendCmd(VehicleCommand.SetSpeedLimit(kmh))
+    fun lock() = sendCmd(VehicleCommand.Lock)
+    fun unlock() = sendCmd(VehicleCommand.Unlock)
+
     private fun sendCmd(cmd: VehicleCommand) {
         val v = activeHolder.activeVehicle.value ?: return
         viewModelScope.launch { v.execute(cmd) }
@@ -128,6 +132,12 @@ fun DiagnosticsScreen(
                 onFirmware = vm::readFirmware,
                 onBlackBox = vm::readBlackBox,
             )
+            FieldTestBar(
+                isConnected = state.isConnected,
+                onSpeed = vm::sendSpeedLimit,
+                onLock = vm::lock,
+                onUnlock = vm::unlock,
+            )
             BlackBoxCard(state, df)
             FrameLogList(entries = entries, listState = listState, df = df, modifier = Modifier.weight(1f))
         }
@@ -162,6 +172,36 @@ private fun ActionsBar(
             enabled = isConnected,
             leadingIcon = { Icon(Icons.Outlined.History, null) },
             label = { Text("Black-Box") }
+        )
+    }
+}
+
+@Composable
+private fun FieldTestBar(
+    isConnected: Boolean,
+    onSpeed: (Int) -> Unit,
+    onLock: () -> Unit,
+    onUnlock: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        AssistChip(
+            onClick = { onSpeed(22) }, enabled = isConnected,
+            label = { Text("→ 22 km/h") }
+        )
+        AssistChip(
+            onClick = { onSpeed(40) }, enabled = isConnected,
+            label = { Text("→ 40 km/h") }
+        )
+        AssistChip(
+            onClick = onLock, enabled = isConnected,
+            label = { Text("Lock") }
+        )
+        AssistChip(
+            onClick = onUnlock, enabled = isConnected,
+            label = { Text("Unlock") }
         )
     }
 }

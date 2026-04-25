@@ -14,17 +14,20 @@ Statische Analyse von Android-Apps rund um den Segway-Ninebot **ZT3 Pro** E-Scoo
 ```
 reverse-engineering/
 ├── README.md                        # diese Datei
-└── apps/
-    ├── ninebot-segway/
-    │   ├── com.ninebot.segway.apk
-    │   ├── decompiled/              # gitignored
-    │   └── ANALYSIS.md              # konsolidierte Analyse (Manifest, NetEase Shielding,
-    │                                #   Network, SDKs, Assets, Components, Secrets,
-    │                                #   Limitations & nächste Schritte)
-    └── shu/
-        ├── ScooterHackingUtility-pre_release.open_beta-5.apk
-        ├── decompiled/              # gitignored
-        └── ANALYSIS.md              # konsolidierte Analyse (Manifest, BLE, Crypto, Backend, Code-Map, ZT3-Bezug)
+├── apps/                            # statische APK-Analyse
+│   ├── ninebot-segway/
+│   │   ├── com.ninebot.segway.apk
+│   │   ├── decompiled/              # gitignored
+│   │   └── ANALYSIS.md              # konsolidierte Analyse (Manifest, NetEase Shielding,
+│   │                                #   Network, SDKs, Assets, Components, Secrets,
+│   │                                #   Limitations & nächste Schritte)
+│   └── shu/
+│       ├── ScooterHackingUtility-pre_release.open_beta-5.apk
+│       ├── decompiled/              # gitignored
+│       └── ANALYSIS.md              # konsolidierte Analyse (Manifest, BLE, Crypto, Backend, Code-Map, ZT3-Bezug)
+└── ble-captures/                    # dynamische BLE-Mitschnitt-Analyse
+    ├── README.md                    # Methodik, Tools, was sich aus HCI-Snoops ablesen lässt
+    └── 2026-04-25-shu-flash-session.md   # SHU-Beta Multi-Komponenten-Flash, ~420 KB Payload
 ```
 
 ## Quick-Reference – ZT3 Pro BLE-Stack (synthese aus beiden Apps)
@@ -56,6 +59,13 @@ reverse-engineering/
 
 ### 📌 Synthese
 Die SHU-App liefert genau die Information, die in der Ninebot-App fehlt: das BLE-Pairing-Protokoll. **Update April 2026**: Die in diesem Repo enthaltene SHU-Beta-APK (`pre_release.open_beta-5`) unterstützt die x3-Reihe (G3, ZT3, F3) sogar offiziell – via FLASH-Repo-Workflow und Region-Change auf US. Voraussetzung: VPN außerhalb der EU, Android-Phone. Anleitung: [`UNLOCK-PLAN.md`](../UNLOCK-PLAN.md) Phase 1.
+
+## BLE-Captures (dynamische Analyse)
+
+Ergänzend zur statischen APK-Analyse werden HCI-Snoop-Mitschnitte einer **echten SHU-Session** mit dem Roller ausgewertet. Bestätigt direkt am Wire, was die statische Analyse vermutet (Crypto-Variante, GATT-Layout, Frame-Format) und liefert via Traffic-Pattern-Analyse Aussagen über tatsächlich ausgeführte Operationen — auch ohne den AES-CCM-Body zu entschlüsseln.
+
+→ [`ble-captures/README.md`](ble-captures/README.md) – Methodik & Tools
+→ [`ble-captures/2026-04-25-shu-flash-session.md`](ble-captures/2026-04-25-shu-flash-session.md) – Detail-Analyse einer Multi-Komponenten-Flash-Session
 
 ## Reproduktion
 

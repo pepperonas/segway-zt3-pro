@@ -52,6 +52,10 @@ class SpeedProfileManager @Inject constructor(
     private val _isUnlockModeActive = MutableStateFlow(false)
     val isUnlockModeActive: StateFlow<Boolean> = _isUnlockModeActive.asStateFlow()
 
+    /** Timestamp (epoch ms) at which auto-revert will happen, or null if no revert scheduled. */
+    private val _autoRevertAt = MutableStateFlow<Long?>(null)
+    val autoRevertAt: StateFlow<Long?> = _autoRevertAt.asStateFlow()
+
     private var autoRevertJob: Job? = null
 
     enum class UnlockTrigger { Pin, AccessibilityVolume }
@@ -129,8 +133,16 @@ class SpeedProfileManager @Inject constructor(
 
     private fun scheduleAutoRevertIfNeeded(settings: SpeedProfileSettings) {
         autoRevertJob?.cancel()
-        if (!_isUnlockModeActive.value) return
-        if (settings.autoRevertMinutes <= 0) return
+        if (!_isUnlockModeActive.value) {
+            _autoRevertAt.value = null
+            return
+        }
+        if (settings.autoRevertMinutes <= 0) {
+            _autoRevertAt.value = null
+            return
+        }
+        val target = System.currentTimeMillis() + settings.autoRevertMinutes * 60_000L
+        _autoRevertAt.value = target
         autoRevertJob = scope.launch {
             delay(settings.autoRevertMinutes * 60_000L)
             if (_isUnlockModeActive.value) {

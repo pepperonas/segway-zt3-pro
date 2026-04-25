@@ -27,12 +27,16 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -65,7 +69,16 @@ fun VehicleScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val profiles by viewModel.profiles.collectAsStateWithLifecycle()
     val activeProfileId by viewModel.activeProfileId.collectAsStateWithLifecycle()
+    val autoRevertAt by viewModel.autoRevertAt.collectAsStateWithLifecycle()
+    val isUnlockActive by viewModel.isUnlockActive.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(viewModel) {
+        viewModel.snackbar.collect { msg ->
+            snackbarHostState.showSnackbar(msg)
+        }
+    }
 
     var unlockDialogVisible by remember { mutableStateOf(false) }
     var unlockShowError by remember { mutableStateOf(false) }
@@ -73,7 +86,8 @@ fun VehicleScreen(
     Scaffold(
         topBar = {
             TopAppBar(title = { Text(vehicle?.displayName ?: stringResource(R.string.app_name)) })
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         if (vehicle == null) {
             EmptyState(onPairClick, modifier = Modifier.fillMaxSize().padding(padding))
@@ -88,6 +102,12 @@ fun VehicleScreen(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            UnlockBanner(
+                isActive = isUnlockActive,
+                autoRevertAt = autoRevertAt,
+                speedKmh = profiles.unlock.speedKmh,
+            )
+
             Speedometer(speedKmh = state.speedKmh, maxSpeedKmh = 40f)
 
             Spacer(Modifier.height(24.dp))
@@ -235,6 +255,62 @@ fun VehicleScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun UnlockBanner(
+    isActive: Boolean,
+    autoRevertAt: Long?,
+    speedKmh: Int,
+) {
+    if (!isActive) return
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(autoRevertAt) {
+        // tick every second while banner is visible
+        while (true) {
+            now = System.currentTimeMillis()
+            kotlinx.coroutines.delay(1_000L)
+        }
+    }
+    val countdownText: String? = autoRevertAt?.let { target ->
+        val remaining = ((target - now) / 1000L).coerceAtLeast(0)
+        val mm = remaining / 60
+        val ss = remaining % 60
+        "%02d:%02d".format(mm, ss)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            androidx.compose.material3.Icon(
+                Icons.Outlined.LockOpen,
+                null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Unlocked – $speedKmh km/h",
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    style = MaterialTheme.typography.titleSmall
+                )
+                if (countdownText != null) {
+                    Text(
+                        "Auto-revert in $countdownText",
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
     }
 }
 

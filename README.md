@@ -37,10 +37,11 @@
 |---|---|
 | [`UNLOCK-PLAN.md`](UNLOCK-PLAN.md) | Schritt-für-Schritt-Anleitung mit allen 5 Methoden, Software- und Hardware-Listen, Quellen |
 | [`PRIOR-RESEARCH.md`](PRIOR-RESEARCH.md) | Vorrecherche zu ZT3 Pro D (Stand 2026-04-22) – Pairing-Flow, Command-Tabelle, Vergleich G3 vs. ZT3 |
-| [`app/`](app/) | **Eigene Android-App** (Kotlin / Compose / Material 3) – Reborn der Segway Mobility App |
-| [`reverse-engineering/`](reverse-engineering/) | Decompile-Analyse beider APKs |
+| [`app/`](app/) | **Eigene Android-App** (Kotlin / Compose / Material 3) – Reborn der Segway Mobility App mit Speed-Profiles, Stealth-Unlock, OTA-Flash, Multi-Vehicle, OSM-Karte, Diagnostics |
+| [`reverse-engineering/`](reverse-engineering/) | Statische Decompile-Analyse beider APKs **+ dynamische BLE-Capture-Auswertung** |
 | ↳ [`apps/ninebot-segway/`](reverse-engineering/apps/ninebot-segway/) | Offizielle Segway Mobility App – durch NetEase NIS gepackt |
 | ↳ [`apps/shu/`](reverse-engineering/apps/shu/) | ScooterHacking Utility (SHU) – Open Source, BLE-Protokoll im Klartext |
+| ↳ [`ble-captures/`](reverse-engineering/ble-captures/) | HCI-Snoop-Mitschnitte echter Sessions (z. B. SHU-Multi-Komponenten-Flash) — bestätigt Wire-Verhalten |
 
 ## Quick-Reference – ZT3 Pro D BLE-Stack
 
@@ -50,7 +51,7 @@
 | RX-Char | `6e400002-b5a3-f393-e0a9-e50e24dcca9e` (App→Roller, Write) | SHU `services/g.java` |
 | TX-Char | `6e400003-b5a3-f393-e0a9-e50e24dcca9e` (Roller→App, Notify) | SHU `services/g.java` |
 | Adv-Manufacturer-Prefix | `FF 4E 43` ("NC", Crypto-Variante) | SHU `classes/k.java` |
-| Frame-Magic | `0x55 0xAB` (modern) bzw. `0x5A 0xA5` (klassisch NinebotCrypto) | SHU + PRIOR-RESEARCH |
+| Frame-Magic | `0x5A 0xA5` (klassisch NinebotCrypto, **bestätigt für ZT3 Pro D**) bzw. `0x55 0xAB` (moderner ECDH-Pfad, andere Modelle) | [BLE-Capture 2026-04-25](reverse-engineering/ble-captures/2026-04-25-shu-flash-session.md) |
 | ECDH-Kurve | secp256r1 (NIST P-256) | SHU `crypto/elliptic/d.java` |
 | Symm. Verschlüsselung | AES-128/CCM, 24-Bit MAC | SHU `crypto/elliptic/d.java` |
 | KDF | HKDF-SHA-256 | SHU `crypto/elliptic/d.java` |
@@ -97,6 +98,30 @@ brew install git-lfs && git lfs install
 git clone https://github.com/pepperonas/segway-zt3-pro.git
 ```
 
+## Eigene App – aktueller Stand
+
+[![App: Reborn](https://img.shields.io/badge/app-Segway%20Mobility%20Reborn-FF6F1F)](app/)
+[![Compose M3](https://img.shields.io/badge/Compose-Material%203-4285F4?logo=jetpackcompose)](app/)
+[![Hilt](https://img.shields.io/badge/DI-Hilt-2C2D72)](app/)
+[![Stealth Unlock](https://img.shields.io/badge/feature-Vol--Down--3%C3%97%20Stealth%20Unlock-success)](app/)
+
+Native Kotlin-App mit:
+- **Speed-Profiles** (Boot-Default 22 km/h, 3 Quick-Actions, Unlock-Profil 40 km/h)
+- **Stealth-Unlock** via PIN-Dialog **oder** Volume-Down-3× (Accessibility-Service, auch bei Screen aus)
+- **Auto-Apply-on-Connect** (Boot-Profil setzt sich automatisch nach jedem Pairing)
+- **Auto-Revert-Timer** mit Live-Countdown-Banner
+- **OTA-Flash** mit IAP-State-Machine + CFW-Repo-Client
+- **Region-Change** (D → U) als One-Tap-Aktion
+- **Multi-Vehicle Garage** (Room-DB, aktivieren / umbenennen / entkoppeln)
+- **OSM-Karte** + GPS-Track-Recording mit Persistenz und History-Overlay
+- **Diagnostics** mit Live-BLE-Frame-Log + Field-Test-Buttons (Send 22 / 40 / Lock / Unlock)
+- **AirLock** (Proximity-Auto-Unlock per RSSI-EMA)
+- **Beacon-Live-Decoder** (Speed/Battery aus Adv ohne Connect)
+
+Setup: `cd app && ./gradlew :app:installDebug`. Min-SDK 26 (Android 8). Details: [`app/README.md`](app/README.md).
+
+> ⚠ **Field-Test offen**: Die App ist auf den modernen ECDH-Pfad (`0x55 0xAB`) ausgelegt; die [BLE-Capture-Auswertung](reverse-engineering/ble-captures/2026-04-25-shu-flash-session.md) zeigt aber, dass der ZT3 Pro D **den klassischen NinebotCrypto-Pfad (`0x5A 0xA5`, AES + SHA-1, 8-Bit-Counter)** verwendet. Der Classic-Pfad ist als nächster Implementierungsschritt vorgesehen — die Diagnostics-Page eignet sich zum Verifizieren beim ersten Versuch.
+
 ## Top-Findings
 
 | # | Finding |
@@ -115,17 +140,36 @@ zt3pro/
 ├── PRIOR-RESEARCH.md                               # ZT3 Pro D Tiefen-Recherche, Command-Tabelle
 ├── .gitignore                                      # decompiled/* aus Git ausgeschlossen
 ├── .gitattributes                                  # Git LFS für *.apk
+│
+├── app/                                            # eigene Android-App (Kotlin/Compose)
+│   ├── README.md                                   # Setup, Status, Module-Layout
+│   ├── settings.gradle.kts
+│   ├── build.gradle.kts
+│   ├── gradle/libs.versions.toml
+│   └── app/src/main/
+│       ├── AndroidManifest.xml
+│       ├── kotlin/com/celox/segway/
+│       │   ├── core/{ble,crypto,ota,profile,repo,vehicle,data,util}/
+│       │   ├── feature/{home,pair,garage,firmware,profiles,airlock,
+│       │   │           diagnostics,track,discover,mine,settings,about}/
+│       │   ├── ui/{theme,components,nav}/
+│       │   └── di/AppModule.kt
+│       └── res/
+│
 └── reverse-engineering/
-    ├── README.md
-    └── apps/
-        ├── ninebot-segway/
-        │   ├── com.ninebot.segway.apk              # via Git LFS (116 MB)
-        │   ├── decompiled/                         # gitignored
-        │   └── ANALYSIS.md                         # konsolidierte Komplett-Analyse
-        └── shu/
-            ├── ScooterHackingUtility-pre_release.open_beta-5.apk
-            ├── decompiled/                         # gitignored
-            └── ANALYSIS.md                         # konsolidierte Komplett-Analyse
+    ├── README.md                                   # Methodik-Übersicht
+    ├── apps/                                       # statische APK-Analyse
+    │   ├── ninebot-segway/
+    │   │   ├── com.ninebot.segway.apk              # via Git LFS (116 MB)
+    │   │   ├── decompiled/                         # gitignored
+    │   │   └── ANALYSIS.md                         # konsolidierte Komplett-Analyse
+    │   └── shu/
+    │       ├── ScooterHackingUtility-pre_release.open_beta-5.apk
+    │       ├── decompiled/                         # gitignored
+    │       └── ANALYSIS.md                         # konsolidierte Komplett-Analyse
+    └── ble-captures/                               # dynamische Wire-Analyse
+        ├── README.md                               # Methodik (tshark, btsnoop)
+        └── 2026-04-25-shu-flash-session.md         # Multi-Komponenten-Flash, ~420 KB
 ```
 
 ## Lizenz & Quellen

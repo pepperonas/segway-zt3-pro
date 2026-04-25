@@ -116,6 +116,12 @@ dependencies {
     implementation(libs.osmdroid.android)
     implementation(libs.osmbonuspack)
 
+    // Networking
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.kotlinx.serialization)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging.interceptor)
+
     // Util
     implementation(libs.timber)
     implementation(libs.accompanist.permissions)

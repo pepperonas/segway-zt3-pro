@@ -16,24 +16,38 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.celox.segway.MainActivity
 import com.celox.segway.R
+import com.celox.segway.core.data.UserPreferencesRepository
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * Foreground service that records the user's GPS path while a ride is active.
  *
- * Implementation uses the platform [LocationManager] (no Google Play Services
- * dependency — keeps the app installable on Huawei/AOSP-only devices and free
- * of proprietary deps).
+ * On [stop] (or service destroy) the recorded points are persisted to Room via
+ * [TrackRepository], aggregated into a single track row.
  */
 @AndroidEntryPoint
 class TrackRecordingService : Service() {
 
+    @Inject lateinit var trackRepo: TrackRepository
+    @Inject lateinit var userPrefs: UserPreferencesRepository
+
     private val _points = MutableStateFlow<List<Location>>(emptyList())
     val points: StateFlow<List<Location>> = _points
 
+    private val _isRecording = MutableStateFlow(false)
+    val isRecording: StateFlow<Boolean> = _isRecording
+
     private lateinit var locationManager: LocationManager
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var startedAt: Long = 0L
 
     private val listener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
@@ -56,8 +70,10 @@ class TrackRecordingService : Service() {
 
     @SuppressLint("MissingPermission")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (_isRecording.value) return START_STICKY
+        startedAt = System.currentTimeMillis()
+        _isRecording.value = true
         try {
-            // 1 second / 2 m thresholds → reasonable for scootering
             locationManager.requestLocationUpdates(
                 LocationManager.GPS_PROVIDER, 1_000L, 2f, listener
             )
@@ -69,7 +85,24 @@ class TrackRecordingService : Service() {
 
     override fun onDestroy() {
         try { locationManager.removeUpdates(listener) } catch (_: Throwable) {}
+        persistAndReset()
         super.onDestroy()
+    }
+
+    private fun persistAndReset() {
+        val pts = _points.value
+        if (pts.size < 2) return
+        val mac = ioScope.launch {
+            val lastMac = userPrefs.flow.first().lastVehicleMac ?: "unknown"
+            trackRepo.save(
+                vehicleMac = lastMac,
+                startedAt = startedAt,
+                endedAt = System.currentTimeMillis(),
+                points = pts
+            )
+        }
+        _points.value = emptyList()
+        _isRecording.value = false
     }
 
     private fun ensureChannel() {

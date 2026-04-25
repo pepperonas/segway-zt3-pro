@@ -22,13 +22,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.celox.segway.R
+import com.celox.segway.feature.about.AboutScreen
 import com.celox.segway.feature.discover.DiscoverScreen
+import com.celox.segway.feature.firmware.FirmwareScreen
+import com.celox.segway.feature.garage.GarageScreen
 import com.celox.segway.feature.home.VehicleScreen
 import com.celox.segway.feature.mine.MineScreen
 import com.celox.segway.feature.pair.PairScreen
 import com.celox.segway.feature.settings.SettingsScreen
 import com.celox.segway.feature.track.TrackScreen
-import com.celox.segway.feature.about.AboutScreen
 
 @Composable
 fun SegwayApp() {
@@ -64,7 +66,9 @@ fun SegwayApp() {
             composable(Route.Mine.route) {
                 MineScreen(
                     onSettingsClick = { navController.navigate(Route.Settings.route) },
-                    onAboutClick = { navController.navigate(Route.About.route) }
+                    onAboutClick = { navController.navigate(Route.About.route) },
+                    onGarageClick = { navController.navigate(Route.Garage.route) },
+                    onFirmwareClick = { navController.navigate(Route.Firmware.route) }
                 )
             }
             composable(Route.Pair.route) {
@@ -75,6 +79,15 @@ fun SegwayApp() {
             }
             composable(Route.About.route) {
                 AboutScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Route.Garage.route) {
+                GarageScreen(
+                    onBack = { navController.popBackStack() },
+                    onPairClick = { navController.navigate(Route.Pair.route) }
+                )
+            }
+            composable(Route.Firmware.route) {
+                FirmwareScreen(onBack = { navController.popBackStack() })
             }
         }
     }
@@ -115,4 +128,6 @@ sealed class Route(val route: String) {
     data object Pair : Route("pair")
     data object Settings : Route("settings")
     data object About : Route("about")
+    data object Garage : Route("garage")
+    data object Firmware : Route("firmware")
 }

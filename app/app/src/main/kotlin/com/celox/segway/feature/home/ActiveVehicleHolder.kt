@@ -45,12 +45,13 @@ class ActiveVehicleHolder @Inject constructor(
     /** Reference to the EllipticPairing of the active vehicle. Needed for OTA flashing. */
     private var activePairing: EllipticPairing? = null
 
-    fun bind(mac: String, displayName: String) {
+    fun bind(mac: String, displayName: String, scooterName: String = displayName) {
         val pairing = EllipticPairing(gatt, pairingPrefs, mac, bleLog)
         activePairing = pairing
         val vehicle = Zt3ProVehicle(
             id = mac,
             displayName = displayName,
+            scooterName = scooterName,
             gatt = gatt,
             pairing = pairing,
             scope = scope
@@ -59,18 +60,11 @@ class ActiveVehicleHolder @Inject constructor(
 
         scope.launch {
             userPrefs.setLastVehicle(mac)
-            val stored = pairingPrefs.get(mac)
-            val mode = if (stored?.deviceToken != null && stored.deviceInfo != null && stored.beaconKey != null) {
-                EllipticPairing.PairingMode.SessionResume(
-                    deviceInfo = pairingPrefs.decodeBase64(stored.deviceInfo),
-                    deviceToken = pairingPrefs.decodeBase64(stored.deviceToken),
-                    beaconKey = pairingPrefs.decodeBase64(stored.beaconKey),
-                )
-            } else {
-                EllipticPairing.PairingMode.FreshHandshake
-            }
+            // ZT3 Pro D uses the NinebotCrypto path (5A A5 with AES-CBC-MAC + CTR).
+            // The first BLE frame after connect() is a handshake init that yields
+            // the session token; subsequent frames are full crypto. Pairing object
+            // is kept around for OTA only.
             vehicle.connect()
-            pairing.start(scope, mode)
         }
     }
 

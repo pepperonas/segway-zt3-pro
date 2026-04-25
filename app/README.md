@@ -7,7 +7,7 @@
 [![Architecture](https://img.shields.io/badge/architecture-MVVM%20%2B%20Hilt-success)](#)
 [![Maps](https://img.shields.io/badge/maps-OpenStreetMap-7EBC6F?logo=openstreetmap)](#)
 [![BLE](https://img.shields.io/badge/BLE-Nordic%20UART-blue)](#)
-[![Crypto Path](https://img.shields.io/badge/crypto-ECDH%20path%20(field--untested%20on%20ZT3)-orange)](#wichtig-ble-protokoll-pfad)
+[![Crypto Path](https://img.shields.io/badge/crypto-NinebotCrypto%20(5A%20A5)%20%E2%80%94%20handshake%20live%2C%20field--tuning-yellow)](#wichtig-ble-protokoll-pfad)
 
 Native, open-source rebuild of the official Segway-Ninebot **Segway Mobility** companion app, focused on the **ZT3 Pro D**. Built with Jetpack Compose + Material 3, OpenStreetMap, and the reverse-engineered Ninebot 2nd-gen pairing protocol.
 
@@ -51,8 +51,8 @@ Die App nutzt das Package `com.celox.segway` (`.debug`-Suffix in Debug-Builds �
 ```
 app/
 ├── core/
-│   ├── ble/          BLE scan, GATT, frame codec, ECDH pairing
-│   ├── crypto/       ECDH/AES-CCM/HKDF/HMAC primitives (BouncyCastle)
+│   ├── ble/          BLE scan, GATT, FrameCodecClassic (Plaintext) + FrameCodecCrypto (NinebotCrypto), ECDH pairing
+│   ├── crypto/       NinebotCrypto (AES-CBC-MAC + CTR, port of c6.c) + ECDH/AES-CCM/HKDF/HMAC primitives (BouncyCastle)
 │   ├── ota/          IAP-flash state machine (cmd 0x07/08/09/0A)
 │   ├── repo/         CFW-repo HTTP client (apps-data.cfw.sh)
 │   ├── profile/      Speed profiles + auto-apply manager
@@ -110,35 +110,49 @@ app/
 | **Auto-Pair** | Beim ersten gefundenen Scooter im Pair-Screen wird automatisch verbunden + Pair-Screen schließt sich selbst |
 | **`CancellationException`-Hygiene** | Coroutine-Cancel beim Pair-Screen-Close zeigt nicht mehr „StandaloneCoroutine was cancelled" als Fehler an |
 
-### ⚠ Wichtig: BLE-Protokoll-Pfad — durch Field-Test bestätigt
+### ⚠ Wichtig: BLE-Protokoll-Pfad — Stand 2026-04-26
 
-Die App spricht aktuell den **modernen ECDH-Pfad** (Magic `0x55 0xAB`, secp256r1 + AES/CCM + HKDF-SHA-256). Der **Field-Test am 2026-04-25** ([`FIELD-TEST-LOG.md`](FIELD-TEST-LOG.md)) hat bestätigt:
+Iteration 1 (ECDH `55 AB`) → **verworfen** (FIELD-TEST 2026-04-25: Roller ging in 5-km/h-Failsafe).
+Iteration 2 (Plaintext-Stock `5A A5` ohne CRC-Encryption, SHU `c6.b#a()` Case 3) → **verworfen** (TX-Writes ohne RX-Notifies — Frame-Format akzeptiert, aber stumm).
+Iteration 3 (**NinebotCrypto** `5A A5` mit AES-CBC-MAC + AES-CTR + Handshake, SHU Case 2) → **aktuell live**.
 
-- ✅ GATT-Layer (Connect, Service-Discovery, MTU 251) funktioniert sauber
-- ✅ App schreibt erfolgreich auf NUS-RX (`6e400002-…`)
-- ❌ **Roller schickt keine RX-Notifies zurück** → unser Wire-Format wird nicht akzeptiert
-- ⚠ Aber: Der Roller **reagierte** (drosselte sich nach unseren Frames auf 5 km/h) — wahrscheinlich Failsafe-Mode
+**Auflösung der Konflikt-Analyse**: Die HCI-Capture vom 2026-04-25 ([`2026-04-25-shu-flash-session.md`](../reverse-engineering/ble-captures/2026-04-25-shu-flash-session.md)) zeigt eindeutig Manufacturer-ID `0x434E` ("NC") und alle 3142 ATT-Payloads mit verschlüsseltem Body. SHU's `ScooterActivity.n():1046` wählt für Devices mit `usesCrypto=true` den `f0.a.NinebotCrypto`-Pfad — für ZT3 Pro D ist `usesCrypto=true`.
 
-→ Damit ist klar: für die **deterministische Steuerung** des ZT3 Pro D braucht es den **NinebotCrypto-Classic-Pfad**:
-- Frame-Magic `0x5A 0xA5`, 8-Bit-Counter
-- AES + SHA-1 Pairing-KDF
-- Hello-Sequenz `3E 21 5B 00`, OOB-Auth via Power-Button
-- 16-Bit-CRC im Trailer
+**Wire-Format (aus `c6/c.java#i()` direkt portiert):**
 
-Das wird der nächste Implementierungs-Schritt. Als Workaround steht **Frida-Hook in SHU** zur Verfügung, um den AES-Session-Key live zu extrahieren.
+```
+5A A5 [len] [src dst cmd arg ENC(payload)] [tag(4)] [ctrHi ctrLo]
+       └─ payload-bytes only      └─ CBC-MAC, 4 byte    └─ 16-bit BE counter
+```
+
+**Schlüssel-Ableitung (`c6/c.java:73,199-205`):**
+
+```
+salt = {0x97, 0xCF, 0xB8, 0x02, 0x84, 0x41, 0x43, 0xDE,
+        0x56, 0x00, 0x2B, 0x3B, 0x34, 0x78, 0x0A, 0x5D}   # global Ninebot salt
+key  = SHA-1(scooterName[0..12] ++ salt[0..12])[0..16]
+```
+
+**Handshake**: erstes Frame nach Connect ist `5A A5 10 3E 21 5C 00 [16 random]` (counter=0, nur f-XOR-obfuscation). Roller antwortet mit Token, `key` wird als `SHA-1(scooterName ++ token)[0..16]` neu abgeleitet, anschließend laufen alle Frames mit echter Crypto + auf-/abzählendem 16-Bit-Counter.
+
+**Code-Ort:**
+- [`core/crypto/NinebotCrypto.kt`](app/src/main/kotlin/com/celox/segway/core/crypto/NinebotCrypto.kt) — port von `c6.c`
+- [`core/ble/FrameCodecCrypto.kt`](app/src/main/kotlin/com/celox/segway/core/ble/FrameCodecCrypto.kt) — wrapper
+- [`core/vehicle/Zt3ProVehicle.kt`](app/src/main/kotlin/com/celox/segway/core/vehicle/Zt3ProVehicle.kt) — `connect()` führt Handshake, `execute()` blockiert bis Handshake fertig
+
+[`FrameCodecClassic.kt`](app/src/main/kotlin/com/celox/segway/core/ble/FrameCodecClassic.kt) (Plaintext-Pfad) bleibt für andere Modelle / Diagnose erhalten.
 
 ### Open items / „first ride" checklist
 
-1. **Classic-Path** (`5A A5`) implementieren als Alternativ-Stack zu `EllipticPairing` — **TOP-Priorität nach Field-Test**
-   - Frame-Codec: `5A A5 [len] [src] [dst] [cmd] [arg] [payload] [crc16]`
-   - Pairing: `3E 21 5B 00`-Hello, Power-Button OOB, `21 3E 5D 01`-Final
-   - Default-Pairing-Key (`97 CF B8 24 …`)
-2. **Beacon-basierte Stack-Auswahl** im `ActiveVehicleHolder`: `NB`-Beacon → Classic, `NC` → ECDH
-3. **HKDF-Salt/Info-Strings** des modernen Pfads verifizieren (für andere Modelle als ZT3)
-4. **0xB0 Register-Layout** gegen reale Notify-Frames cross-checken (sobald Classic-Pfad RX-Notifies liefert)
-5. **Region-Change** → vollständige SN-Read-Modify-Write-Sequenz (aktuell wird nur das Region-Byte gesendet)
-6. **OTA-Chunk-ACK-Detection** robust machen (aktuell heuristisch)
-7. Launcher-Icon polishen (aktuell Vector-Stub)
+1. **Field-Test der Crypto-Implementation** (Iteration 3) — Field-Test 2026-04-26 zeigt 15-km/h-Anomalie statt commandet 22; Hypothesen:
+   - **`scooterName`-Mismatch** zwischen App und Roller (Roller advertiset doppelt als `1K1Dx…` *und* `1K1Ux…` — wir verbinden uns mit dem ersten Treffer, SHU evtl. mit dem anderen)
+   - Speed-Limit-Register `0x72` evtl. falsch (anderer Default-Limit-Slot wird getroffen)
+   - Encoding `(kmh, 0x00)` vs. U8 vs. ×10-Skalierung
+2. **Diagnostics-Logger** erweitern: Inner-Frame UND Wire-Frame nebeneinander loggen, plus `scooterName`-Debug-Anzeige
+3. **0xB0 Register-Layout** gegen reale Notify-Frames cross-checken (sobald Crypto-Pfad RX-Notifies liefert)
+4. **Region-Change** → vollständige SN-Read-Modify-Write-Sequenz (aktuell wird nur das Region-Byte gesendet)
+5. **OTA-Chunk-ACK-Detection** robust machen (aktuell heuristisch)
+6. Launcher-Icon polishen (aktuell Vector-Stub)
 
 ## Wie weiter testen / debuggen
 

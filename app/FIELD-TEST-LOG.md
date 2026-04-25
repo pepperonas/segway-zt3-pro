@@ -79,3 +79,72 @@ Alle drei Hypothesen sind ohne Decryption nicht eindeutig zu unterscheiden. Klar
 ### Nächster Schritt
 
 `5A A5`-Classic-Stack implementieren (siehe `app/README.md` → Open Items § Classic-Path). Das Field-Test-Verhalten (5 km/h Failsafe nach unseren `55 AB`-Frames) bestätigt 1:1 die Capture-Auswertung — der ECDH-Pfad ist nicht das richtige Wire-Format für den ZT3 Pro D.
+
+---
+
+## Session 2 — 2026-04-26 (Plaintext `5A A5`-Versuch)
+
+### Setup
+- App-Version: 0.2.0 debug
+- Pfad: Stock-Ninebot-Plaintext (`c6.b#a()` Case 3) — `5A A5 [len] [src dst cmd arg payload] [crc16-LE]`
+
+### Beobachtung
+
+| Aktion | TX-Frame | RX | Roller-Reaktion |
+|---|---|---|---|
+| SetSpeedLimit(22) | `5A A5 02 3E 21 02 72 16 00 14 FF` | — | keine |
+| SetSpeedLimit(40) | `5A A5 02 3E 21 02 72 28 00 02 FF` | — | keine |
+| Lock | `5A A5 02 3E 21 02 70 01 01 2A FF` | — | keine |
+| Unlock | `5A A5 02 3E 21 02 70 01 00 2B FF` | — | keine |
+| ReadRegister 0xB0/32 | `5A A5 01 3E 21 01 B0 20 CE FE` | — | keine |
+
+CRCs verifiziert (z.B. `~(0x02+0x3E+0x21+0x02+0x72+0x16+0x00) & 0xFFFF = 0xFF14`, LE = `14 FF` ✓). Frame-Format formal korrekt — Roller bleibt aber **stumm**.
+
+### Hypothesen-Analyse
+
+Zwei parallele Analyse-Agenten lieferten widersprüchliche Befunde:
+
+| Agent | Befund |
+|---|---|
+| **A** (SHU Source-Code statisch) | ZT3 Pro D fällt in Case 3 (Ninebot Plaintext), kein Crypto |
+| **B** (HCI-Capture `2026-04-25-shu-flash-session.md`) | Manufacturer-ID `0x434E` ("NC") = Crypto-Variante; alle 3142 ATT-Payloads verschlüsselt |
+| **C** (Final-Verify) | Agent A's Case-3-Klassifikation war falsch. Korrekt ist Case 2 (NinebotCrypto). `ScooterActivity.n():1046` wählt für `usesCrypto=true` den NinebotCrypto-Pfad, und für ZT3 ist `usesCrypto=true`. |
+
+→ **Auflösung**: ZT3 Pro D **muss** den NinebotCrypto-Pfad sprechen. Plaintext-Frames werden auf Wire empfangen aber von der Decrypt-Logik des Rollers verworfen (CRC-Mismatch oder Format-Error nach Decrypt-Versuch) → Stille.
+
+---
+
+## Session 3 — 2026-04-26 abend (NinebotCrypto-Implementation, Iteration 3)
+
+### Setup
+- App-Version: 0.3.0 debug
+- Neue Files: `core/crypto/NinebotCrypto.kt`, `core/ble/FrameCodecCrypto.kt`
+- Wire-Format (aus `c6.c#i()` portiert): `5A A5 [len] [src dst cmd arg ENC(payload)] [tag_4b] [ctr_BE]`
+- Handshake: erstes Frame `5A A5 10 3E 21 5C 00 [16 random]` (counter=0, f-XOR-obfuscation), Token aus Roller-Response → Key-Re-Derivation
+
+### Beobachtung
+
+| Aktion | Erwartung | Tatsächlich |
+|---|---|---|
+| SetSpeedLimit(22) | Roller drosselt auf 22 km/h | Roller fuhr nur **15 km/h** |
+| Power-Cycle | — | Roller wieder auf 40 km/h Default (US-Region) |
+
+→ Crypto-Frames werden **partiell verstanden**, aber der commandete Wert kommt nicht 1:1 an. Kein konsistenter Failsafe wie in Session 1 (5 km/h), sondern ein anderes Sub-Limit (15 km/h).
+
+### Offene Hypothesen für 2026-04-27
+
+1. **`scooterName`-Mismatch**: Roller advertiset im HCI-Capture mit *zwei* Namen (`1K1Dx…` und `1K1Ux…`). Unsere App verbindet sich mit dem ersten Treffer, SHU evtl. mit einem konkreten. Wenn der Name zwischen App und Roller divergiert, ist `SHA-1(name + salt)` schief und der Roller decryptet auf Müll, der zufällig in andere Limit-Slots fällt.
+2. **Speed-Limit-Register `0x72` evtl. falsch**: 15 km/h könnte ein anderer Limit-Slot sein (z.B. Walk-Mode-Limit, P-Switch-Limit, SHFW-spezifischer Slot).
+3. **Encoding-Fehler**: `(0x16, 0x00)` als U16-LE für 22 vs. U8 + Padding vs. ×10-Skalierung.
+4. **Handshake nicht komplett**: Falls die Roller-Response (counter=0) bei uns nicht ankommt oder anders interpretiert wird, läuft der Roller mit dem Original-Default-Token (zeros) und unsere späteren Frames decrypten zu Garbage.
+
+### Diagnostik-Plan
+
+- Diagnostics-Screen mit `scooterName`-Anzeige erweitern
+- Inner-Frame **und** Wire-Frame parallel im BleLog zeigen
+- `logcat -s ToothSErvice` parallel mitschneiden (SHU-Original-Tag — falls SHU parallel auf der Workbench läuft)
+- Sticker-S/N vs. BLE-Adv-Name vergleichen
+
+### Status
+
+**Stand 2026-04-26**: NinebotCrypto-Code committed, APK auf S24 Ultra installiert, **Field-Tuning offen für 2026-04-27**.

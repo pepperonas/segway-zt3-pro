@@ -76,11 +76,21 @@ fun ProfilesScreen(
                     onSpeedChange = vm::updateBoot,
                     onLabelChange = vm::updateBootLabel,
                 )
-                Text(
-                    "Applied automatically right after the scooter pairs.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Auto-apply on connect", fontWeight = FontWeight.Medium)
+                        Text(
+                            "If on: the boot value is sent ~1.5 s after each connect. " +
+                                "Leave OFF if you're unsure how the scooter reacts to the command.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = settings.autoApplyOnConnect,
+                        onCheckedChange = vm::setAutoApplyOnConnect,
+                    )
+                }
             }
 
             // Quick actions

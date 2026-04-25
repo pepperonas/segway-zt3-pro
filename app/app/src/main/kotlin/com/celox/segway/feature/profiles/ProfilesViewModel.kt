@@ -67,4 +67,8 @@ class ProfilesViewModel @Inject constructor(
     fun updateAutoRevert(minutes: Int) = viewModelScope.launch {
         repo.update { it.copy(autoRevertMinutes = minutes.coerceIn(0, 240)) }
     }
+
+    fun setAutoApplyOnConnect(enabled: Boolean) = viewModelScope.launch {
+        repo.update { it.copy(autoApplyOnConnect = enabled) }
+    }
 }

@@ -3,7 +3,6 @@ package com.celox.segway.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Dashboard
-import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Timeline
 import androidx.compose.material3.Icon
@@ -25,7 +24,6 @@ import com.celox.segway.R
 import com.celox.segway.feature.about.AboutScreen
 import com.celox.segway.feature.airlock.AirLockScreen
 import com.celox.segway.feature.diagnostics.DiagnosticsScreen
-import com.celox.segway.feature.discover.DiscoverScreen
 import com.celox.segway.feature.firmware.FirmwareScreen
 import com.celox.segway.feature.garage.GarageScreen
 import com.celox.segway.feature.home.VehicleScreen
@@ -42,7 +40,7 @@ fun SegwayApp() {
     val currentRoute = backStack?.destination?.route
 
     val showBottomBar = currentRoute in setOf(
-        Route.Vehicle.route, Route.Discover.route, Route.Track.route, Route.Mine.route
+        Route.Vehicle.route, Route.Track.route, Route.Mine.route
     )
 
     Scaffold(
@@ -64,7 +62,6 @@ fun SegwayApp() {
             composable(Route.Vehicle.route) {
                 VehicleScreen(onPairClick = { navController.navigate(Route.Pair.route) })
             }
-            composable(Route.Discover.route) { DiscoverScreen() }
             composable(Route.Track.route) { TrackScreen() }
             composable(Route.Mine.route) {
                 MineScreen(
@@ -113,7 +110,6 @@ private fun BottomNav(currentRoute: String?, onSelect: (String) -> Unit) {
     NavigationBar {
         listOf(
             BottomItem(Route.Vehicle, R.string.nav_vehicle, Icons.Outlined.Dashboard),
-            BottomItem(Route.Discover, R.string.nav_discover, Icons.Outlined.Explore),
             BottomItem(Route.Track, R.string.nav_track, Icons.Outlined.Timeline),
             BottomItem(Route.Mine, R.string.nav_mine, Icons.Outlined.Person),
         ).forEach { item ->
@@ -137,7 +133,6 @@ private data class BottomItem(
 
 sealed class Route(val route: String) {
     data object Vehicle : Route("vehicle")
-    data object Discover : Route("discover")
     data object Track : Route("track")
     data object Mine : Route("mine")
     data object Pair : Route("pair")

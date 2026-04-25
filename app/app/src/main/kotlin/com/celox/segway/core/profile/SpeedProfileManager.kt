@@ -61,7 +61,9 @@ class SpeedProfileManager @Inject constructor(
     enum class UnlockTrigger { Pin, AccessibilityVolume }
 
     init {
-        // Auto-apply boot profile whenever a vehicle becomes connected
+        // Auto-apply boot profile whenever a vehicle becomes connected.
+        // We delay 1.5 s to let MTU + CCCD + pairing-handshake settle so we
+        // don't collide with concurrent BLE writes ("prior command not finished").
         scope.launch {
             activeHolder.activeVehicle
                 .collect { vehicle ->
@@ -71,8 +73,13 @@ class SpeedProfileManager @Inject constructor(
                         .distinctUntilChanged()
                         .collect { connected ->
                             if (connected) {
+                                kotlinx.coroutines.delay(1_500L)
                                 val settings = repo.flow.first()
-                                applyProfile(settings.boot)
+                                if (settings.autoApplyOnConnect) {
+                                    applyProfile(settings.boot)
+                                } else {
+                                    bleLog.note("Profile", "auto-apply disabled — boot not sent")
+                                }
                             }
                         }
                 }

@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import com.celox.segway.core.data.UserPreferencesRepository
+import com.celox.segway.feature.home.ActiveVehicleHolder
 import com.celox.segway.ui.SegwayApp
 import com.celox.segway.ui.theme.SegwayTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -16,9 +17,12 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var userPrefs: UserPreferencesRepository
+    @Inject lateinit var activeVehicleHolder: ActiveVehicleHolder
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Auto-reconnect to the last-paired vehicle (no-op if nothing stored)
+        activeVehicleHolder.tryAutoReconnect()
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(0, 0),
             navigationBarStyle = SystemBarStyle.auto(0, 0)

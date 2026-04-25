@@ -81,7 +81,7 @@ app/
 
 | Bereich | Detail |
 |---|---|
-| Material 3 UI mit Bottom-Nav (4 Tabs + 7 Sub-Screens) | Vehicle, Discover, Track, Mine + Pair, Garage, Firmware, Profiles, AirLock, Diagnostics, Settings, About |
+| Material 3 UI mit Bottom-Nav (3 Tabs + 7 Sub-Screens) | Vehicle, Track, Mine + Pair, Garage, Firmware, Profiles, AirLock, Diagnostics, Settings, About — Discover-Modul wurde 2026-04-25 entfernt |
 | BLE-Scanner | Nordic-Lib, NB/NC-Beacon-Parser |
 | GATT-Client | Nordic-UART, MTU-Negotiation, Auto-CCCD |
 | **Speed-Profile-System** | DataStore-Repo, Auto-Apply on Connect, 3 Quick-Actions, 1 Unlock-Profile, optional Auto-Revert |
@@ -98,29 +98,39 @@ app/
 | **BLE Field-Test-Logger** | Ring-Buffer 512 Frames, monospace-Anzeige, Share-as-Text-Export |
 | **Field-Test-Buttons** in Diagnostics | Quick-Send 22/40 km/h, Lock/Unlock — sofort sichtbar im Frame-Log |
 | **Polish-Pass** | Snackbar bei Quick-Action-Apply, Live-Countdown-Banner im Unlock-Modus |
+| **Auto-Reconnect bei App-Start** | `MainActivity.onCreate` ruft `ActiveVehicleHolder.tryAutoReconnect()` zur letzten gespeicherten MAC |
+| **Auto-Apply opt-in** | Default OFF — Boot-Profil wird nur gesendet wenn der User es in den Settings aktiviert (sicherer Default nach Field-Test 2026-04-25) |
+| **GATT-Write-Mutex** | Kein „prior command not finished" mehr — Writes werden sequentiell durch eine Coroutine-Mutex serialisiert + auf `onCharacteristicWrite` gewartet |
 
-### ⚠ Wichtig: BLE-Protokoll-Pfad
+### ⚠ Wichtig: BLE-Protokoll-Pfad — durch Field-Test bestätigt
 
-Die App ist auf den **modernen ECDH-Pfad** (Frame-Magic `0x55 0xAB`, secp256r1, AES/CCM, HKDF-SHA-256) ausgelegt — das ist der Stack, den die SHU-App in `crypto/elliptic/d.java` für G3/F3/ZT3 zur Verfügung stellt.
+Die App spricht aktuell den **modernen ECDH-Pfad** (Magic `0x55 0xAB`, secp256r1 + AES/CCM + HKDF-SHA-256). Der **Field-Test am 2026-04-25** ([`FIELD-TEST-LOG.md`](FIELD-TEST-LOG.md)) hat bestätigt:
 
-**Aber: Die HCI-Snoop-Analyse einer realen ZT3-Pro-D-Session** ([`reverse-engineering/ble-captures/2026-04-25-shu-flash-session.md`](../reverse-engineering/ble-captures/2026-04-25-shu-flash-session.md)) zeigt, dass auf der Wire **der klassische NinebotCrypto-Pfad mit `5A A5`-Magic + AES + SHA-1 + 8-Bit-Counter** verwendet wird, **nicht** der `55 AB`-ECDH-Pfad.
+- ✅ GATT-Layer (Connect, Service-Discovery, MTU 251) funktioniert sauber
+- ✅ App schreibt erfolgreich auf NUS-RX (`6e400002-…`)
+- ❌ **Roller schickt keine RX-Notifies zurück** → unser Wire-Format wird nicht akzeptiert
+- ⚠ Aber: Der Roller **reagierte** (drosselte sich nach unseren Frames auf 5 km/h) — wahrscheinlich Failsafe-Mode
 
-Konsequenz für **deinen ZT3 Pro D**:
+→ Damit ist klar: für die **deterministische Steuerung** des ZT3 Pro D braucht es den **NinebotCrypto-Classic-Pfad**:
+- Frame-Magic `0x5A 0xA5`, 8-Bit-Counter
+- AES + SHA-1 Pairing-KDF
+- Hello-Sequenz `3E 21 5B 00`, OOB-Auth via Power-Button
+- 16-Bit-CRC im Trailer
 
-- 🔴 **Pairing wie aktuell implementiert wird wahrscheinlich nicht funktionieren** ohne weitere Anpassung
-- Die App muss noch um einen **NinebotCrypto-Classic-Pfad** erweitert werden (Magic `0x5A 0xA5`, 8-Bit-Counter, AES+SHA-1-Pairing-KDF)
-- Als Workaround: **Frida-Hook in SHU**, um den AES-Session-Key live zu extrahieren, dann unsere App damit füttern (Bypass des Pairings)
-
-Status & Vorgehen: nächster Field-Test mit Diagnostics-Page → die unverschlüsselten Frame-Header lesen, um zu bestätigen welcher Magic gesendet wird → dann den passenden Codepfad bauen.
+Das wird der nächste Implementierungs-Schritt. Als Workaround steht **Frida-Hook in SHU** zur Verfügung, um den AES-Session-Key live zu extrahieren.
 
 ### Open items / „first ride" checklist
 
-1. **Klassischer NinebotCrypto-Pfad** (`5A A5`) implementieren als Alternativ-Stack zu `EllipticPairing`
-2. **HKDF-Salt/Info-Strings** des modernen Pfads verifizieren (für andere Modelle)
-3. **0xB0 Register-Layout** gegen reale Notify-Frames cross-checken
-4. **Region-Change** → vollständige SN-Read-Modify-Write-Sequenz (aktuell wird nur das Region-Byte gesendet)
-5. **OTA-Chunk-ACK-Detection** robust machen (aktuell heuristisch)
-6. Launcher-Icon polishen (aktuell Vector-Stub)
+1. **Classic-Path** (`5A A5`) implementieren als Alternativ-Stack zu `EllipticPairing` — **TOP-Priorität nach Field-Test**
+   - Frame-Codec: `5A A5 [len] [src] [dst] [cmd] [arg] [payload] [crc16]`
+   - Pairing: `3E 21 5B 00`-Hello, Power-Button OOB, `21 3E 5D 01`-Final
+   - Default-Pairing-Key (`97 CF B8 24 …`)
+2. **Beacon-basierte Stack-Auswahl** im `ActiveVehicleHolder`: `NB`-Beacon → Classic, `NC` → ECDH
+3. **HKDF-Salt/Info-Strings** des modernen Pfads verifizieren (für andere Modelle als ZT3)
+4. **0xB0 Register-Layout** gegen reale Notify-Frames cross-checken (sobald Classic-Pfad RX-Notifies liefert)
+5. **Region-Change** → vollständige SN-Read-Modify-Write-Sequenz (aktuell wird nur das Region-Byte gesendet)
+6. **OTA-Chunk-ACK-Detection** robust machen (aktuell heuristisch)
+7. Launcher-Icon polishen (aktuell Vector-Stub)
 
 ## Wie weiter testen / debuggen
 

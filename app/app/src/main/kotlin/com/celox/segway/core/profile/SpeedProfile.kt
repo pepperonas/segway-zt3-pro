@@ -35,4 +35,10 @@ data class SpeedProfileSettings(
     val accessibilityTriggerEnabled: Boolean = false,
     /** Optional auto-revert to [boot] after this many minutes in unlock mode. 0 = off. */
     val autoRevertMinutes: Int = 0,
+    /**
+     * If true, the [boot] profile is automatically applied 1.5 s after every
+     * successful connect. Default OFF — too easy to accidentally clamp the
+     * scooter to a low limit otherwise.
+     */
+    val autoApplyOnConnect: Boolean = false,
 )

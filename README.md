@@ -120,7 +120,7 @@ Native Kotlin-App mit:
 
 Setup: `cd app && ./gradlew :app:installDebug`. Min-SDK 26 (Android 8). Details: [`app/README.md`](app/README.md).
 
-> ⚠ **Field-Test offen**: Die App ist auf den modernen ECDH-Pfad (`0x55 0xAB`) ausgelegt; die [BLE-Capture-Auswertung](reverse-engineering/ble-captures/2026-04-25-shu-flash-session.md) zeigt aber, dass der ZT3 Pro D **den klassischen NinebotCrypto-Pfad (`0x5A 0xA5`, AES + SHA-1, 8-Bit-Counter)** verwendet. Der Classic-Pfad ist als nächster Implementierungsschritt vorgesehen — die Diagnostics-Page eignet sich zum Verifizieren beim ersten Versuch.
+> ✅ **Field-Test 2026-04-25** ([Log](app/FIELD-TEST-LOG.md)): GATT-Layer + Service-Discovery + MTU laufen sauber. Aber wie aus der Capture vorhergesagt — der Roller reagiert nicht auf den ECDH-Pfad (`0x55 0xAB`). Konsequenz: Auto-Apply default OFF, Auto-Reconnect aktiv, **Classic-Pfad (`0x5A 0xA5`)** als nächste Implementierung.
 
 ## Top-Findings
 

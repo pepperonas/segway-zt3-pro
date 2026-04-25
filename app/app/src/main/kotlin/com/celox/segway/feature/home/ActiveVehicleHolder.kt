@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -78,6 +79,25 @@ class ActiveVehicleHolder @Inject constructor(
         scope.launch { v?.disconnect() }
         _activeVehicle.value = null
         activePairing = null
+    }
+
+    /**
+     * Try to reconnect to the last-used vehicle. Called once at app start so
+     * the user doesn't have to manually re-pair after a relaunch.
+     */
+    fun tryAutoReconnect() {
+        scope.launch {
+            val mac = userPrefs.flow.first().lastVehicleMac ?: run {
+                bleLog.note("Reconnect", "no last vehicle stored")
+                return@launch
+            }
+            val vehicle = vehicleDao.get(mac) ?: run {
+                bleLog.note("Reconnect", "MAC $mac not in garage anymore")
+                return@launch
+            }
+            bleLog.note("Reconnect", "auto-reconnect to ${vehicle.displayName} ($mac)")
+            bind(mac, vehicle.displayName)
+        }
     }
 
     /**

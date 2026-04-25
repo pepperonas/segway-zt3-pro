@@ -110,7 +110,7 @@ class FirmwareUpdater(
         return 16
     }
 
-    private fun sendStartUpdate(size: Int): Boolean {
+    private suspend fun sendStartUpdate(size: Int): Boolean {
         val payload = byteArrayOf(0x07, 0x00, 0x04,
             ((size ushr 24) and 0xFF).toByte(),
             ((size ushr 16) and 0xFF).toByte(),
@@ -120,7 +120,7 @@ class FirmwareUpdater(
         return gatt.send(frame)
     }
 
-    private fun sendChunk(idx: Int, chunk: ByteArray): Boolean {
+    private suspend fun sendChunk(idx: Int, chunk: ByteArray): Boolean {
         val payload = byteArrayOf(
             0x08,
             (idx and 0xFF).toByte(),
@@ -130,7 +130,7 @@ class FirmwareUpdater(
         return gatt.send(frame)
     }
 
-    private fun sendFinish(crc: Int): Boolean {
+    private suspend fun sendFinish(crc: Int): Boolean {
         val payload = byteArrayOf(0x09, 0x00, 0x04,
             ((crc ushr 24) and 0xFF).toByte(),
             ((crc ushr 16) and 0xFF).toByte(),
@@ -140,7 +140,7 @@ class FirmwareUpdater(
         return gatt.send(frame)
     }
 
-    private fun sendReboot(): Boolean {
+    private suspend fun sendReboot(): Boolean {
         val payload = byteArrayOf(0x0A, 0x00)
         val frame = pairing.encrypt(payload) ?: return false
         return gatt.send(frame)

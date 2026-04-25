@@ -181,14 +181,26 @@ class EllipticPairing(
 
     /**
      * Wrap a raw command payload into an encrypted frame ready for [GattClient.send].
+     *
+     * If pairing is not yet sealed (e.g. when the user toggled the raw-mode flag
+     * because the scooter was previously SHU-flashed and may accept plaintext),
+     * we fall back to a *minimal* unwrapped frame: `0x55 0xAB | len-1 | seq[2] | payload | cs[2]`.
+     * That at least gets bytes onto the wire so the user can observe in
+     * Diagnostics whether the scooter responds at all.
      */
     fun encrypt(payload: ByteArray): ByteArray? {
-        val key = sessionKey ?: return null
-        val token = deviceToken ?: return null
+        val key = sessionKey
+        val token = deviceToken
         val seq = seqOut.incrementAndGet()
-        val nonce = buildNonce(token, seq)
-        val ct = EllipticCrypto.aesCcmEncrypt(key, nonce, payload + EllipticCrypto.randomBytes(4))
-        return FrameCodec.wrap(seq, ct)
+        return if (key != null && token != null) {
+            val nonce = buildNonce(token, seq)
+            val ct = EllipticCrypto.aesCcmEncrypt(key, nonce, payload + EllipticCrypto.randomBytes(4))
+            FrameCodec.wrap(seq, ct)
+        } else {
+            // Pre-pairing path — wrap plaintext payload, useful as a probe / for
+            // SHU-modded scooters that no longer enforce crypto.
+            FrameCodec.wrap(seq, payload)
+        }
     }
 
     /**

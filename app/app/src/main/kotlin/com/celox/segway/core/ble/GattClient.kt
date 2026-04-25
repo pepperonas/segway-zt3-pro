@@ -1,7 +1,6 @@
 package com.celox.segway.core.ble
 
 import android.annotation.SuppressLint
-import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -13,12 +12,16 @@ import android.content.Context
 import android.os.Build
 import com.celox.segway.core.util.BleLog
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 
 /** GATT-level connection state. */
@@ -31,7 +34,8 @@ enum class GattState { Disconnected, Connecting, ServicesDiscovered, Ready, Erro
  *   • Connect to a [BluetoothDevice] by MAC
  *   • Discover services, set CCCD on TX, request a higher MTU
  *   • Expose incoming notifications as a [SharedFlow] of byte arrays
- *   • Send frames via write-without-response on RX
+ *   • Send frames via write-without-response on RX, **serialised** so we
+ *     never trigger the Android stack's "prior command not finished" error
  *
  * It is intentionally *frame-agnostic*: encryption / pairing logic lives one
  * layer above (see [EllipticPairing]).
@@ -56,6 +60,12 @@ class GattClient(
     private val _mtu = MutableStateFlow(23)
     val mtu: StateFlow<Int> = _mtu.asStateFlow()
 
+    /** Serialises every GATT operation. The Android BLE stack only allows ONE pending op. */
+    private val opMutex = Mutex()
+
+    /** Set to true once the previous write has been fully ack'd. */
+    @Volatile private var writeInFlight: Boolean = false
+
     @SuppressLint("MissingPermission")
     fun connect(macAddress: String) {
         disconnect()
@@ -73,15 +83,26 @@ class GattClient(
         gatt = null
         rxChar = null
         txChar = null
+        writeInFlight = false
         _state.value = GattState.Disconnected
     }
 
+    /**
+     * Send a frame to the scooter. Suspends until the previous write has been
+     * acknowledged (or 1 s passed) so the Android stack never sees overlapping
+     * writes. Use this from coroutines.
+     */
     @SuppressLint("MissingPermission")
-    fun send(frame: ByteArray): Boolean {
-        val ch = rxChar ?: return false
-        val g = gatt ?: return false
+    suspend fun send(frame: ByteArray): Boolean = opMutex.withLock {
+        // Wait for the previous write to be ack'd before issuing a new one.
+        withTimeoutOrNull(1_000L) {
+            while (writeInFlight) delay(5)
+        }
+        val ch = rxChar ?: return@withLock false
+        val g = gatt ?: return@withLock false
         bleLog.tx("RX-WRITE", frame)
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        writeInFlight = true
+        val ok = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             g.writeCharacteristic(
                 ch, frame, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
             ) == BluetoothGatt.GATT_SUCCESS
@@ -93,6 +114,8 @@ class GattClient(
             @Suppress("DEPRECATION")
             g.writeCharacteristic(ch)
         }
+        if (!ok) writeInFlight = false
+        ok
     }
 
     private val callback = object : BluetoothGattCallback() {
@@ -105,6 +128,7 @@ class GattClient(
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Timber.i("GATT disconnected (status=$status)")
+                    writeInFlight = false
                     _state.value = if (status == 0) GattState.Disconnected else GattState.Error
                     g.close()
                 }
@@ -141,7 +165,16 @@ class GattClient(
                     }
                 }
             }
-            // Bigger MTU for faster pairing
+            // MTU negotiation happens after CCCD-write completes — see onDescriptorWrite.
+        }
+
+        @SuppressLint("MissingPermission")
+        override fun onDescriptorWrite(
+            g: BluetoothGatt,
+            descriptor: BluetoothGattDescriptor,
+            status: Int
+        ) {
+            // Now ask for a bigger MTU. Sequencing matters — Android only allows ONE op at a time.
             g.requestMtu(247)
         }
 
@@ -149,6 +182,16 @@ class GattClient(
             _mtu.value = mtu
             _state.value = GattState.Ready
             Timber.i("MTU negotiated: $mtu")
+        }
+
+        override fun onCharacteristicWrite(
+            g: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            status: Int
+        ) {
+            // Note: with WRITE_TYPE_NO_RESPONSE this fires when the buffer is consumed,
+            // not when the peer ACKs. Either way we clear the flag.
+            writeInFlight = false
         }
 
         override fun onCharacteristicChanged(

@@ -54,3 +54,7 @@ venv/
 
 # Apktool framework cache
 ~/Library/apktool/
+
+
+# Kotlin compiler session caches
+**/.kotlin/

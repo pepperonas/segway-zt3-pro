@@ -61,6 +61,11 @@ fun PairScreen(
         if (perms.allPermissionsGranted) viewModel.startScan()
     }
 
+    // Auto-close when the auto-pair has bound a vehicle.
+    LaunchedEffect(viewModel) {
+        viewModel.pairedEvent.collect { onClose() }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(

@@ -76,10 +76,19 @@ class SpeedProfileManager @Inject constructor(
                                 kotlinx.coroutines.delay(1_500L)
                                 val settings = repo.flow.first()
                                 if (settings.autoApplyOnConnect) {
+                                    // Always reset to the boot (= locked) profile on every
+                                    // connect. Unlock is *session-only* — power-cycling the
+                                    // scooter or relaunching the app re-locks it.
+                                    bleLog.note("Profile", "connect → re-lock to ${settings.boot.label}")
                                     applyProfile(settings.boot)
                                 } else {
                                     bleLog.note("Profile", "auto-apply disabled — boot not sent")
                                 }
+                            } else {
+                                // Disconnect resets the local unlock flag too.
+                                _isUnlockModeActive.value = false
+                                _autoRevertAt.value = null
+                                autoRevertJob?.cancel()
                             }
                         }
                 }

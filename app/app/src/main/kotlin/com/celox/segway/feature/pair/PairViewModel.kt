@@ -8,9 +8,13 @@ import com.celox.segway.core.data.VehicleDao
 import com.celox.segway.core.data.VehicleEntity
 import com.celox.segway.feature.home.ActiveVehicleHolder
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -27,10 +31,15 @@ class PairViewModel @Inject constructor(
         val scanning: Boolean = false,
         val devices: List<DiscoveredScooter> = emptyList(),
         val errorText: String? = null,
+        val pairedAddress: String? = null,
     )
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
+
+    /** Fires once when auto-pair has bound an active vehicle — UI navigates back. */
+    private val _pairedEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val pairedEvent: SharedFlow<String> = _pairedEvent.asSharedFlow()
 
     private var scanJob: Job? = null
 
@@ -49,7 +58,16 @@ class PairViewModel @Inject constructor(
                         }
                         ui.copy(devices = newList.sortedByDescending { it.rssi })
                     }
+                    // Auto-pair the first scooter we see — the scanner already
+                    // filtered to NB/NC manufacturer-prefix devices, so anything
+                    // that arrives here is a Ninebot/Segway.
+                    if (_state.value.pairedAddress == null) {
+                        pair(device)
+                    }
                 }
+            } catch (ce: CancellationException) {
+                // Expected when the scope is torn down — don't surface it.
+                throw ce
             } catch (t: Throwable) {
                 _state.update { it.copy(errorText = t.message ?: "Scan failed", scanning = false) }
             }
@@ -63,6 +81,8 @@ class PairViewModel @Inject constructor(
     }
 
     fun pair(device: DiscoveredScooter) {
+        if (_state.value.pairedAddress != null) return  // already pairing
+        _state.update { it.copy(pairedAddress = device.address, scanning = false) }
         viewModelScope.launch {
             val name = device.name ?: "ZT3 Pro"
             vehicleDao.upsert(
@@ -74,6 +94,7 @@ class PairViewModel @Inject constructor(
             )
             stopScan()
             activeHolder.bind(device.address, name)
+            _pairedEvent.tryEmit(device.address)
         }
     }
 

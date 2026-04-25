@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -102,13 +103,14 @@ fun VehicleScreen(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            UnlockBanner(
-                isActive = isUnlockActive,
+            LockStatusBanner(
+                isUnlocked = isUnlockActive,
                 autoRevertAt = autoRevertAt,
-                speedKmh = profiles.unlock.speedKmh,
+                bootKmh = profiles.boot.speedKmh,
+                unlockKmh = profiles.unlock.speedKmh,
             )
 
-            Speedometer(speedKmh = state.speedKmh, maxSpeedKmh = 40f)
+            Speedometer(speedKmh = state.speedKmh, maxSpeedKmh = profiles.unlock.speedKmh.toFloat())
 
             Spacer(Modifier.height(24.dp))
 
@@ -140,19 +142,37 @@ fun VehicleScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            // Unlock 40 button (PIN-protected)
-            UnlockButton(
-                speedKmh = profiles.unlock.speedKmh,
-                isActive = activeProfileId == profiles.unlock.id,
-                onTap = {
-                    if (!viewModel.unlockRequiresPin()) {
-                        coroutineScope.launch { viewModel.confirmUnlock(null) }
-                    } else {
-                        unlockShowError = false
-                        unlockDialogVisible = true
-                    }
+            // Big toggle: Unlock if locked, Re-lock if unlocked
+            if (isUnlockActive) {
+                Button(
+                    onClick = viewModel::reLock,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors()
+                ) {
+                    androidx.compose.material3.Icon(Icons.Outlined.Lock, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Lock to ${profiles.boot.speedKmh} km/h")
                 }
-            )
+            } else {
+                Button(
+                    onClick = {
+                        if (!viewModel.unlockRequiresPin()) {
+                            coroutineScope.launch { viewModel.confirmUnlock(null) }
+                        } else {
+                            unlockShowError = false
+                            unlockDialogVisible = true
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    androidx.compose.material3.Icon(Icons.Outlined.RocketLaunch, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Unlock ${profiles.unlock.speedKmh} km/h")
+                }
+            }
 
             Spacer(Modifier.height(16.dp))
 
@@ -259,56 +279,59 @@ fun VehicleScreen(
 }
 
 @Composable
-private fun UnlockBanner(
-    isActive: Boolean,
+private fun LockStatusBanner(
+    isUnlocked: Boolean,
     autoRevertAt: Long?,
-    speedKmh: Int,
+    bootKmh: Int,
+    unlockKmh: Int,
 ) {
-    if (!isActive) return
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(autoRevertAt) {
-        // tick every second while banner is visible
+    LaunchedEffect(isUnlocked, autoRevertAt) {
         while (true) {
             now = System.currentTimeMillis()
             kotlinx.coroutines.delay(1_000L)
         }
     }
-    val countdownText: String? = autoRevertAt?.let { target ->
+    val countdownText: String? = if (isUnlocked) autoRevertAt?.let { target ->
         val remaining = ((target - now) / 1000L).coerceAtLeast(0)
-        val mm = remaining / 60
-        val ss = remaining % 60
-        "%02d:%02d".format(mm, ss)
-    }
+        "%02d:%02d".format(remaining / 60, remaining % 60)
+    } else null
+
+    val container = if (isUnlocked) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surfaceVariant
+    val onContainer = if (isUnlocked) MaterialTheme.colorScheme.onPrimaryContainer
+                      else MaterialTheme.colorScheme.onSurfaceVariant
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
+        colors = CardDefaults.cardColors(containerColor = container)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             androidx.compose.material3.Icon(
-                Icons.Outlined.LockOpen,
+                if (isUnlocked) Icons.Outlined.LockOpen else Icons.Outlined.Lock,
                 null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                tint = onContainer,
+                modifier = Modifier.size(28.dp)
             )
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Unlocked – $speedKmh km/h",
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    style = MaterialTheme.typography.titleSmall
+                    if (isUnlocked) "Unlocked – max $unlockKmh km/h" else "Locked – max $bootKmh km/h",
+                    color = onContainer,
+                    style = MaterialTheme.typography.titleMedium
                 )
-                if (countdownText != null) {
-                    Text(
-                        "Auto-revert in $countdownText",
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
+                Text(
+                    when {
+                        isUnlocked && countdownText != null -> "Auto-revert in $countdownText"
+                        isUnlocked -> "Stays unlocked until you re-lock or disconnect"
+                        else -> "Tap below to unlock $unlockKmh km/h"
+                    },
+                    color = onContainer.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
     }
@@ -346,27 +369,6 @@ private fun QuickProfilesRow(
     }
 }
 
-@Composable
-private fun UnlockButton(
-    speedKmh: Int,
-    isActive: Boolean,
-    onTap: () -> Unit,
-) {
-    Button(
-        onClick = onTap,
-        modifier = Modifier.fillMaxWidth(),
-        colors = if (isActive) ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary
-        ) else ButtonDefaults.outlinedButtonColors()
-    ) {
-        androidx.compose.material3.Icon(
-            if (isActive) Icons.Outlined.LockOpen else Icons.Outlined.RocketLaunch,
-            null
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(if (isActive) "Unlocked: $speedKmh km/h" else "Unlock $speedKmh km/h")
-    }
-}
 
 @Composable
 private fun EmptyState(onPairClick: () -> Unit, modifier: Modifier = Modifier) {

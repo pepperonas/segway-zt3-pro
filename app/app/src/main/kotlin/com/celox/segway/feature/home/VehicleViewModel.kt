@@ -70,6 +70,14 @@ class VehicleViewModel @Inject constructor(
         }
     }
 
+    /** Force-revert to the boot profile (= lock). */
+    fun reLock() {
+        viewModelScope.launch {
+            profileManager.applyProfile(profiles.value.boot)
+            _snackbar.tryEmit("Locked to ${profiles.value.boot.speedKmh} km/h")
+        }
+    }
+
     /** Returns whether a PIN is required (caller must show the dialog). */
     fun unlockRequiresPin(): Boolean = profiles.value.unlockPin.isNotEmpty()
 

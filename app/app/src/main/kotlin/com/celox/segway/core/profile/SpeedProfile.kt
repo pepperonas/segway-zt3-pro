@@ -37,8 +37,9 @@ data class SpeedProfileSettings(
     val autoRevertMinutes: Int = 0,
     /**
      * If true, the [boot] profile is automatically applied 1.5 s after every
-     * successful connect. Default OFF — too easy to accidentally clamp the
-     * scooter to a low limit otherwise.
+     * successful connect. **Default ON** — the whole point of this app is to
+     * keep the scooter locked at the boot speed unless the user explicitly
+     * unlocks. Switch it off only if you want to control everything manually.
      */
-    val autoApplyOnConnect: Boolean = false,
+    val autoApplyOnConnect: Boolean = true,
 )

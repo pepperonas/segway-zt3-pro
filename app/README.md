@@ -15,17 +15,21 @@ Native, open-source rebuild of the official Segway-Ninebot **Segway Mobility** c
 
 ---
 
-## ⚡ Headline-Feature: Speed-Profiles + Stealth-Unlock
+## ⚡ Headline-Feature: Lock-by-Default + Stealth-Unlock
 
-Das Kern-Feature für ZT3-Pro-D-User – **„German-Manöver"** in software:
+Vereinfachtes 2-State-Modell — Roller einschalten → 22 km/h, App-Unlock → 40 km/h:
 
-| Profil | Default | Trigger |
+| Zustand | Limit | Trigger |
 |---|---|---|
-| **Boot** (legal-look) | 22 km/h | automatisch nach jedem Connect |
-| **Walk / City / Cruise** (3 frei konfigurierbare Quick-Actions) | 6 / 22 / 28 km/h | Tap im Vehicle-Dashboard |
-| **Unlock** | 40 km/h | (a) PIN-Dialog im UI, **oder** (b) **Volume-Down 3× innerhalb 2 s** — auch bei Screen-aus + App im Hintergrund (Accessibility-Service) |
+| 🔒 **Locked** (Default beim Connect) | **22 km/h** | App schickt automatisch 1.5 s nach jedem Connect den Boot-Wert |
+| 🔓 **Unlocked** | **40 km/h** | (a) `Unlock 40 km/h`-Button im Vehicle-Dashboard (mit optionalem PIN), **oder** (b) **Volume-Down 3× innerhalb 2 s** auch bei Screen-aus / App-Hintergrund (Accessibility-Service) |
 
-Optional: **Auto-Revert** auf das Boot-Profil nach N Minuten (Slider 0-60), live-Countdown-Banner auf dem Dashboard.
+**Wichtig**: Disconnect oder Roller-Power-Cycle setzt den Lock-State zurück → beim nächsten Connect wieder 22. **Unlock ist session-only.**
+
+Optional:
+- **Quick-Action-Profile** (Walk 6 / City 22 / Cruise 28) als manueller Override
+- **Auto-Revert** auf das Boot-Profil nach N Minuten (Slider 0-60), live-Countdown-Banner
+- **Auto-Apply-Toggle** in den Settings (Default ON; ausschaltbar wenn man manuell steuern will)
 
 ## Build & install
 
@@ -99,8 +103,12 @@ app/
 | **Field-Test-Buttons** in Diagnostics | Quick-Send 22/40 km/h, Lock/Unlock — sofort sichtbar im Frame-Log |
 | **Polish-Pass** | Snackbar bei Quick-Action-Apply, Live-Countdown-Banner im Unlock-Modus |
 | **Auto-Reconnect bei App-Start** | `MainActivity.onCreate` ruft `ActiveVehicleHolder.tryAutoReconnect()` zur letzten gespeicherten MAC |
-| **Auto-Apply opt-in** | Default OFF — Boot-Profil wird nur gesendet wenn der User es in den Settings aktiviert (sicherer Default nach Field-Test 2026-04-25) |
+| **Auto-Apply Default ON** | Boot-Profil (22 km/h) wird automatisch nach jedem Connect gesendet — Lock-by-Default |
+| **Re-Lock bei Disconnect** | Lokaler Unlock-State wird gelöscht, beim nächsten Connect wird wieder 22 geschickt |
 | **GATT-Write-Mutex** | Kein „prior command not finished" mehr — Writes werden sequentiell durch eine Coroutine-Mutex serialisiert + auf `onCharacteristicWrite` gewartet |
+| **BLE-Scan-Filter** | Nur Geräte mit Ninebot-Manufacturer-Prefix (`FF 4E 42` / `FF 4E 43`) werden in der Pair-Liste gezeigt — keine Headphones/TVs/Watches mehr |
+| **Auto-Pair** | Beim ersten gefundenen Scooter im Pair-Screen wird automatisch verbunden + Pair-Screen schließt sich selbst |
+| **`CancellationException`-Hygiene** | Coroutine-Cancel beim Pair-Screen-Close zeigt nicht mehr „StandaloneCoroutine was cancelled" als Fehler an |
 
 ### ⚠ Wichtig: BLE-Protokoll-Pfad — durch Field-Test bestätigt
 

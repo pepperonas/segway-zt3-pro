@@ -60,11 +60,10 @@ class BleScanner(private val context: Context) {
     }
 
     private fun handle(result: ScanResult): DiscoveredScooter? {
-        val raw = result.scanRecord?.bytes
-        val beacon = raw?.let { BeaconParser.parse(it) }
-        // We accept non-Ninebot devices as null-beacon candidates so the user can still try them,
-        // but we surface only ones with a name OR a recognized beacon.
-        if (beacon == null && result.scanRecord?.deviceName.isNullOrBlank()) return null
+        val raw = result.scanRecord?.bytes ?: return null
+        val beacon = BeaconParser.parse(raw) ?: return null
+        // Only surface Ninebot/Segway scooters. Headphones, smart-bulbs and TVs
+        // never have a NB/NC manufacturer prefix.
         return DiscoveredScooter(
             address = result.device.address,
             name = result.scanRecord?.deviceName ?: result.device.name,

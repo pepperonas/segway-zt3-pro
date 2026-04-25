@@ -4,6 +4,27 @@
 **/decompiled/jadx/
 **/decompiled/extracted/
 
+# Android / Gradle build outputs
+app/.gradle/
+app/.idea/
+app/build/
+app/app/build/
+app/local.properties
+app/gradle/wrapper/gradle-wrapper.jar
+app/gradlew
+app/gradlew.bat
+**/captures/
+**/*.apk
+!reverse-engineering/apps/ninebot-segway/com.ninebot.segway.apk
+!reverse-engineering/apps/shu/ScooterHackingUtility-pre_release.open_beta-5.apk
+
+# Generated Kotlin/Hilt
+**/kotlin/build/
+**/generated/
+
+# OSMdroid tile cache leak
+**/osmdroid-tiles/
+
 # macOS
 .DS_Store
 **/.DS_Store

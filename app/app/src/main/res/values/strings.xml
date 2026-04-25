@@ -1,0 +1,77 @@
+<resources>
+    <string name="app_name">Segway Mobility</string>
+    <string name="app_short_name">Segway</string>
+
+    <!-- Bottom nav -->
+    <string name="nav_vehicle">Vehicle</string>
+    <string name="nav_discover">Discover</string>
+    <string name="nav_track">Track</string>
+    <string name="nav_mine">Mine</string>
+
+    <!-- Pair flow -->
+    <string name="pair_title">Pair your scooter</string>
+    <string name="pair_no_devices">No devices yet — pull to scan</string>
+    <string name="pair_scanning">Scanning…</string>
+    <string name="pair_connect">Connect</string>
+    <string name="pair_connecting">Connecting…</string>
+    <string name="pair_handshake">Performing secure handshake (ECDH)…</string>
+    <string name="pair_success">Paired</string>
+    <string name="pair_failed">Pairing failed</string>
+    <string name="pair_press_power">Press the power button on your scooter to confirm</string>
+
+    <!-- Vehicle -->
+    <string name="vehicle_no_paired">No vehicle paired</string>
+    <string name="vehicle_pair_now">Pair now</string>
+    <string name="vehicle_lock">Lock</string>
+    <string name="vehicle_unlock">Unlock</string>
+    <string name="vehicle_lights">Lights</string>
+    <string name="vehicle_cruise">Cruise</string>
+    <string name="vehicle_mode_eco">Eco</string>
+    <string name="vehicle_mode_drive">Drive</string>
+    <string name="vehicle_mode_sport">Sport</string>
+    <string name="vehicle_battery">Battery</string>
+    <string name="vehicle_speed">Speed</string>
+    <string name="vehicle_temperature">Temp</string>
+    <string name="vehicle_odometer">Total km</string>
+    <string name="vehicle_trip">Trip</string>
+    <string name="vehicle_firmware_vcu">VCU FW</string>
+    <string name="vehicle_firmware_mcu">MCU FW</string>
+    <string name="vehicle_firmware_ble">BLE FW</string>
+    <string name="vehicle_serial">Serial</string>
+    <string name="vehicle_region">Region</string>
+    <string name="vehicle_disconnect">Disconnect</string>
+
+    <!-- Track -->
+    <string name="track_title">Tracks</string>
+    <string name="track_start">Start</string>
+    <string name="track_stop">Stop</string>
+    <string name="track_empty">No tracks recorded yet</string>
+    <string name="track_distance">Distance</string>
+    <string name="track_avg_speed">Avg speed</string>
+    <string name="track_max_speed">Max speed</string>
+    <string name="track_duration">Duration</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_units">Units</string>
+    <string name="settings_units_metric">Metric (km/h)</string>
+    <string name="settings_units_imperial">Imperial (mph)</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">Follow system</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_dynamic_color">Dynamic color (Android 12+)</string>
+    <string name="settings_keep_screen_on">Keep screen on while connected</string>
+    <string name="settings_about">About</string>
+
+    <!-- About -->
+    <string name="about_disclaimer">⚠ This is a community-built reimplementation of the Segway Mobility App, not affiliated with Segway-Ninebot. Use at your own risk; tuning your scooter voids warranty and street-legal status. For private property only.</string>
+
+    <!-- Errors / generic -->
+    <string name="error_bluetooth_off">Bluetooth is off</string>
+    <string name="error_permissions">Missing permissions</string>
+    <string name="error_generic">Something went wrong</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_grant">Grant</string>
+    <string name="action_enable">Enable</string>
+</resources>

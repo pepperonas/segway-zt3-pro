@@ -1,0 +1,35 @@
+# Decompile-Outputs (reproduzierbar via apktool/jadx, ~460 MB)
+**/decompiled/raw/
+**/decompiled/apktool/
+**/decompiled/jadx/
+**/decompiled/extracted/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Editor / IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*~
+
+# Temp
+*.tmp
+/tmp/
+/private/tmp/
+
+# Tool-Logs
+/tmp/apktool*.log
+/tmp/jadx*.log
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Apktool framework cache
+~/Library/apktool/

@@ -1,0 +1,8 @@
+# Git LFS – große APKs
+*.apk filter=lfs diff=lfs merge=lfs -text
+*.aab filter=lfs diff=lfs merge=lfs -text
+*.dex filter=lfs diff=lfs merge=lfs -text
+# Line-Endings normalisieren
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf

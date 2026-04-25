@@ -7,6 +7,7 @@ import com.celox.segway.core.data.UserPreferencesRepository
 import com.celox.segway.core.data.VehicleDao
 import com.celox.segway.core.ota.FirmwareUpdater
 import com.celox.segway.core.repo.FirmwareTarget
+import com.celox.segway.core.util.BleLog
 import com.celox.segway.core.vehicle.Vehicle
 import com.celox.segway.core.vehicle.Zt3ProVehicle
 import kotlinx.coroutines.CoroutineScope
@@ -34,6 +35,7 @@ class ActiveVehicleHolder @Inject constructor(
     private val pairingPrefs: PairingPrefs,
     private val vehicleDao: VehicleDao,
     private val userPrefs: UserPreferencesRepository,
+    private val bleLog: BleLog,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _activeVehicle = MutableStateFlow<Vehicle?>(null)
@@ -43,7 +45,7 @@ class ActiveVehicleHolder @Inject constructor(
     private var activePairing: EllipticPairing? = null
 
     fun bind(mac: String, displayName: String) {
-        val pairing = EllipticPairing(gatt, pairingPrefs, mac)
+        val pairing = EllipticPairing(gatt, pairingPrefs, mac, bleLog)
         activePairing = pairing
         val vehicle = Zt3ProVehicle(
             id = mac,

@@ -7,6 +7,7 @@ import com.celox.segway.core.data.AppDatabase
 import com.celox.segway.core.data.AppDatabaseProvider
 import com.celox.segway.core.data.TrackDao
 import com.celox.segway.core.data.VehicleDao
+import com.celox.segway.core.util.BleLog
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -19,7 +20,10 @@ import javax.inject.Singleton
 object AppModule {
 
     @Provides @Singleton
-    fun gattClient(@ApplicationContext context: Context): GattClient = GattClient(context)
+    fun gattClient(
+        @ApplicationContext context: Context,
+        bleLog: BleLog
+    ): GattClient = GattClient(context, bleLog)
 
     @Provides @Singleton
     fun bleScanner(@ApplicationContext context: Context): BleScanner = BleScanner(context)

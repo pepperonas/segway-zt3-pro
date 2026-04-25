@@ -2,6 +2,7 @@ package com.celox.segway.core.ble
 
 import com.celox.segway.core.crypto.EllipticCrypto
 import com.celox.segway.core.data.PairingPrefs
+import com.celox.segway.core.util.BleLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +35,7 @@ class EllipticPairing(
     private val gatt: GattClient,
     private val pairingPrefs: PairingPrefs,
     private val mac: String,
+    private val bleLog: BleLog? = null,
 ) {
 
     sealed interface PairingMode {
@@ -101,6 +103,7 @@ class EllipticPairing(
     }
 
     private suspend fun resume(mode: PairingMode.SessionResume) {
+        bleLog?.note("Pair", "session resume for $mac")
         // For an already-paired vehicle, the deviceToken is enough to seed the
         // CCM nonce; the session key is HKDF(deviceToken, salt=deviceInfo, info="resume")
         val derived = EllipticCrypto.hkdf(
@@ -117,6 +120,7 @@ class EllipticPairing(
     }
 
     private suspend fun performHandshake(scope: CoroutineScope) {
+        bleLog?.note("Pair", "fresh handshake start ($mac)")
         _state.value = PairingState.SendingHello
         gatt.send(EllipticCrypto.buildInitHello())
 

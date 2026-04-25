@@ -95,6 +95,9 @@ class Zt3ProVehicle(
         VehicleCommand.Reboot          -> byteArrayOf(0x0A, 0x00)
         is VehicleCommand.ChangeRegion -> byteArrayOf(0x18, 0x10) + serialBytesForRegion(cmd.region)
         is VehicleCommand.WriteSerial  -> byteArrayOf(0x18, 0x10) + cmd.newSerial.toByteArray(Charsets.US_ASCII)
+        is VehicleCommand.ReadRegister -> byteArrayOf(0x01, cmd.offset.toByte(), cmd.length.toByte())
+        VehicleCommand.ReadBlackBox    -> byteArrayOf(0x01, 0xF0.toByte(), 0x40)  // 64 bytes from 0xF0
+        VehicleCommand.ReadFirmware    -> byteArrayOf(0x01, 0x1A, 0x10)           // 16 bytes from 0x1A
     }
 
     private fun serialBytesForRegion(region: String): ByteArray {
@@ -120,6 +123,8 @@ class Zt3ProVehicle(
         if (plain.size < 4) return
         val offset = plain[1].toInt() and 0xFF
         val data = plain.copyOfRange(3, plain.size)
+        // Always remember the last raw read so diagnostics can inspect arbitrary registers.
+        _state.update { it.copy(lastRegisterRead = offset to data) }
         when (offset) {
             0xB0 -> {
                 // Example layout for the 32-byte status block at 0xB0:
@@ -139,6 +144,33 @@ class Zt3ProVehicle(
                         )
                     }
                 }
+            }
+            0x1A -> {
+                // 16-byte firmware-version block: VCU(2) | MCU(2) | BLE(2) | reserved
+                if (data.size >= 6) {
+                    _state.update { st ->
+                        st.copy(
+                            firmwareVcu = "%d.%d.%d".format(
+                                data[1].toInt() and 0xFF,
+                                (data[0].toInt() ushr 4) and 0x0F,
+                                data[0].toInt() and 0x0F
+                            ),
+                            firmwareMcu = "%d.%d.%d".format(
+                                data[3].toInt() and 0xFF,
+                                (data[2].toInt() ushr 4) and 0x0F,
+                                data[2].toInt() and 0x0F
+                            ),
+                            firmwareBle = "%d.%d.%d".format(
+                                data[5].toInt() and 0xFF,
+                                (data[4].toInt() ushr 4) and 0x0F,
+                                data[4].toInt() and 0x0F
+                            ),
+                        )
+                    }
+                }
+            }
+            0xF0 -> {
+                _state.update { it.copy(blackBoxRaw = data) }
             }
         }
     }

@@ -39,6 +39,10 @@ data class VehicleState(
     val serialNumber: String = "",
     val regionCode: String = "",
     val errorCode: Int = 0,
+    /** Last read black-box (crash-log) entry. Format implementation-defined. */
+    val blackBoxRaw: ByteArray? = null,
+    /** Last raw register read (offset → bytes), so the diagnostics screen can show arbitrary regs. */
+    val lastRegisterRead: Pair<Int, ByteArray>? = null,
 )
 
 enum class RideMode { Eco, Drive, Sport }
@@ -53,4 +57,10 @@ sealed interface VehicleCommand {
     data object Reboot : VehicleCommand
     data class ChangeRegion(val region: String) : VehicleCommand   // "U", "D", "E", ...
     data class WriteSerial(val newSerial: String) : VehicleCommand
+    /** Read [length] bytes starting at register [offset]. Result lands in [VehicleState]. */
+    data class ReadRegister(val offset: Int, val length: Int) : VehicleCommand
+    /** Read the black-box (crash-log) registers. Convenience over ReadRegister. */
+    data object ReadBlackBox : VehicleCommand
+    /** Read the firmware version registers (VCU/MCU/BLE). */
+    data object ReadFirmware : VehicleCommand
 }

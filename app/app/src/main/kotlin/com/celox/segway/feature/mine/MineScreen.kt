@@ -4,9 +4,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.ElectricMoped
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.Icon
@@ -25,11 +29,15 @@ fun MineScreen(
     onAboutClick: () -> Unit,
     onGarageClick: () -> Unit,
     onFirmwareClick: () -> Unit,
+    onDiagnosticsClick: () -> Unit,
+    onAirLockClick: () -> Unit,
 ) {
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_mine)) }) }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
+        ) {
             ListItem(
                 headlineContent = { Text("Garage") },
                 supportingContent = { Text("Manage paired scooters") },
@@ -41,6 +49,18 @@ fun MineScreen(
                 supportingContent = { Text("Flash VCU/MCU, change region") },
                 leadingContent = { Icon(Icons.Outlined.SystemUpdate, null) },
                 modifier = Modifier.clickable { onFirmwareClick() }
+            )
+            ListItem(
+                headlineContent = { Text("AirLock") },
+                supportingContent = { Text("Auto-unlock by proximity") },
+                leadingContent = { Icon(Icons.Outlined.LockOpen, null) },
+                modifier = Modifier.clickable { onAirLockClick() }
+            )
+            ListItem(
+                headlineContent = { Text("Diagnostics") },
+                supportingContent = { Text("Live BLE log + crash records") },
+                leadingContent = { Icon(Icons.Outlined.BugReport, null) },
+                modifier = Modifier.clickable { onDiagnosticsClick() }
             )
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_title)) },

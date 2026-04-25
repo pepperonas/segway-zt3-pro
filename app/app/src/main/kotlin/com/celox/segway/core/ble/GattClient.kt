@@ -11,6 +11,7 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.os.Build
+import com.celox.segway.core.util.BleLog
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,7 +36,10 @@ enum class GattState { Disconnected, Connecting, ServicesDiscovered, Ready, Erro
  * It is intentionally *frame-agnostic*: encryption / pairing logic lives one
  * layer above (see [EllipticPairing]).
  */
-class GattClient(private val context: Context) {
+class GattClient(
+    private val context: Context,
+    private val bleLog: BleLog,
+) {
 
     private var gatt: BluetoothGatt? = null
     private var rxChar: BluetoothGattCharacteristic? = null
@@ -76,6 +80,7 @@ class GattClient(private val context: Context) {
     fun send(frame: ByteArray): Boolean {
         val ch = rxChar ?: return false
         val g = gatt ?: return false
+        bleLog.tx("RX-WRITE", frame)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             g.writeCharacteristic(
                 ch, frame, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
@@ -151,7 +156,10 @@ class GattClient(private val context: Context) {
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray,
         ) {
-            if (characteristic.uuid == BleUuids.NUS_TX) _incoming.tryEmit(value)
+            if (characteristic.uuid == BleUuids.NUS_TX) {
+                bleLog.rx("TX-NOTIFY", value)
+                _incoming.tryEmit(value)
+            }
         }
 
         @Deprecated("Pre-Tiramisu callback")
@@ -160,7 +168,11 @@ class GattClient(private val context: Context) {
             characteristic: BluetoothGattCharacteristic,
         ) {
             @Suppress("DEPRECATION")
-            characteristic.value?.let { _incoming.tryEmit(it.copyOf()) }
+            characteristic.value?.let {
+                val copy = it.copyOf()
+                if (characteristic.uuid == BleUuids.NUS_TX) bleLog.rx("TX-NOTIFY", copy)
+                _incoming.tryEmit(copy)
+            }
         }
     }
 }

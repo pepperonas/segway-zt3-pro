@@ -23,6 +23,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.celox.segway.R
 import com.celox.segway.feature.about.AboutScreen
+import com.celox.segway.feature.airlock.AirLockScreen
+import com.celox.segway.feature.diagnostics.DiagnosticsScreen
 import com.celox.segway.feature.discover.DiscoverScreen
 import com.celox.segway.feature.firmware.FirmwareScreen
 import com.celox.segway.feature.garage.GarageScreen
@@ -68,7 +70,9 @@ fun SegwayApp() {
                     onSettingsClick = { navController.navigate(Route.Settings.route) },
                     onAboutClick = { navController.navigate(Route.About.route) },
                     onGarageClick = { navController.navigate(Route.Garage.route) },
-                    onFirmwareClick = { navController.navigate(Route.Firmware.route) }
+                    onFirmwareClick = { navController.navigate(Route.Firmware.route) },
+                    onDiagnosticsClick = { navController.navigate(Route.Diagnostics.route) },
+                    onAirLockClick = { navController.navigate(Route.AirLock.route) },
                 )
             }
             composable(Route.Pair.route) {
@@ -88,6 +92,12 @@ fun SegwayApp() {
             }
             composable(Route.Firmware.route) {
                 FirmwareScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Route.Diagnostics.route) {
+                DiagnosticsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Route.AirLock.route) {
+                AirLockScreen(onBack = { navController.popBackStack() })
             }
         }
     }
@@ -130,4 +140,6 @@ sealed class Route(val route: String) {
     data object About : Route("about")
     data object Garage : Route("garage")
     data object Firmware : Route("firmware")
+    data object Diagnostics : Route("diagnostics")
+    data object AirLock : Route("airlock")
 }

@@ -31,11 +31,19 @@ class NinebotCrypto(private val scooterName: String) {
     /** App-side random bytes sent in the init frame, echoed back by the scooter. */
     private val appRandom = ByteArray(16)
 
+    /** Challenge bytes (14) carried in the cmd=0x5B response — must echo back via cmd=0x5D. */
+    private val challenge = ByteArray(14)
+
     /** AES-128 key; re-derived twice — once at construction, once after handshake. */
     private val aesKey = ByteArray(16)
 
     /** 32-bit shared frame counter. Wraps via Int overflow (matches SHU's `p.a`). */
     private var counter: Int = 0
+
+    /** Stages mirror SHU's L/M/O flags from `ScooterActivity.java`. */
+    @Volatile var stageReceivedToken: Boolean = false; private set   // L
+    @Volatile var stagePairedKey: Boolean = false; private set       // M
+    @Volatile var stageFullyPaired: Boolean = false; private set     // O
 
     init {
         deriveKey(scooterName.toByteArray(Charsets.UTF_8), salt)
@@ -118,69 +126,89 @@ class NinebotCrypto(private val scooterName: String) {
         }
         System.arraycopy(plain, 0, out, 3, plain.size)
 
-        // Mirror `c.h()`:
-        // counter=0 response carries a token at out[7..23] (inner frame bytes);
-        // detect via `5A A5 1E [rxAddr] 3E 5B` header.
+        // Stage 1 (L flag): cmd=0x5B token+challenge response at counter=0.
+        // Inner frame: [5A A5 1E rxAddr 3E 5B arg token(16) challenge(14)]
         if (effectiveCounter == 0 &&
-            out.size >= 23 &&
+            out.size >= 37 &&
             out[0] == 0x5A.toByte() && out[1] == 0xA5.toByte() &&
             out[2] == 0x1E.toByte() &&
             out[4] == 0x3E.toByte() && out[5] == 0x5B.toByte()
         ) {
             System.arraycopy(out, 7, token, 0, 16)
+            System.arraycopy(out, 23, challenge, 0, 14)
             deriveKey(scooterName.toByteArray(Charsets.UTF_8), token)
+            stageReceivedToken = true
         }
 
-        // Counter=0, app-random-echo path: copy bytes [7..23] into appRandom and re-derive.
-        if (effectiveCounter == 0 &&
-            out.size >= 23 &&
+        // Stage 2 (M flag): cmd=0x5C arg=0x01 paired-key confirmation at counter>0.
+        // After this, the session key transitions to SHA-1(appRandom + token).
+        if (effectiveCounter > 0 &&
+            out.size >= 7 &&
             out[0] == 0x5A.toByte() && out[1] == 0xA5.toByte() &&
-            out[2] == 0x00.toByte() &&
             out[4] == 0x3E.toByte() && out[5] == 0x5C.toByte() &&
             out[6] == 0x01.toByte()
         ) {
             deriveKey(appRandom, token)
+            stagePairedKey = true
+        }
+
+        // Stage 3 (O flag): cmd=0x5D arg=0x01 fully-paired confirmation.
+        if (effectiveCounter > 0 &&
+            out.size >= 7 &&
+            out[0] == 0x5A.toByte() && out[1] == 0xA5.toByte() &&
+            out[4] == 0x3E.toByte() && out[5] == 0x5D.toByte() &&
+            out[6] == 0x01.toByte()
+        ) {
+            stageFullyPaired = true
+            stagePairedKey = true  // SHU also sets M=true here
         }
 
         counter = effectiveCounter + 1
         return out
     }
 
+    /** Get the 14-byte challenge captured from the cmd=0x5B response (Stage 1). */
+    fun snapshotChallenge(): ByteArray = challenge.copyOf()
+
     /** Reset to fresh-connect state (called on disconnect). */
     fun reset() {
         counter = 0
+        stageReceivedToken = false
+        stagePairedKey = false
+        stageFullyPaired = false
         for (i in token.indices) token[i] = 0
         for (i in appRandom.indices) appRandom[i] = 0
+        for (i in challenge.indices) challenge[i] = 0
         deriveKey(scooterName.toByteArray(Charsets.UTF_8), salt)
     }
 
     /**
-     * Build the handshake hello.
-     *
-     * Two flavours, picked based on whether we already have a token:
-     *
-     *  - **Resume hello** (`plen=0x00`, 4-byte body `[3E txAddr 5C 00]`) — used when
-     *    [token] is non-zero. Matches SHU's working sessions in the
-     *    `speed-manip.pcap` capture (Phase B, t=6019; Phase E2, t=9585).
-     *  - **First-pair hello** (`plen=0x10`, 4-byte header + 16 random bytes) — used
-     *    on a cold start (token still zero). Matches SHU's `c.i:301-303` detection
-     *    path which captures the random into `f5101e`. The scooter's pairing logic
-     *    issues a token in response.
+     * Stage-1 frame — `getBleRandom()` from `ScooterActivity.java:971`.
+     * Body: `[3E txAddr 5B 00]`, plen=0. Triggers the scooter to send back a
+     * token+challenge response (`5A A5 1E … 3E 5B …`). Matches the wire bytes
+     * of SHU's working sessions (Phase B/E2 in `speed-manip.pcap`) — CRC `62 FF`
+     * verifies `txAddr=0x04` for the ZT3 Pro D.
      */
-    fun buildInitFrame(txAddr: Byte): ByteArray =
-        if (token.any { it != 0.toByte() }) {
-            byteArrayOf(
-                0x5A.toByte(), 0xA5.toByte(), 0x00.toByte(),
-                0x3E.toByte(), txAddr,
-                0x5C.toByte(), 0x00.toByte()
-            )
-        } else {
-            byteArrayOf(
-                0x5A.toByte(), 0xA5.toByte(), 0x10.toByte(),
-                0x3E.toByte(), txAddr,
-                0x5C.toByte(), 0x00.toByte()
-            ) + randomBytes(16)
-        }
+    fun buildGetRandomFrame(txAddr: Byte): ByteArray = byteArrayOf(
+        0x5A.toByte(), 0xA5.toByte(), 0x00.toByte(),
+        0x3E.toByte(), txAddr,
+        0x5B.toByte(), 0x00.toByte()
+    )
+
+    /**
+     * Stage-2 frame — `o1(R)` from `ScooterActivity.java:752`.
+     * Body: `[3E txAddr 5C 00] + 16 random bytes`, plen=0x10. Tells the scooter our
+     * appRandom; scooter answers with `5A A5 00 … 5C 01` and both sides re-key to
+     * `SHA-1(appRandom + token)`.
+     */
+    fun buildPairInitFrame(txAddr: Byte): ByteArray = byteArrayOf(
+        0x5A.toByte(), 0xA5.toByte(), 0x10.toByte(),
+        0x3E.toByte(), txAddr,
+        0x5C.toByte(), 0x00.toByte()
+    ) + randomBytes(16)
+
+    /** Legacy alias retained for callers that haven't migrated to the explicit stages. */
+    fun buildInitFrame(txAddr: Byte): ByteArray = buildGetRandomFrame(txAddr)
 
     /** Snapshot the token so the caller can persist it across BLE disconnects. */
     fun snapshotToken(): ByteArray = token.copyOf()

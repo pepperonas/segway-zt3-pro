@@ -24,7 +24,15 @@ object FrameCodecClassic {
     const val MAGIC_LO: Byte = 0xA5.toByte()
 
     const val SRC_PHONE: Byte = 0x3E
-    const val DST_VCU: Byte = 0x21
+
+    /**
+     * txAddr for the ZT3 Pro D crypto-handshake target. Derived from CRC analysis
+     * of SHU's working session (`speed-manip.pcap` Phase B + E2): the wire CRC
+     * `62 FF` for the 4-byte body `[3E XX 5B 00]` is only consistent with `XX=0x04`.
+     * Using `0x21` (the typical VCU address) gets no response — confirmed by SHU's
+     * own Phase E1 attempt with txAddr=0x21 also failing.
+     */
+    const val DST_VCU: Byte = 0x04
     const val DST_MCU: Byte = 0x22
     const val DST_BMS: Byte = 0x23
 

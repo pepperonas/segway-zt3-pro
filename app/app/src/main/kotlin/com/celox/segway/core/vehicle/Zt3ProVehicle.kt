@@ -11,6 +11,7 @@ import com.celox.segway.core.util.BleLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -110,15 +111,77 @@ class Zt3ProVehicle(
     }
 
     /**
-     * Fire the 4-byte hello (`5A A5 00 3E 21 5C 00`) — counter=0, body f-XOR-encrypted.
-     * Does NOT block on the response: pcap shows SHU sends commands immediately after
-     * and lets the scooter sort out which decrypt successfully.
+     * Three-stage handshake matching SHU's `ScooterActivity.java:484-514`:
+     *  1. Send `getBleRandom` (`[3E 04 5B 00]`, cmd=0x5B) until L flag (token+challenge captured)
+     *  2. Send `o1(R)` (`[3E 04 5C 00 R…]`, cmd=0x5C, plen=0x10) until M flag (paired-key)
+     *  3. Send `D0(challenge)` (`[3E 04 5D 00 chal…]`, cmd=0x5D, plen=0x0E) until O flag (fully paired)
+     *
+     * After stage 1 the wire-key transitions to `SHA-1(name + token)`; after stage 2 it
+     * settles on `SHA-1(appRandom + token)` which becomes the session key. If a stage
+     * doesn't complete we still set `handshakeSent = true` so user commands flow — the
+     * scooter will then ignore them and the diagnostic log will show what stage we're
+     * stuck at.
      */
     private suspend fun sendHandshake() {
-        bleLog?.note("Crypto", "scooterName='$scooterName' tokenLoaded=${crypto.isHandshakeComplete()}")
-        val initFrame = crypto.buildInitFrame(FrameCodecClassic.DST_VCU)
-        val wire = crypto.encrypt(initFrame)
-        gatt.send(wire)
+        bleLog?.note(
+            "Crypto",
+            "scooterName='$scooterName' tokenLoaded=${crypto.isHandshakeComplete()}"
+        )
+
+        // Stage 1: getBleRandom → wait for L (token+challenge).
+        val s1Frame = crypto.buildGetRandomFrame(FrameCodecClassic.DST_VCU)
+        for (attempt in 0 until 6) {
+            if (crypto.stageReceivedToken) break
+            gatt.send(crypto.encrypt(s1Frame.copyOf()))
+            withTimeoutOrNull(600L) {
+                while (!crypto.stageReceivedToken) delay(20)
+            }
+            if (crypto.stageReceivedToken) break
+            delay(300L)
+        }
+        if (!crypto.stageReceivedToken) {
+            bleLog?.note("Crypto", "stage 1 (L) timed out — no token from scooter")
+            handshakeSent = true
+            return
+        }
+        bleLog?.note("Crypto", "L: token+challenge received")
+
+        // Stage 2: o1(R) → wait for M (paired-key).
+        // Build random ONCE so every retry sends the same payload (matches SHU's loop).
+        val pairInit = crypto.buildPairInitFrame(FrameCodecClassic.DST_VCU)
+        for (attempt in 0 until 6) {
+            if (crypto.stagePairedKey) break
+            gatt.send(crypto.encrypt(pairInit.copyOf()))
+            withTimeoutOrNull(600L) {
+                while (!crypto.stagePairedKey) delay(20)
+            }
+            if (crypto.stagePairedKey) break
+            delay(300L)
+        }
+        if (!crypto.stagePairedKey) {
+            bleLog?.note("Crypto", "stage 2 (M) timed out — pair-init not acked")
+            handshakeSent = true
+            return
+        }
+        bleLog?.note("Crypto", "M: paired-key (SHA-1(R+T))")
+
+        // Stage 3: D0(challenge) → wait for O (fully paired).
+        val challengeBytes = crypto.snapshotChallenge()
+        for (attempt in 0 until 4) {
+            if (crypto.stageFullyPaired) break
+            gatt.send(codec.challengeResponse(FrameCodecClassic.DST_VCU, challengeBytes))
+            withTimeoutOrNull(600L) {
+                while (!crypto.stageFullyPaired) delay(20)
+            }
+            if (crypto.stageFullyPaired) break
+            delay(300L)
+        }
+        if (crypto.stageFullyPaired) {
+            bleLog?.note("Crypto", "O: fully paired — ready for commands")
+        } else {
+            bleLog?.note("Crypto", "stage 3 (O) timed out — challenge-echo not acked")
+        }
+
         handshakeSent = true
     }
 

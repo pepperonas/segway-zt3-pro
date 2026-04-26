@@ -20,6 +20,10 @@ class FrameCodecCrypto(private val crypto: NinebotCrypto) {
             byteArrayOf(length.toByte())
         )
 
+    /** Build the cmd=0x5D arg=0x00 challenge-response (D0 in SHU). 14-byte payload echoes `challenge`. */
+    fun challengeResponse(dst: Byte, challenge: ByteArray): ByteArray =
+        wrap(FrameCodecClassic.SRC_PHONE, dst, 0x5D, 0x00, challenge)
+
     /** Build the inner frame (matches `j6.m`'s f6.b layout) and encrypt to wire bytes. */
     private fun wrap(src: Byte, dst: Byte, cmd: Byte, arg: Byte, payload: ByteArray): ByteArray {
         // Inner = [src dst cmd arg payload] — same as Case 3, except wrapper differs.

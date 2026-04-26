@@ -31,8 +31,13 @@ data class SpeedProfileSettings(
     val unlock: SpeedProfile = SpeedProfile("sport", "Sport", 40),
     /** PIN required to apply the unlock profile via in-app button. Empty = no PIN. */
     val unlockPin: String = "",
-    /** Master switch for the Vol-Down-3x stealth trigger from the AccessibilityService. */
-    val accessibilityTriggerEnabled: Boolean = false,
+    /**
+     * Master switch for the Vol-Down-3x stealth trigger from the
+     * AccessibilityService. **Default ON** so the gesture works as soon as the
+     * user enables the system-level accessibility-service in Android Settings.
+     * (Apps can't enable that programmatically — only the user can.)
+     */
+    val accessibilityTriggerEnabled: Boolean = true,
     /** Optional auto-revert to [boot] after this many minutes in unlock mode. 0 = off. */
     val autoRevertMinutes: Int = 0,
     /**

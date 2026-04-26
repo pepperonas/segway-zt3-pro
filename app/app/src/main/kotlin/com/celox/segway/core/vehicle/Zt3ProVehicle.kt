@@ -80,8 +80,9 @@ class Zt3ProVehicle(
         }
         scope.launch {
             gatt.state.collect { gs ->
-                _state.update { it.copy(isConnected = gs == GattState.Ready) }
-                if (gs != GattState.Ready) {
+                val connected = gs == GattState.Ready
+                _state.update { it.copy(isConnected = connected, isReady = if (!connected) false else it.isReady) }
+                if (!connected) {
                     crypto.reset()
                     handshakeSent = false
                 }
@@ -202,6 +203,14 @@ class Zt3ProVehicle(
         }
 
         handshakeSent = true
+        // Flag the vehicle as ready so callers waiting for the handshake (e.g.
+        // SpeedProfileManager's auto-apply) can fire commands immediately
+        // without an arbitrary sleep. We set isReady even on partial-success
+        // (M reached but O didn't) — once M flips, the session key is correct
+        // and write-register commands are accepted.
+        if (crypto.stagePairedKey) {
+            _state.update { it.copy(isReady = true) }
+        }
     }
 
     private fun encodeCrypto(cmd: VehicleCommand): ByteArray? = when (cmd) {
@@ -251,6 +260,17 @@ class Zt3ProVehicle(
     }
 
     private fun handleNotify(parsed: FrameCodecClassic.Decoded) {
+        // Log decrypted RX so the user can identify unknown notify patterns
+        // (e.g. Custom-Button-press signature for Weg-A custom-button-listener).
+        // Format: `src=XX dst=XX cmd=XX arg=XX [payload-hex]`
+        bleLog?.note(
+            "RX-DEC",
+            "src=%02X dst=%02X cmd=%02X arg=%02X [%s]".format(
+                parsed.src, parsed.dst, parsed.cmd, parsed.arg,
+                parsed.payload.joinToString(" ") { "%02X".format(it) }
+            )
+        )
+
         if (parsed.cmd == FrameCodecClassic.CMD_READ_REGULAR) {
             _state.update { it.copy(lastRegisterRead = (parsed.arg.toInt() and 0xFF) to parsed.payload) }
         }

@@ -60,35 +60,35 @@ class SpeedProfileManager @Inject constructor(
 
     enum class UnlockTrigger { Pin, AccessibilityVolume }
 
+    /** Source of a re-lock action. Used for telemetry and the BleLog hint. */
+    enum class LockTrigger { ManualButton, AccessibilityVolume, AutoRevert, ConnectAutoApply }
+
     init {
-        // Auto-apply boot profile whenever a vehicle becomes connected.
-        // We delay 1.5 s to let MTU + CCCD + pairing-handshake settle so we
-        // don't collide with concurrent BLE writes ("prior command not finished").
+        // Auto-apply boot profile whenever a vehicle becomes ready.
+        // `isReady` flips to true only AFTER the crypto handshake has reached
+        // at least Stage M (paired-key) — at that point write-register commands
+        // are accepted by the scooter. No more arbitrary 1.5 s sleeps.
         scope.launch {
             activeHolder.activeVehicle
                 .collect { vehicle ->
                     if (vehicle == null) return@collect
                     vehicle.state
-                        .map { it.isConnected }
+                        .map { it.isConnected to it.isReady }
                         .distinctUntilChanged()
-                        .collect { connected ->
-                            if (connected) {
-                                kotlinx.coroutines.delay(1_500L)
-                                val settings = repo.flow.first()
-                                if (settings.autoApplyOnConnect) {
-                                    // Always reset to the boot (= locked) profile on every
-                                    // connect. Unlock is *session-only* — power-cycling the
-                                    // scooter or relaunching the app re-locks it.
-                                    bleLog.note("Profile", "connect → re-lock to ${settings.boot.label}")
-                                    applyProfile(settings.boot)
-                                } else {
-                                    bleLog.note("Profile", "auto-apply disabled — boot not sent")
-                                }
-                            } else {
-                                // Disconnect resets the local unlock flag too.
+                        .collect { (connected, ready) ->
+                            if (!connected) {
                                 _isUnlockModeActive.value = false
                                 _autoRevertAt.value = null
                                 autoRevertJob?.cancel()
+                                return@collect
+                            }
+                            if (!ready) return@collect
+                            val settings = repo.flow.first()
+                            if (settings.autoApplyOnConnect) {
+                                bleLog.note("Profile", "ready → re-lock to ${settings.boot.label}")
+                                applyProfile(settings.boot)
+                            } else {
+                                bleLog.note("Profile", "auto-apply disabled — boot not sent")
                             }
                         }
                 }
@@ -128,24 +128,45 @@ class SpeedProfileManager @Inject constructor(
         data object PinRequired : UnlockResult
     }
 
-    /** Called by the AccessibilityService once it detects Vol-Down-3x. */
-    fun onAccessibilityVolumeTriggered() {
+    /**
+     * Vol-Up 3× detected by either AccessibilityService or StealthVolumeService.
+     * Triggers an unlock (= apply unlock-profile, default 40 km/h).
+     */
+    fun onAccessibilityVolumeUpTriggered() {
         scope.launch {
             val settings = repo.flow.first()
             if (!settings.accessibilityTriggerEnabled) {
-                bleLog.note("Profile", "Accessibility trigger ignored — disabled in settings")
+                bleLog.note("Profile", "Vol-Up trigger ignored — disabled in settings")
                 return@launch
             }
-            // Stealth path: only auto-apply if PIN is empty. Otherwise we'd need
-            // the user to look at the phone, which defeats the purpose.
             if (settings.unlockPin.isEmpty()) {
                 requestUnlock(UnlockTrigger.AccessibilityVolume, providedPin = null)
             } else {
-                bleLog.note("Profile", "Accessibility trigger ignored — PIN required")
+                bleLog.note("Profile", "Vol-Up trigger ignored — PIN required")
                 _unlockEvents.tryEmit(UnlockTrigger.AccessibilityVolume)
             }
         }
     }
+
+    /**
+     * Vol-Down 3× detected by either AccessibilityService or StealthVolumeService.
+     * Triggers a re-lock (= apply boot-profile, default 22 km/h).
+     */
+    fun onAccessibilityVolumeDownTriggered() {
+        scope.launch {
+            val settings = repo.flow.first()
+            if (!settings.accessibilityTriggerEnabled) {
+                bleLog.note("Profile", "Vol-Down trigger ignored — disabled in settings")
+                return@launch
+            }
+            bleLog.note("Profile", "Vol-Down 3× → re-lock to ${settings.boot.label}")
+            applyProfile(settings.boot)
+        }
+    }
+
+    /** Backwards-compat: legacy single-button trigger. Routes to Vol-Up = unlock. */
+    @Deprecated("Use onAccessibilityVolumeUpTriggered or onAccessibilityVolumeDownTriggered")
+    fun onAccessibilityVolumeTriggered() = onAccessibilityVolumeUpTriggered()
 
     private fun scheduleAutoRevertIfNeeded(settings: SpeedProfileSettings) {
         autoRevertJob?.cancel()

@@ -24,6 +24,13 @@ interface Vehicle {
 /** Snapshot of the vehicle's runtime state. */
 data class VehicleState(
     val isConnected: Boolean = false,
+    /**
+     * True once the handshake / crypto-pairing is complete and the vehicle is
+     * ready to accept register read/write commands. For NinebotCrypto-based
+     * vehicles this is set after Stage O or after a successful resume; for
+     * plaintext vehicles it follows [isConnected] directly.
+     */
+    val isReady: Boolean = false,
     val isLocked: Boolean = false,
     val isLightsOn: Boolean = false,
     val isCruiseOn: Boolean = false,

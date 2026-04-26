@@ -125,4 +125,7 @@ dependencies {
     // Util
     implementation(libs.timber)
     implementation(libs.accompanist.permissions)
+
+    // MediaSession — needed to receive Vol-Down when screen is off
+    implementation(libs.androidx.media)
 }

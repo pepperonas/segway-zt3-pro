@@ -24,7 +24,8 @@ class UnlockAccessibilityService : AccessibilityService() {
     @Inject lateinit var profileManager: SpeedProfileManager
     @Inject lateinit var bleLog: BleLog
 
-    private val pressTimes = ArrayDeque<Long>()
+    private val downTimes = ArrayDeque<Long>()
+    private val upTimes = ArrayDeque<Long>()
     private val windowMillis = 2_000L
     private val needPresses = 3
 
@@ -38,24 +39,30 @@ class UnlockAccessibilityService : AccessibilityService() {
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
         if (event.action != KeyEvent.ACTION_DOWN) return false
-        if (event.keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) return false
-
         val now = System.currentTimeMillis()
-        pressTimes.addLast(now)
-        // Drop stale events
-        while (pressTimes.isNotEmpty() && now - pressTimes.first() > windowMillis) {
-            pressTimes.removeFirst()
+        return when (event.keyCode) {
+            KeyEvent.KEYCODE_VOLUME_DOWN -> handleTriple(downTimes, now, "Vol-Down 3× → re-lock 22") {
+                profileManager.onAccessibilityVolumeDownTriggered()
+            }
+            KeyEvent.KEYCODE_VOLUME_UP -> handleTriple(upTimes, now, "Vol-Up 3× → unlock 40") {
+                profileManager.onAccessibilityVolumeUpTriggered()
+            }
+            else -> false
         }
+    }
 
-        if (pressTimes.size >= needPresses) {
-            pressTimes.clear()
-            bleLog.note("A11y", "Vol-Down-3x detected → unlock trigger")
-            profileManager.onAccessibilityVolumeTriggered()
-            // Consume the event so the volume actually doesn't drop. Returning
-            // true tells the system "we handled it".
-            return true
-        }
-        // Don't consume — system still adjusts media volume normally.
-        return false
+    private fun handleTriple(
+        queue: ArrayDeque<Long>,
+        now: Long,
+        logMsg: String,
+        action: () -> Unit,
+    ): Boolean {
+        queue.addLast(now)
+        while (queue.isNotEmpty() && now - queue.first() > windowMillis) queue.removeFirst()
+        if (queue.size < needPresses) return false
+        queue.clear()
+        bleLog.note("A11y", logMsg)
+        action()
+        return true // consume so the volume slider doesn't move
     }
 }

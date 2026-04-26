@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.celox.segway.R
 import com.celox.segway.core.profile.SpeedProfile
 import com.celox.segway.core.vehicle.RideMode
+import com.celox.segway.feature.profiles.AccessibilityHelper
 import com.celox.segway.feature.profiles.UnlockDialog
 import com.celox.segway.ui.components.Speedometer
 import com.celox.segway.ui.components.StatTile
@@ -109,6 +110,10 @@ fun VehicleScreen(
                 bootKmh = profiles.boot.speedKmh,
                 unlockKmh = profiles.unlock.speedKmh,
             )
+
+            if (profiles.accessibilityTriggerEnabled) {
+                AccessibilityServiceBanner()
+            }
 
             Speedometer(speedKmh = state.speedKmh, maxSpeedKmh = profiles.unlock.speedKmh.toFloat())
 
@@ -332,6 +337,58 @@ private fun LockStatusBanner(
                     color = onContainer.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.bodySmall
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccessibilityServiceBanner() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var enabled by remember { mutableStateOf(AccessibilityHelper.isOurServiceEnabled(ctx)) }
+
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                enabled = AccessibilityHelper.isOurServiceEnabled(ctx)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
+
+    if (enabled) return
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            androidx.compose.material3.Icon(
+                Icons.Outlined.LockOpen, null,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Stealth-Unlock inaktiv",
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Text(
+                    "Vol-Down-3× funktioniert erst, wenn der Accessibility-Service in Android-Einstellungen erlaubt ist.",
+                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            androidx.compose.material3.TextButton(onClick = { AccessibilityHelper.openSettings(ctx) }) {
+                Text("Aktivieren", color = MaterialTheme.colorScheme.onErrorContainer)
             }
         }
     }

@@ -182,9 +182,10 @@ So lassen sich jederzeit weitere SHU-Befehle byte-für-byte verifizieren (Mode-W
 
 1. **Übrige Commands gegen SHU verifizieren**: Mode-Wechsel (Eco/Drive/Sport), Lights, Lock, Cruise-Toggle — Register/dst sind aktuell noch unsere Annahmen, sollten via patched-SHU einmal jeweils gecaptured werden.
 2. **Persisted-Random für andere Roller-MACs**: Aktuell ist `f5101e` für `C1:6B:5E:D0:C5:96` hardcoded. Für ein generisches App-Verteilen brauchen wir entweder einen sauberen Fresh-First-Pair-Flow (16-Byte-Random + Power-Button-OOB) oder eine UI um `f5101e` aus `CRYPTO_DUMP` per Hand einzutippen.
-3. **OTA-Chunk-ACK-Detection** robust machen (aktuell heuristisch)
-4. **Token-Persistenz**: Mehrfache Disconnect/Reconnect-Tests — das `PairingPrefs.cryptoToken`-Feld wird beim Decrypt-Sucess gespeichert, sollte nach App-Restart resume-fähig sein.
-5. Launcher-Icon polishen (aktuell Vector-Stub)
+3. **Custom-Button-Firmware-Remapping** (Weg B): Aktuell beobachten wir nur den Hill-Hold-Notify und reagieren in der App (Weg A — funktioniert nur wenn Phone verbunden). Für eine permanente Roller-seitige Änderung müsste das Custom-Button-Mapping-Register gefunden werden — entweder via patched offizielle Segway-Mobility-App (NIS-Wrapper, deutlich aufwändiger) oder Trial-and-Error auf den verdächtigen Registern (`0x82` dst=0x07, `0xC0` dst=0x16). Risiko: „Set Speed Limit X km/h" ist möglicherweise gar keine valide Function-ID des Roller-Firmware — die Standard-Mappings sind Hill-Hold, Cruise, Headlight, Mode-Toggle, Lock.
+4. **OTA-Chunk-ACK-Detection** robust machen (aktuell heuristisch)
+5. **Token-Persistenz**: Mehrfache Disconnect/Reconnect-Tests — das `PairingPrefs.cryptoToken`-Feld wird beim Decrypt-Sucess gespeichert, sollte nach App-Restart resume-fähig sein.
+6. Launcher-Icon polishen (aktuell Vector-Stub)
 
 ## Wie weiter testen / debuggen
 

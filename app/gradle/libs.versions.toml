@@ -19,6 +19,7 @@ osmdroid = "6.1.18"
 osmbonuspack = "6.9.0"
 timber = "5.0.1"
 permissions = "0.36.0"
+media = "1.7.0"
 retrofit = "2.11.0"
 okhttp = "4.12.0"
 
@@ -80,6 +81,7 @@ okhttp-logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-i
 # Util
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "permissions" }
+androidx-media = { group = "androidx.media", name = "media", version.ref = "media" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -93,11 +93,21 @@ class Zt3ProVehicle(
             gatt.incoming.collect { raw ->
                 val parsed = codec.parse(raw) ?: return@collect
                 handleNotify(parsed)
-                // Persist the token whenever decrypt() flipped it to a new value.
                 val current = crypto.snapshotToken()
                 if (current.any { it != 0.toByte() } && !current.contentEquals(lastTokenSeen)) {
                     lastTokenSeen = current
                     pairingPrefs?.let { prefs -> scope.launch { prefs.saveCryptoToken(id, current) } }
+                }
+            }
+        }
+        // Periodic telemetry poll: every 2s while ready, fetch the SHU-style
+        // status block + secondary registers. Responses populate VehicleState
+        // via handleNotify().
+        scope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(2_000L)
+                if (_state.value.isReady) {
+                    runCatching { refresh() }
                 }
             }
         }
@@ -117,11 +127,30 @@ class Zt3ProVehicle(
         require(gatt.send(frame)) { "BLE write failed" }
     }.onFailure { Timber.w(it, "execute($command) failed") }
 
+    /**
+     * Status-poll pattern lifted 1:1 from SHU's `CRYPTO_DUMP` capture (dst=0x16):
+     *   reg 0x10 / 14 → S/N (string)
+     *   reg 0xC0 / 12 → status block (likely battery/speed/odo, layout TBD)
+     *   reg 0xE4 / 6  → modes/lights/cruise state
+     *   reg 0x18, 0x19, 0x17 / 2 → small status flags
+     */
+    private val pollPlan: List<Triple<Byte, Byte, Int>> = listOf(
+        Triple(0x16, 0xC0.toByte(), 12),  // primary status block
+        Triple(0x16, 0xE4.toByte(), 6),   // mode/lights/cruise
+        Triple(0x16, 0xDA.toByte(), 12),  // secondary status
+        Triple(0x16, 0x18.toByte(), 2),
+        Triple(0x16, 0x19.toByte(), 2),
+        Triple(0x16, 0x17.toByte(), 2),
+        Triple(0x16, 0xE7.toByte(), 2),
+    )
+
     override suspend fun refresh(): Result<Unit> = runCatching {
         if (!handshakeSent) sendHandshake()
-        val frame = codec.readRegister(FrameCodecClassic.DST_VCU, 0xB0.toByte(), 32)
-        require(gatt.send(frame))
-        withTimeoutOrNull(2_000L) { /* responses arrive via incoming */ }
+        for ((dst, reg, len) in pollPlan) {
+            gatt.send(codec.readRegister(dst, reg, len))
+            kotlinx.coroutines.delay(60L) // small gap so the scooter can answer between writes
+        }
+        withTimeoutOrNull(1_500L) { /* responses arrive via incoming */ }
     }
 
     /**
@@ -252,17 +281,15 @@ class Zt3ProVehicle(
                 FrameCodecClassic.DST_VCU, 0x10, cmd.newSerial.toByteArray(Charsets.US_ASCII)
             )
         is VehicleCommand.ReadRegister ->
-            codec.readRegister(FrameCodecClassic.DST_VCU, cmd.offset.toByte(), cmd.length)
+            codec.readRegister(0x16, cmd.offset.toByte(), cmd.length)
         VehicleCommand.ReadBlackBox ->
-            codec.readRegister(FrameCodecClassic.DST_VCU, 0xF0.toByte(), 64)
+            codec.readRegister(0x16, 0xF0.toByte(), 64)
         VehicleCommand.ReadFirmware ->
-            codec.readRegister(FrameCodecClassic.DST_VCU, 0x1A, 16)
+            codec.readRegister(0x16, 0x1A, 16)
     }
 
     private fun handleNotify(parsed: FrameCodecClassic.Decoded) {
-        // Log decrypted RX so the user can identify unknown notify patterns
-        // (e.g. Custom-Button-press signature for Weg-A custom-button-listener).
-        // Format: `src=XX dst=XX cmd=XX arg=XX [payload-hex]`
+        // Always log decrypted RX so unknown notify-patterns can be identified.
         bleLog?.note(
             "RX-DEC",
             "src=%02X dst=%02X cmd=%02X arg=%02X [%s]".format(
@@ -271,22 +298,46 @@ class Zt3ProVehicle(
             )
         )
 
-        if (parsed.cmd == FrameCodecClassic.CMD_READ_REGULAR) {
-            _state.update { it.copy(lastRegisterRead = (parsed.arg.toInt() and 0xFF) to parsed.payload) }
+        // Mirror the answer for any incoming notify (regardless of cmd byte) into
+        // lastRegisterRead so the diagnostics screen can render it. Real ZT3
+        // responses use cmd=0x05 not the legacy 0x01.
+        _state.update {
+            it.copy(lastRegisterRead = (parsed.arg.toInt() and 0xFF) to parsed.payload)
         }
+
         val offset = parsed.arg.toInt() and 0xFF
         val data = parsed.payload
+
+        // ZT3-Pro-D-specific register layout (empirically derived from SHU's
+        // polling pattern + observed responses). Slot widths inferred from the
+        // poll lengths; field offsets within a slot are best-effort and may
+        // drift across firmware revs.
         when (offset) {
-            0xB0 -> if (data.size >= 10) {
+            0xC0 -> if (data.size >= 12) {
+                // Primary status block (12 bytes). Tentative layout:
+                //   [0..1] battery%   little-endian u16, value 0..100 (or x10)
+                //   [2..3] speed dHz  little-endian u16, value km/h × 10
+                //   [4..5] odometer   km × 100
+                //   [6..7] trip       km × 100
+                //   [8..9] temperature °C × 10
+                //   [10..11] error code / flags
                 _state.update { st ->
                     st.copy(
-                        batteryPercent = leU16(data, 0),
+                        batteryPercent = leU16(data, 0).coerceIn(0, 100),
                         speedKmh = leU16(data, 2) / 10f,
                         odometerKm = leU16(data, 4) / 100f,
                         tripKm = leU16(data, 6) / 100f,
                         temperatureC = leU16(data, 8) / 10f,
+                        errorCode = leU16(data, 10),
                     )
                 }
+            }
+            0xE4 -> if (data.size >= 6) {
+                // Mode/lights/cruise state — exact layout TBD via SHU capture.
+                // For now we just keep the raw data in lastRegisterRead.
+            }
+            0x10 -> if (data.size >= 14) {
+                _state.update { it.copy(serialNumber = String(data, 0, 14, Charsets.US_ASCII)) }
             }
             0x1A -> if (data.size >= 6) {
                 _state.update { st ->

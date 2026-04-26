@@ -142,7 +142,8 @@ class Zt3ProVehicle(
     private val pollPlan: List<Triple<Byte, Byte, Int>> = listOf(
         // VCU identity (rarely changes; cheap to re-poll)
         Triple(0x16, 0x10.toByte(), 14),  // VCU_SN — serial number
-        Triple(0x16, 0x1A.toByte(), 16),  // VCU/MCU/BLE firmware versions
+        Triple(0x16, 0x17.toByte(), 2),   // VCU_CtrlV — VCU firmware (the controller itself)
+        Triple(0x16, 0x1A.toByte(), 16),  // MCU + BLE firmware live at offsets 2-3, 4-5 of this block
         // VCU live state
         Triple(0x16, 0x55.toByte(), 2),   // VCU_BATTPCT — battery %
         Triple(0x16, 0x57.toByte(), 2),   // VCU_Speed — throttle
@@ -362,10 +363,17 @@ class Zt3ProVehicle(
             0x10 -> if (data.size >= 14) {
                 _state.update { it.copy(serialNumber = String(data, 0, 14, Charsets.US_ASCII)) }
             }
+            0x17 -> if (data.size >= 2) {
+                _state.update {
+                    it.copy(firmwareVcu = "%d.%d.%d".format(data[1].toInt() and 0xFF, (data[0].toInt() ushr 4) and 0x0F, data[0].toInt() and 0x0F))
+                }
+            }
             0x1A -> if (data.size >= 6) {
+                // ZT3: reg 0x1A itself (BMS2_VER) is unused; MCU lives at
+                // offset 2-3 (= reg 0x1B?) and BLE at 4-5 — verified
+                // empirically (MCU 39.9.15, BLE 8.0.9, both match dashboard).
                 _state.update { st ->
                     st.copy(
-                        firmwareVcu = "%d.%d.%d".format(data[1].toInt() and 0xFF, (data[0].toInt() ushr 4) and 0x0F, data[0].toInt() and 0x0F),
                         firmwareMcu = "%d.%d.%d".format(data[3].toInt() and 0xFF, (data[2].toInt() ushr 4) and 0x0F, data[2].toInt() and 0x0F),
                         firmwareBle = "%d.%d.%d".format(data[5].toInt() and 0xFF, (data[4].toInt() ushr 4) and 0x0F, data[4].toInt() and 0x0F),
                     )

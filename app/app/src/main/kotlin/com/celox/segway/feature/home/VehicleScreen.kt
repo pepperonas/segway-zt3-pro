@@ -304,6 +304,11 @@ fun VehicleScreen(
             ) {
                 Text(stringResource(R.string.vehicle_disconnect))
             }
+
+            // Bottom-nav lives outside this Scaffold so its inset is not in
+            // `padding`. Reserve space so the disconnect button is reachable
+            // when scrolled to the end.
+            Spacer(Modifier.height(96.dp))
         }
     }
 

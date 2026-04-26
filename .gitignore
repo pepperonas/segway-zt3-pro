@@ -17,6 +17,10 @@ app/gradlew.bat
 **/*.apk
 !reverse-engineering/apps/ninebot-segway/com.ninebot.segway.apk
 !reverse-engineering/apps/shu/ScooterHackingUtility-pre_release.open_beta-5.apk
+!reverse-engineering/apps/xiaodash/m365.xiaodash.scooter.apk
+
+# dex2jar error logs (regenerated on every run, uninteresting)
+m365.xiaodash.scooter-error.zip
 
 # Generated Kotlin/Hilt
 **/kotlin/build/

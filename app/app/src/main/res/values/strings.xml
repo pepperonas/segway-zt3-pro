@@ -25,6 +25,7 @@
     <string name="vehicle_unlock">Unlock</string>
     <string name="vehicle_lights">Lights</string>
     <string name="vehicle_cruise">Cruise</string>
+    <string name="vehicle_mode_walk">Walk</string>
     <string name="vehicle_mode_eco">Eco</string>
     <string name="vehicle_mode_drive">Drive</string>
     <string name="vehicle_mode_sport">Sport</string>

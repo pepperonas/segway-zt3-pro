@@ -26,6 +26,7 @@ Native, open-source rebuild of the official Segway-Ninebot **Segway Mobility** c
   - Temperature (reg `0x6B`, °C × 10) ✓
   - Trip + Odometer (regs `0x68` / `0x62`) ✓
   - Live-Speed (reg `0x57` oder MCU `0x86`) ✓
+- **Mode-Anzeige live** — Roller-Display-Wechsel (Walk → E → D → S via Power-Button-Doppeltap) wird in der App reflektiert. ZT3-Firmware ist 1-indexed: `0x01=E, 0x02=D, 0x03=S, 0x04=Männchen` (Session 9)
 - **KeepScreenOn-Toggle** in Settings → App-Bildschirm bleibt aktiv solange offen
 - **Register-Sweep-Button** in Diagnostics für eigene Reverse-Engineering-Sessions
 

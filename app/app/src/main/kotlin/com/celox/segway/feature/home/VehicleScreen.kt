@@ -138,12 +138,21 @@ fun VehicleScreen(
                         shape = SegmentedButtonDefaults.itemShape(idx, RideMode.entries.size)
                     ) {
                         Text(when (mode) {
+                            RideMode.Walk -> stringResource(R.string.vehicle_mode_walk)
                             RideMode.Eco -> stringResource(R.string.vehicle_mode_eco)
                             RideMode.Drive -> stringResource(R.string.vehicle_mode_drive)
                             RideMode.Sport -> stringResource(R.string.vehicle_mode_sport)
                         })
                     }
                 }
+            }
+            if (state.mode == null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Lese Modus vom Roller…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             Spacer(Modifier.height(20.dp))

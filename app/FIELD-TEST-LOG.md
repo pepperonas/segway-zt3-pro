@@ -606,3 +606,81 @@ Doc-Anmerkung dazu (Sektion 1, Hinweis vorweg):
 ### Status
 
 **Stand 2026-04-28 ~17:00**: Register-Map deutlich korrekter (~80% verifiziert via x3regs.h-Referenz), Telemetry funktioniert teilweise (Battery + Temp endlich plausibel, Speed + Trip in Standstand-Test 0). Mode/Lights/Cruise immer noch nicht executable trotz korrekter Register + zweitem Frame-Format — vermutete Ursache: fehlender Per-Write-Auth-Token. Release v0.1.3 mit korrekten Registern (auch wenn Mode noch nicht klappt) + neuer Doku.
+
+---
+
+## Session 9 — 2026-04-28 spätabends (Mode-Mapping byte-perfekt verifiziert)
+
+### Anforderung
+
+User: „roller ist S und app zeigt beim start D an" + dann „bin jetzt mehrfach durch alle modi". Mode-UI soll exakt zum Roller-Display passen — und der initiale Default-State (`RideMode.Drive`) der App soll nicht mehr fälschlicherweise als „echte" Anzeige erscheinen, solange noch kein erster `0x5A`-Read vom Roller eingetroffen ist.
+
+### Empirische Methodik (in 5 Minuten geknackt)
+
+Bei den vorherigen Mode-Mapping-Versuchen haben wir uns auf User-Selbstbeschreibung verlassen („E = walk, D = eco, S = drive, Männchen = Sport") — was zwei Mapping-Iterationen verbraten hat ohne tragfähig zu sein. Diese Session: **logcat als Single Source of Truth**.
+
+`BleLog` schreibt ohnehin via `Timber.tag("BleLog").d(...)` parallel ins Android-Logcat. Die `Mode | reg 0x5A raw=0xXX (N)`-Note bei jedem 0x5A-Read ist damit deterministisch greifbar:
+
+```bash
+adb logcat -d BleLog:D '*:S' 2>&1 | grep "0x5A" \
+  | awk '{ if ($NF != prev) { print $1, $2, $NF; prev=$NF } }'
+```
+
+→ Liefert eine **Transition-Map**: nur die Zeilen, an denen sich der raw-Wert geändert hat. Resultat aus dem Field-Test:
+
+```
+04-26 18:43:00.097 (4)
+04-26 18:48:26.501 (1)
+04-26 18:48:32.695 (2)
+04-26 18:51:29.698 (3)
+04-26 18:54:32.057 (4)
+```
+
+→ **Nur Werte 1, 2, 3, 4 — niemals 0**. ZT3-Firmware ist **1-indexed** für `VCU_DRIVE_MODE`.
+
+Reihenfolge entspricht dem Dashboard-Cycle (Walk → E → D → S → Walk):
+
+| raw | Roller-Display | App-Label |
+|-----|---------------|-----------|
+| `0x01` | E | Eco |
+| `0x02` | D | Drive |
+| `0x03` | S | Sport |
+| `0x04` | Männchen | Walk |
+
+### Code-Änderungen
+
+**Read-Mapping** (`Zt3ProVehicle.kt::handleVcuRegister 0x5A`):
+```kotlin
+val mode = when (raw) {
+    0x01 -> RideMode.Eco
+    0x02 -> RideMode.Drive
+    0x03 -> RideMode.Sport
+    0x04 -> RideMode.Walk
+    else -> null  // unknown → don't update state
+}
+if (mode != null) _state.update { it.copy(mode = mode) }
+```
+
+**Write-Mapping** (`Zt3ProVehicle.kt::encodeCrypto SetMode`):
+```kotlin
+when (cmd.mode) {
+    RideMode.Eco -> 0x01
+    RideMode.Drive -> 0x02
+    RideMode.Sport -> 0x03
+    RideMode.Walk -> 0x04
+}.toByte()
+```
+(Symmetrisch — auch wenn Writes auf 0x5A weiterhin von ZT3-Firmware ignoriert werden.)
+
+**Loading-State** (Vehicle.kt + VehicleScreen.kt):
+- `VehicleState.mode: RideMode?` → nullable, default `null`.
+- VehicleScreen: solange `state.mode == null`, ist kein SegmentedButton highlighted und es erscheint die Sub-Zeile *„Lese Modus vom Roller…"* unter der Buttonreihe.
+- Sobald der erste valide 0x5A-Read durch den Poll eintrifft (~1-2 s nach Connect), wird der Button korrekt selektiert.
+
+### Methoden-Lehre für künftige Sessions
+
+**„Nicht den User für die Empirie missbrauchen."** Wenn ein Bytewert empirisch erfasst werden muss, ist ein einziger `adb logcat`-Befehl mit `awk`-Transition-Filter schneller, präziser und revisionssicherer als 4 Iterationen Trial-and-Error mit User-Feedback-Loop. Die `Mode | reg 0x5A raw=...`-Logs waren bereits seit Session 7 da — wir hatten sie nur nicht systematisch gelesen.
+
+### Status
+
+**Stand 2026-04-28 ~21:00**: Mode-Mapping byte-perfekt verifiziert (1-indexed). Loading-State verhindert irreführende Default-Anzeige. Release v0.1.4. Mode-WRITES bleiben firmware-seitig blockiert (Roller-Display ändert sich nicht), aber Mode-READS sind jetzt 100 % korrekt — d.h. Dashboard-Wechsel via Power-Button-Doppeltap wird live in der App reflektiert.

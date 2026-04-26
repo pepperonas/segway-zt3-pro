@@ -80,18 +80,21 @@ class DiagnosticsViewModel @Inject constructor(
     fun unlock() = sendCmd(VehicleCommand.Unlock)
 
     /**
-     * Brute-force read every register 0x00..0xFF (length=2) from dst=0x16.
-     * Logs each non-zero / non-0xFFFF response as a `SCAN`-tagged note so we
-     * can diff before/after a state-change to find the right register.
+     * Brute-force read every register 0x00..0xFF (length=2) from MULTIPLE
+     * destinations: VCU=0x16, MCU=0x02, BMS=0x07, Display=0x23.
+     * Logs each response as a `SCAN`-tagged note so we can diff before/after
+     * a state-change to find the right register.
      * Run this twice (before + after dashboard-mode-switch) and compare.
      */
     fun registerSweep() {
         val v = activeHolder.activeVehicle.value ?: return
         viewModelScope.launch {
-            log.note("SCAN", "=== sweep start (dst=0x16, regs 0x00..0xFF, len=2) ===")
-            for (reg in 0x00..0xFF) {
-                v.execute(VehicleCommand.ReadRegister(reg, 2))
-                kotlinx.coroutines.delay(40L)
+            for (dst in listOf(0x16.toByte(), 0x02.toByte(), 0x07.toByte(), 0x23.toByte())) {
+                log.note("SCAN", "=== sweep dst=0x${"%02X".format(dst)} regs 0x00..0xFF len=2 ===")
+                for (reg in 0x00..0xFF) {
+                    v.execute(VehicleCommand.ReadRegister(reg, 2, dst))
+                    kotlinx.coroutines.delay(35L)
+                }
             }
             log.note("SCAN", "=== sweep end ===")
         }

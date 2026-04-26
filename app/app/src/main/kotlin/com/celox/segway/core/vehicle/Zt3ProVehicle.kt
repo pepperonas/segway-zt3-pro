@@ -142,7 +142,8 @@ class Zt3ProVehicle(
     private val pollPlan: List<Triple<Byte, Byte, Int>> = listOf(
         Triple(0x16, 0x55.toByte(), 2),   // VCU_BATTPCT — battery %
         Triple(0x16, 0x57.toByte(), 2),   // VCU_Speed — throttle
-        Triple(0x16, 0x5A.toByte(), 2),   // VCU_DRIVE_MODE
+        Triple(0x16, 0x5A.toByte(), 2),   // VCU_DRIVE_MODE — read-only on ZT3 Pro D
+        Triple(0x16, 0x5B.toByte(), 2),   // VCU_LedMode — read-only on ZT3 Pro D
         Triple(0x16, 0x68.toByte(), 4),   // VCU_SingleMileage — trip
         Triple(0x16, 0x62.toByte(), 4),   // VCU_Mileage — total
         Triple(0x16, 0x6B.toByte(), 2),   // VCU_BodyTemp — °C × 10
@@ -152,7 +153,10 @@ class Zt3ProVehicle(
         Triple(0x07, 0x8C.toByte(), 2),   // BMS_VOLTAGE
         Triple(0x07, 0x96.toByte(), 4),   // BMS_Temps
         Triple(0x02, 0x86.toByte(), 2),   // MCU_SPEED — actual current speed
-        Triple(0x02, 0x48.toByte(), 2),   // MCU_TEMP_A — motor temperature
+        Triple(0x02, 0x48.toByte(), 2),   // MCU_TEMP_A — motor controller temp
+        Triple(0x02, 0x49.toByte(), 2),   // MCU_TEMP_B — second motor sensor
+        Triple(0x02, 0x40.toByte(), 2),   // MCU_TEMP_A_LASTMAX
+        Triple(0x02, 0x3E.toByte(), 2),   // MCU_TEMP — overall MCU temp
     )
 
     override suspend fun refresh(): Result<Unit> = runCatching {
@@ -261,20 +265,25 @@ class Zt3ProVehicle(
             codec.writeRegister(0x16, 0x71, byteArrayOf(0x01, 0x00))
         VehicleCommand.Unlock ->
             codec.writeRegister(0x16, 0x71, byteArrayOf(0x00, 0x00))
-        // VCU_DRIVE_MODE — reg 0x5A. Standard `cmd=0x02 (WRITE), arg=register`
-        // wire form (Format A). The doc's "Format B" puts the register byte
-        // in the cmd slot which collides with handshake opcodes 0x5B/5C/5D
-        // (PRE_COMM/SET_PWD/AUTH) — confirmed in 2026-04-28 field test.
-        // Values per ZT3 register reference: 1=Walk, 2=Eco, 3=Sport, 4=Race.
+        // VCU_DRIVE_MODE — reg 0x5A. ZT3 Pro D firmware treats this register as
+        // **read-only via BLE** (verified 2026-04-28: write with cmd=0x02 acks
+        // with beep but readback unchanged; cmd=0x06 doesn't even ack). Mode is
+        // hardware-only (dashboard double-press of power button). We still send
+        // the WRITE for completeness in case a future firmware enables it.
         is VehicleCommand.SetMode ->
             codec.writeRegister(
                 0x16, 0x5A,
                 byteArrayOf(
-                    when (cmd.mode) { RideMode.Eco -> 0x02; RideMode.Drive -> 0x03; RideMode.Sport -> 0x04 }.toByte(),
+                    when (cmd.mode) {
+                        RideMode.Eco -> 0x01
+                        RideMode.Drive -> 0x02
+                        RideMode.Sport -> 0x03
+                        RideMode.Walk -> 0x04
+                    }.toByte(),
                     0x00
                 )
             )
-        // VCU_LedMode — reg 0x5B. 0=off, 1=low, 2=high, 3=auto-low, 4=auto-high, 5=auto-off.
+        // VCU_LedMode — reg 0x5B. Same read-only situation as Mode on ZT3 Pro D.
         is VehicleCommand.SetLights ->
             codec.writeRegister(0x16, 0x5B, byteArrayOf(if (cmd.on) 0x01 else 0x00, 0x00))
         // VCU_TailLightMode — reg 0x5D. `00 00` brighter when braking, `01 00` flash.
@@ -295,7 +304,7 @@ class Zt3ProVehicle(
         is VehicleCommand.WriteSerial ->
             codec.writeRegister(0x16, 0x10, cmd.newSerial.toByteArray(Charsets.US_ASCII))
         is VehicleCommand.ReadRegister ->
-            codec.readRegister(0x16, cmd.offset.toByte(), cmd.length)
+            codec.readRegister(cmd.dst, cmd.offset.toByte(), cmd.length)
         VehicleCommand.ReadBlackBox ->
             codec.readRegister(0x16, 0xF0.toByte(), 64)
         VehicleCommand.ReadFirmware ->
@@ -354,13 +363,24 @@ class Zt3ProVehicle(
                 _state.update { it.copy(speedKmh = (leU16(data, 0).coerceIn(0, 800)) / 10f) }
             }
             0x5A -> if (data.size >= 1) {
-                val mode = when (data[0].toInt() and 0xFF) {
-                    0x02 -> RideMode.Eco
-                    0x03 -> RideMode.Drive
-                    0x04 -> RideMode.Sport
-                    else -> RideMode.Drive
+                // ZT3 firmware is 1-indexed for VCU_DRIVE_MODE (verified
+                // 2026-04-28 by capturing all 4 modes via dashboard cycle):
+                //   0x01 = E (Eco), 0x02 = D (Drive), 0x03 = S (Sport),
+                //   0x04 = laufendes Männchen (Walk).
+                val raw = data[0].toInt() and 0xFF
+                bleLog?.note("Mode", "reg 0x5A raw=0x%02X (%d)".format(raw, raw))
+                val mode = when (raw) {
+                    0x01 -> RideMode.Eco
+                    0x02 -> RideMode.Drive
+                    0x03 -> RideMode.Sport
+                    0x04 -> RideMode.Walk
+                    else -> null
                 }
-                _state.update { it.copy(mode = mode) }
+                if (mode != null) _state.update { it.copy(mode = mode) }
+            }
+            0x5B -> if (data.size >= 1) {
+                // VCU_LedMode: 0=off, others=on (low/high/auto-modes).
+                _state.update { it.copy(isLightsOn = (data[0].toInt() and 0xFF) != 0) }
             }
             0x58 -> if (data.size >= 2) _state.update { it.copy(errorCode = leU16(data, 0)) }
             // VCU_Mileage / VCU_SingleMileage — empirically observed to be in
@@ -391,6 +411,13 @@ class Zt3ProVehicle(
             // MCU_SPEED — current actual speed, km/h × 10.
             0x86 -> if (data.size >= 2) {
                 _state.update { it.copy(speedKmh = leU16(data, 0) / 10f) }
+            }
+            // MCU_TEMP_A — motor-controller temperature, °C × 10. Live updates
+            // when riding. Replaces the static VCU_BodyTemp (= ambient/case
+            // temp at reg 0x6B which barely changes during riding).
+            0x48 -> if (data.size >= 2) {
+                val v = leU16Signed(data, 0) / 10f
+                if (v in -20f..150f) _state.update { it.copy(temperatureC = v) }
             }
         }
     }

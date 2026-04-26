@@ -34,7 +34,7 @@ data class VehicleState(
     val isLocked: Boolean = false,
     val isLightsOn: Boolean = false,
     val isCruiseOn: Boolean = false,
-    val mode: RideMode = RideMode.Drive,
+    val mode: RideMode? = null,
     val speedKmh: Float = 0f,
     val batteryPercent: Int = 0,
     val temperatureC: Float = 0f,
@@ -52,7 +52,8 @@ data class VehicleState(
     val lastRegisterRead: Pair<Int, ByteArray>? = null,
 )
 
-enum class RideMode { Eco, Drive, Sport }
+/** ZT3 has 4 modes shown on the dashboard: Walk, E, D, S. */
+enum class RideMode { Walk, Eco, Drive, Sport }
 
 sealed interface VehicleCommand {
     data object Lock : VehicleCommand
@@ -64,8 +65,8 @@ sealed interface VehicleCommand {
     data object Reboot : VehicleCommand
     data class ChangeRegion(val region: String) : VehicleCommand   // "U", "D", "E", ...
     data class WriteSerial(val newSerial: String) : VehicleCommand
-    /** Read [length] bytes starting at register [offset]. Result lands in [VehicleState]. */
-    data class ReadRegister(val offset: Int, val length: Int) : VehicleCommand
+    /** Read [length] bytes starting at register [offset] from [dst]. dst defaults to VCU=0x16. */
+    data class ReadRegister(val offset: Int, val length: Int, val dst: Byte = 0x16) : VehicleCommand
     /** Read the black-box (crash-log) registers. Convenience over ReadRegister. */
     data object ReadBlackBox : VehicleCommand
     /** Read the firmware version registers (VCU/MCU/BLE). */

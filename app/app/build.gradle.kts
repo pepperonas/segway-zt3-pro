@@ -21,6 +21,18 @@ android {
         vectorDrawables.useSupportLibrary = true
     }
 
+    signingConfigs {
+        // Use the standard Android debug keystore so users can sideload the
+        // release APK without us shipping a private signing key. Not for
+        // Play-Store distribution — fine for direct install.
+        create("releaseDebugSigned") {
+            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -28,6 +40,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("releaseDebugSigned")
         }
         debug {
             applicationIdSuffix = ".debug"

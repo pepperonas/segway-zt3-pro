@@ -19,21 +19,35 @@ Native, open-source rebuild of the official Segway-Ninebot **Segway Mobility** c
 
 Stand 2026-04-27 06:10: Crypto-Stack vollständig verifiziert gegen SHU's Wire (Patched-SHU + `CRYPTO_DUMP` Methode). Speed-Limit wird live auf den Roller übertragen. Siehe [`FIELD-TEST-LOG.md`](FIELD-TEST-LOG.md) Session 5 für die kompletten Bug-Findings.
 
-## ⚡ Headline-Feature: Lock-by-Default + Stealth-Unlock
+## ⚡ Headline-Feature: Lock-by-Default + Stealth-Volume-Triggers
 
-Vereinfachtes 2-State-Modell — Roller einschalten → 22 km/h, App-Unlock → 40 km/h:
+Field-tested 2026-04-27 — funktioniert auf realer ZT3 Pro D Hardware.
 
-| Zustand | Limit | Trigger |
+### State-Modell
+
+| Zustand | Speed-Limit | Wie hin? |
 |---|---|---|
-| 🔒 **Locked** (Default beim Connect) | **22 km/h** | App schickt automatisch 1.5 s nach jedem Connect den Boot-Wert |
-| 🔓 **Unlocked** | **40 km/h** | (a) `Unlock 40 km/h`-Button im Vehicle-Dashboard (mit optionalem PIN), **oder** (b) **Volume-Down 3× innerhalb 2 s** auch bei Screen-aus / App-Hintergrund (Accessibility-Service) |
+| 🔒 **Locked** (Default-State der App) | **22 km/h** | (a) **3× Vol-Down** innerhalb 2 s — Screen on **oder off**, **oder** (b) "Lock"-Button im Vehicle-Dashboard, **oder** (c) automatisch bei jedem App-Reconnect (= nach Roller-Power-Cycle, sobald Phone in BLE-Reichweite) |
+| 🔓 **Unlocked** | **40 km/h** | (a) **3× Vol-Up** innerhalb 2 s — Screen on/off, **oder** (b) "Unlock 40 km/h"-Button (optional mit PIN) |
 
-**Wichtig**: Disconnect oder Roller-Power-Cycle setzt den Lock-State zurück → beim nächsten Connect wieder 22. **Unlock ist session-only.**
+### Wichtig zu wissen
 
-Optional:
-- **Quick-Action-Profile** (Walk 6 / City 22 / Cruise 28) als manueller Override
-- **Auto-Revert** auf das Boot-Profil nach N Minuten (Slider 0-60), live-Countdown-Banner
-- **Auto-Apply-Toggle** in den Settings (Default ON; ausschaltbar wenn man manuell steuern will)
+- **Stealth-Trigger funktionieren mit Display aus** dank Foreground-Service mit `MediaSessionCompat.setPlaybackToRemote(VolumeProvider)`. Der OS-VolumeController routet Vol-Keys direkt an unsere `onAdjustVolume`-Callback — funktioniert auch bei gesperrtem Phone, weil die Routing-Pipeline nicht den InputDispatcher braucht.
+- **Auto-Apply 22 km/h bei jedem Reconnect**: Sobald Phone via BLE den Roller findet und der 3-stage NinebotCrypto-Handshake durch ist (~200-500 ms), feuert unsere App automatisch `SetSpeedLimit(22)`. Damit ist der "Lock" defaultmäßig aktiv für jede neue Session.
+- **Roller-NVRAM behält das letzte Limit**: Wenn du den Roller off → on machst und das Phone NICHT in Reichweite ist, läuft der Roller mit dem zuletzt aktiven Limit (= 40, falls letzter Zustand "unlocked" war). Erst nach App-Reconnect wird Lock-State wiederhergestellt. Race-Window: einige Sekunden zwischen Roller-On und Phone-Connect — by-design, ohne Firmware-Mod nicht änderbar.
+
+### Stealth-Service-Setup
+
+Damit 3× Vol-Up/Down im Screen-Off funktionieren, muss in den **Android-Settings → Bedienungshilfen → Segway** der Accessibility-Service einmal aktiviert werden. Die App zeigt einen roten Banner im Vehicle-Screen wenn das nicht der Fall ist + Direktlink zur System-Einstellung.
+
+Dazu läuft persistent ein **Foreground-Service** ("Stealth-Unlock aktiv" in der Statusbar), der die Volume-Key-Events einfängt. Notification ist `IMPORTANCE_LOW`, kein Sound, keine Vibration.
+
+### Optional
+
+- **Quick-Action-Profile** (Walk 6 / City 22 / Cruise 28) als manueller Override im Vehicle-Dashboard
+- **Auto-Revert** auf Boot-Profile nach N Minuten (Slider 0-60), live-Countdown-Banner während Unlock-Mode
+- **Stealth-Trigger-Toggle** in Settings (Default ON; ausschaltbar wenn man die Volume-Tasten "normal" für Media-Volume nutzen will — dann gehen Vol-Up/Down wieder ans Audio-System statt an unsere App)
+- **Optional PIN** für Unlock — wenn gesetzt, wird Vol-Up-3× ignoriert und stattdessen das Vehicle-Screen-Modal mit PIN-Prompt geöffnet
 
 ## Build & install
 

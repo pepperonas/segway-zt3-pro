@@ -294,3 +294,108 @@ Field-Test 2026-04-27 ~06:10:
 ### Status
 
 **Stand 2026-04-27 06:10**: ZT3 Pro D **funktioniert vollständig** über die App. Crypto, Routing, Register-Map alles korrekt. Nächste Schritte: Token-Persistenz in DataStore prüfen, andere Commands (Lock/Mode/Lights) gegen SHU verifizieren, persistedRandom dynamisch über Frida/CRYPTO_DUMP-Workflow oder Echt-Pair-Flow ableiten.
+
+---
+
+## Session 6 — 2026-04-27 ~06:30-07:00 (Lock-by-Default UX final)
+
+### Anforderung
+
+User-Vorgabe: "Roller nach Einschalten standardmäßig 22 km/h, Entsperrung auf 40 nur durch App-Code oder 3×-Vol-Down — und das auch bei Display aus".
+
+Iterativ verfeinert zu: **3× Vol-Up = Unlock auf 40, 3× Vol-Down = Lock auf 22**, beides funktioniert sowohl mit Screen-On als auch Screen-Off.
+
+### Implementierung
+
+#### `VehicleState.isReady`-Flag (Sync-Punkt für Auto-Apply)
+
+Vorher: `SpeedProfileManager` wartete starre 1.5s nach `isConnected=true` bevor das Boot-Profile gefeuert wurde. Mit dem 3-stage-Handshake aus Session 5 ist die Wartezeit deterministisch — `isReady` flippt direkt nach Stage M (paired-key) auf `true`. Auto-Apply feuert ~200-500ms nach BLE-Connect statt fixe 1.5s.
+
+```kotlin
+// VehicleState.kt
+val isReady: Boolean = false   // post-handshake / ready for register commands
+
+// Zt3ProVehicle.sendHandshake (am Ende):
+if (crypto.stagePairedKey) {
+    _state.update { it.copy(isReady = true) }
+}
+
+// SpeedProfileManager.init:
+vehicle.state.map { it.isConnected to it.isReady }
+    .distinctUntilChanged()
+    .collect { (connected, ready) -> if (connected && ready) applyProfile(boot) }
+```
+
+#### Screen-Off Vol-Down/Up via `VolumeProviderCompat`
+
+Problem: AccessibilityService.onKeyEvent wird bei Display-Off NICHT mehr von Volume-Keys getriggert — der InputDispatcher routet sie direkt zum Audio-Subsystem ohne Userspace-Hop.
+
+Lösung: `MediaSessionCompat` mit `setPlaybackToRemote(VolumeProvider)`. Der OS-VolumeController routet dann Vol-Up/Down direkt an `VolumeProvider.onAdjustVolume(direction)` — funktioniert screen-state-agnostisch:
+
+```kotlin
+class StealthVolumeService : Service() {
+    override fun onCreate() {
+        startForeground(NOTIF_ID, buildNotification())
+        wakeLock = pm.newWakeLock(PARTIAL_WAKE_LOCK, "segway:stealth-volume").apply { acquire(8h) }
+        val volumeProvider = object : VolumeProviderCompat(VOLUME_CONTROL_RELATIVE, 100, 50) {
+            override fun onAdjustVolume(direction: Int) {
+                if (direction < 0) registerVolumeDownPress()      // 3× → Lock 22
+                else if (direction > 0) registerVolumeUpPress()    // 3× → Unlock 40
+            }
+        }
+        mediaSession = MediaSessionCompat(this, "SegwayStealthVolumeSession").apply {
+            setPlaybackState(STATE_PLAYING)
+            setPlaybackToRemote(volumeProvider)
+            isActive = true
+        }
+    }
+}
+```
+
+Service ist als `foregroundServiceType="mediaPlayback"` registriert + `WAKE_LOCK`-Permission, läuft persistent solange `accessibilityTriggerEnabled=true`. Notification erscheint mit `IMPORTANCE_LOW` in der Statusbar als Hinweis.
+
+#### Action-Split
+
+| Trigger | Source-Path | Action |
+|---|---|---|
+| 3× Vol-Up (Screen aus) | `StealthVolumeService.onAdjustVolume(+1)` → `profileManager.onAccessibilityVolumeUpTriggered` | apply unlock-profile (40) |
+| 3× Vol-Up (Screen an) | `UnlockAccessibilityService.onKeyEvent VOLUME_UP` | gleicher Path |
+| 3× Vol-Down (Screen aus) | `StealthVolumeService.onAdjustVolume(-1)` → `profileManager.onAccessibilityVolumeDownTriggered` | apply boot-profile (22) |
+| 3× Vol-Down (Screen an) | `UnlockAccessibilityService.onKeyEvent VOLUME_DOWN` | gleicher Path |
+| App-Connect (jeder Reconnect) | `SpeedProfileManager.init` Flow auf `isReady=true` | apply boot-profile (22) |
+| Roller-Power-Cycle | (BLE-Disconnect → Reconnect) → gleicher Auto-Apply-Path | apply boot-profile (22) |
+| App-Button "Unlock 40 km/h" | `VehicleViewModel.confirmUnlock` | apply unlock-profile (40, ggf. mit PIN) |
+| App-Button "Lock to X km/h" | `VehicleViewModel.reLock` | apply boot-profile |
+
+### Beobachtungen Field-Test
+
+**Funktioniert** ✅:
+- 3× Vol-Up = Unlock 40 (Screen on/off)
+- 3× Vol-Down = Lock 22 (Screen on/off)
+- App-Reconnect feuert Boot-Profile sofort nach Handshake
+- Notification "Stealth-Unlock aktiv" sichtbar in Statusbar
+- Banner im Vehicle-Screen wenn Accessibility-Service in Android-Settings noch nicht aktiv ist
+
+**Beobachtet, by-design akzeptiert**:
+- Roller-Power-Cycle ohne Phone in Reichweite → Roller läuft bei nächstem Hochfahren mit dem **zuletzt aktiven Limit** (= 40 wenn letzter Zustand "unlocked"). Erst wenn Phone reconnectet feuert unsere App `SetSpeedLimit(22)`. Race-Window: paar Sekunden nach Power-On bis Phone connectet hat.
+- Begründung: Roller-Firmware persistiert das Speed-Limit in NVRAM, NICHT in Session-State. Ohne Firmware-Mod nicht änderbar — der Phone-Side Auto-Apply ist die einzige Greife. Akzeptiert vom User.
+
+### Code-Pointer
+
+| File | Funktion |
+|---|---|
+| `core/vehicle/Vehicle.kt` | `VehicleState.isReady`-Flag |
+| `core/vehicle/Zt3ProVehicle.kt:209` | `_state.update { isReady=true }` nach Stage M |
+| `core/profile/SpeedProfileManager.kt:63` | Wartet auf `(isConnected, isReady) → both true` |
+| `core/profile/SpeedProfileManager.kt:131` | `onAccessibilityVolumeUpTriggered` (Vol-Up = Unlock) |
+| `core/profile/SpeedProfileManager.kt:148` | `onAccessibilityVolumeDownTriggered` (Vol-Down = Lock) |
+| `core/profile/SpeedProfile.kt:35` | `accessibilityTriggerEnabled = true` (Default) |
+| `feature/profiles/StealthVolumeService.kt` | Foreground-Service mit VolumeProvider |
+| `feature/profiles/UnlockAccessibilityService.kt` | Screen-On Vol-Up/Down detection |
+| `feature/home/VehicleScreen.kt` | `AccessibilityServiceBanner` + Lock-Status-Banner |
+| `SegwayApp.kt` | Auto-start StealthVolumeService wenn `accessibilityTriggerEnabled=true` |
+| `AndroidManifest.xml` | Foreground-Service + Wake-Lock Permissions |
+
+### Status
+
+**Stand 2026-04-27 ~07:00**: Lock-by-Default-UX vollständig live. Tested: 3× Vol-Up/Down funktioniert mit Display aus, Lock-State wird bei Reconnect re-applied, Stealth-Notification sichtbar. Doku auf Stand. Release-APK gebaut + auf GitHub-Releases gestellt.

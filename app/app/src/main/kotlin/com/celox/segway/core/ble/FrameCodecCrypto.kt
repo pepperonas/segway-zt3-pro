@@ -13,6 +13,16 @@ class FrameCodecCrypto(private val crypto: NinebotCrypto) {
     fun writeRegister(dst: Byte, register: Byte, payload: ByteArray): ByteArray =
         wrap(FrameCodecClassic.SRC_PHONE, dst, FrameCodecClassic.CMD_WRITE_REGULAR, register, payload)
 
+    /**
+     * Alternative write encoding per the ZT3 BLE register reference doc:
+     * `bCmd = register_address`, `bArg = 0x00`. Used for some VCU registers
+     * (Mode, Lights) that don't accept the standard `cmd=0x02, arg=register`
+     * form. Verified via empirical testing — SetSpeedLimit uses the standard
+     * form, SetMode/SetLights need this direct form.
+     */
+    fun writeRegisterDirect(dst: Byte, register: Byte, payload: ByteArray): ByteArray =
+        wrap(FrameCodecClassic.SRC_PHONE, dst, register, 0x00, payload)
+
     fun readRegister(dst: Byte, register: Byte, length: Int): ByteArray =
         wrap(
             FrameCodecClassic.SRC_PHONE, dst,

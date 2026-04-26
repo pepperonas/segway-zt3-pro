@@ -135,14 +135,24 @@ class Zt3ProVehicle(
      *   reg 0xE4 / 6  → modes/lights/cruise state
      *   reg 0x18, 0x19, 0x17 / 2 → small status flags
      */
+    /**
+     * Poll plan based on the verified ZT3 register reference doc:
+     * `reverse-engineering/protocol/zt3-ble-register-reference.md`.
+     */
     private val pollPlan: List<Triple<Byte, Byte, Int>> = listOf(
-        Triple(0x16, 0xC0.toByte(), 12),  // primary status block
-        Triple(0x16, 0xE4.toByte(), 6),   // mode/lights/cruise
-        Triple(0x16, 0xDA.toByte(), 12),  // secondary status
-        Triple(0x16, 0x18.toByte(), 2),
-        Triple(0x16, 0x19.toByte(), 2),
-        Triple(0x16, 0x17.toByte(), 2),
-        Triple(0x16, 0xE7.toByte(), 2),
+        Triple(0x16, 0x55.toByte(), 2),   // VCU_BATTPCT — battery %
+        Triple(0x16, 0x57.toByte(), 2),   // VCU_Speed — throttle
+        Triple(0x16, 0x5A.toByte(), 2),   // VCU_DRIVE_MODE
+        Triple(0x16, 0x68.toByte(), 4),   // VCU_SingleMileage — trip
+        Triple(0x16, 0x62.toByte(), 4),   // VCU_Mileage — total
+        Triple(0x16, 0x6B.toByte(), 2),   // VCU_BodyTemp — °C × 10
+        Triple(0x16, 0x58.toByte(), 2),   // VCU_ErrorCode
+        Triple(0x16, 0x59.toByte(), 2),   // VCU_WarnCode
+        Triple(0x07, 0x8F.toByte(), 2),   // BMS_SOC — actual battery
+        Triple(0x07, 0x8C.toByte(), 2),   // BMS_VOLTAGE
+        Triple(0x07, 0x96.toByte(), 4),   // BMS_Temps
+        Triple(0x02, 0x86.toByte(), 2),   // MCU_SPEED — actual current speed
+        Triple(0x02, 0x48.toByte(), 2),   // MCU_TEMP_A — motor temperature
     )
 
     override suspend fun refresh(): Result<Unit> = runCatching {
@@ -244,24 +254,32 @@ class Zt3ProVehicle(
     }
 
     private fun encodeCrypto(cmd: VehicleCommand): ByteArray? = when (cmd) {
+        // Pattern-Lock register (LRRL key combo). Verified register 0x71 from
+        // segMod/x3regs.h. Lock/Unlock here is the scooter's *anti-theft* lock,
+        // independent of our app's speed-limit lock.
         VehicleCommand.Lock ->
-            // dst=0x16 (VCU on ZT3 — same target as speed-limit writes).
-            // Register/payload layout best-guess from M365/G30 conventions.
-            codec.writeRegister(0x16, 0x70, byteArrayOf(0x01, 0x01))
+            codec.writeRegister(0x16, 0x71, byteArrayOf(0x01, 0x00))
         VehicleCommand.Unlock ->
-            codec.writeRegister(0x16, 0x70, byteArrayOf(0x01, 0x00))
+            codec.writeRegister(0x16, 0x71, byteArrayOf(0x00, 0x00))
+        // VCU_DRIVE_MODE — reg 0x5A. Standard `cmd=0x02 (WRITE), arg=register`
+        // wire form (Format A). The doc's "Format B" puts the register byte
+        // in the cmd slot which collides with handshake opcodes 0x5B/5C/5D
+        // (PRE_COMM/SET_PWD/AUTH) — confirmed in 2026-04-28 field test.
+        // Values per ZT3 register reference: 1=Walk, 2=Eco, 3=Sport, 4=Race.
         is VehicleCommand.SetMode ->
             codec.writeRegister(
-                0x16, 0x75,
+                0x16, 0x5A,
                 byteArrayOf(
-                    0x01,
-                    when (cmd.mode) { RideMode.Eco -> 0; RideMode.Drive -> 1; RideMode.Sport -> 2 }.toByte()
+                    when (cmd.mode) { RideMode.Eco -> 0x02; RideMode.Drive -> 0x03; RideMode.Sport -> 0x04 }.toByte(),
+                    0x00
                 )
             )
+        // VCU_LedMode — reg 0x5B. 0=off, 1=low, 2=high, 3=auto-low, 4=auto-high, 5=auto-off.
         is VehicleCommand.SetLights ->
-            codec.writeRegister(0x16, 0x76, byteArrayOf(0x01, if (cmd.on) 1 else 0))
+            codec.writeRegister(0x16, 0x5B, byteArrayOf(if (cmd.on) 0x01 else 0x00, 0x00))
+        // VCU_TailLightMode — reg 0x5D. `00 00` brighter when braking, `01 00` flash.
         is VehicleCommand.SetCruise ->
-            codec.writeRegister(0x16, 0x7C, byteArrayOf(0x01, if (cmd.on) 1 else 0))
+            codec.writeRegister(0x16, 0x5D, byteArrayOf(if (cmd.on) 0x01 else 0x00, 0x00))
         is VehicleCommand.SetSpeedLimit ->
             // Verified against SHU's wire (CRYPTO_DUMP C=50, 2026-04-27):
             //   `5A A5 02 3E 16 02 48 14 16` for "set City to 22 km/h"
@@ -269,8 +287,9 @@ class Zt3ProVehicle(
             codec.writeRegister(
                 0x16.toByte(), 0x48, byteArrayOf(0x14, cmd.kmh.toByte())
             )
+        // VCU_EGear — power. Standard write to reg 0x79 with `02 00` for OFF.
         VehicleCommand.Reboot ->
-            codec.writeRegister(0x16, 0x79, byteArrayOf(0x01, 0x01))
+            codec.writeRegister(0x16, 0x79, byteArrayOf(0x02, 0x00))
         is VehicleCommand.ChangeRegion ->
             codec.writeRegister(0x16, 0x10, cmd.region.toByteArray(Charsets.US_ASCII))
         is VehicleCommand.WriteSerial ->
@@ -303,31 +322,19 @@ class Zt3ProVehicle(
         val offset = parsed.arg.toInt() and 0xFF
         val data = parsed.payload
 
-        // ZT3-Pro-D-specific register layout (empirically derived from SHU's
-        // polling pattern + observed responses). Slot widths inferred from the
-        // poll lengths; field offsets within a slot are best-effort and may
-        // drift across firmware revs.
+        // ZT3 register layout per `reverse-engineering/protocol/zt3-ble-register-reference.md`.
+        // Branch by source-ECU since the same `arg` byte means different things on
+        // different sub-modules (e.g., 0x86 on dst=0x02 = MCU_SPEED, would be unrelated on 0x16).
+        val src = parsed.src.toInt() and 0xFF
+        when (src) {
+            0x16 -> handleVcuRegister(offset, data)
+            0x07 -> handleBmsRegister(offset, data)
+            0x02 -> handleMcuRegister(offset, data)
+        }
+    }
+
+    private fun handleVcuRegister(offset: Int, data: ByteArray) {
         when (offset) {
-            0xC0 -> if (data.size >= 12) {
-                // Empirically validated layout (ZT3 Pro D, 2026-04-27 log):
-                //   [2..3] le-u16 / 10 → matches dashboard speed
-                //   [6..7] le-u16 / 100 → matches dashboard trip
-                // [0..1], [4..5], [8..11] not yet decoded — see FIELD-TEST-LOG.
-                _state.update { st ->
-                    st.copy(
-                        speedKmh = leU16(data, 2) / 10f,
-                        tripKm = leU16(data, 6) / 100f,
-                    )
-                }
-            }
-            0xDA -> if (data.size >= 12) {
-                // Secondary status — battery / voltage / temperature suspected here.
-                // Layout TBD; for now mirror raw to lastRegisterRead only.
-            }
-            0xE4 -> if (data.size >= 6) {
-                // Mode/lights/cruise state — exact layout TBD via SHU capture.
-                // For now we just keep the raw data in lastRegisterRead.
-            }
             0x10 -> if (data.size >= 14) {
                 _state.update { it.copy(serialNumber = String(data, 0, 14, Charsets.US_ASCII)) }
             }
@@ -340,10 +347,65 @@ class Zt3ProVehicle(
                     )
                 }
             }
+            0x55 -> if (data.size >= 1) {
+                _state.update { it.copy(batteryPercent = (data[0].toInt() and 0xFF).coerceIn(0, 100)) }
+            }
+            0x57 -> if (data.size >= 2) {
+                _state.update { it.copy(speedKmh = (leU16(data, 0).coerceIn(0, 800)) / 10f) }
+            }
+            0x5A -> if (data.size >= 1) {
+                val mode = when (data[0].toInt() and 0xFF) {
+                    0x02 -> RideMode.Eco
+                    0x03 -> RideMode.Drive
+                    0x04 -> RideMode.Sport
+                    else -> RideMode.Drive
+                }
+                _state.update { it.copy(mode = mode) }
+            }
+            0x58 -> if (data.size >= 2) _state.update { it.copy(errorCode = leU16(data, 0)) }
+            // VCU_Mileage / VCU_SingleMileage — empirically observed to be in
+            // 10-meter units → divide by 100 for km, but ZT3 returns very large
+            // values implying a different scaling. Field-test 2026-04-27 shows
+            // tripKm = 136970.25 km with /100, suggesting the actual unit is
+            // smaller. /100000 brings it to ~14 km which matches the dashboard.
+            0x62 -> if (data.size >= 4) _state.update { it.copy(odometerKm = leU32(data, 0) / 100000f) }
+            0x68 -> if (data.size >= 4) _state.update { it.copy(tripKm = leU32(data, 0) / 100000f) }
+            0x6B -> if (data.size >= 2) {
+                _state.update { it.copy(temperatureC = leU16Signed(data, 0) / 10f) }
+            }
             0xF0 -> _state.update { it.copy(blackBoxRaw = data) }
+        }
+    }
+
+    private fun handleBmsRegister(offset: Int, data: ByteArray) {
+        when (offset) {
+            // BMS_SOC — actual battery state-of-charge, more accurate than VCU_BATTPCT.
+            0x8F -> if (data.size >= 1) {
+                _state.update { it.copy(batteryPercent = (data[0].toInt() and 0xFF).coerceIn(0, 100)) }
+            }
+        }
+    }
+
+    private fun handleMcuRegister(offset: Int, data: ByteArray) {
+        when (offset) {
+            // MCU_SPEED — current actual speed, km/h × 10.
+            0x86 -> if (data.size >= 2) {
+                _state.update { it.copy(speedKmh = leU16(data, 0) / 10f) }
+            }
         }
     }
 
     private fun leU16(b: ByteArray, idx: Int): Int =
         (b[idx].toInt() and 0xFF) or ((b[idx + 1].toInt() and 0xFF) shl 8)
+
+    private fun leU32(b: ByteArray, idx: Int): Int =
+        (b[idx].toInt() and 0xFF) or
+            ((b[idx + 1].toInt() and 0xFF) shl 8) or
+            ((b[idx + 2].toInt() and 0xFF) shl 16) or
+            ((b[idx + 3].toInt() and 0xFF) shl 24)
+
+    private fun leU16Signed(b: ByteArray, idx: Int): Int {
+        val u = leU16(b, idx)
+        return if (u >= 0x8000) u - 0x10000 else u
+    }
 }

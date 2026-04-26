@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -78,6 +79,24 @@ class DiagnosticsViewModel @Inject constructor(
     fun lock() = sendCmd(VehicleCommand.Lock)
     fun unlock() = sendCmd(VehicleCommand.Unlock)
 
+    /**
+     * Brute-force read every register 0x00..0xFF (length=2) from dst=0x16.
+     * Logs each non-zero / non-0xFFFF response as a `SCAN`-tagged note so we
+     * can diff before/after a state-change to find the right register.
+     * Run this twice (before + after dashboard-mode-switch) and compare.
+     */
+    fun registerSweep() {
+        val v = activeHolder.activeVehicle.value ?: return
+        viewModelScope.launch {
+            log.note("SCAN", "=== sweep start (dst=0x16, regs 0x00..0xFF, len=2) ===")
+            for (reg in 0x00..0xFF) {
+                v.execute(VehicleCommand.ReadRegister(reg, 2))
+                kotlinx.coroutines.delay(40L)
+            }
+            log.note("SCAN", "=== sweep end ===")
+        }
+    }
+
     private fun sendCmd(cmd: VehicleCommand) {
         val v = activeHolder.activeVehicle.value ?: return
         viewModelScope.launch { v.execute(cmd) }
@@ -131,6 +150,7 @@ fun DiagnosticsScreen(
                 onStatus = vm::readStatus,
                 onFirmware = vm::readFirmware,
                 onBlackBox = vm::readBlackBox,
+                onSweep = vm::registerSweep,
             )
             FieldTestBar(
                 isConnected = state.isConnected,
@@ -150,9 +170,14 @@ private fun ActionsBar(
     onStatus: () -> Unit,
     onFirmware: () -> Unit,
     onBlackBox: () -> Unit,
+    onSweep: () -> Unit,
 ) {
+    val scrollState = androidx.compose.foundation.rememberScrollState()
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(scrollState)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         AssistChip(
@@ -165,13 +190,19 @@ private fun ActionsBar(
             onClick = onFirmware,
             enabled = isConnected,
             leadingIcon = { Icon(Icons.Outlined.Refresh, null) },
-            label = { Text("FW versions") }
+            label = { Text("FW") }
         )
         AssistChip(
             onClick = onBlackBox,
             enabled = isConnected,
             leadingIcon = { Icon(Icons.Outlined.History, null) },
             label = { Text("Black-Box") }
+        )
+        AssistChip(
+            onClick = onSweep,
+            enabled = isConnected,
+            leadingIcon = { Icon(Icons.Outlined.Refresh, null) },
+            label = { Text("Sweep") }
         )
     }
 }

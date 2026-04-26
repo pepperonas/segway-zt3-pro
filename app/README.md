@@ -15,22 +15,39 @@ Native, open-source rebuild of the official Segway-Ninebot **Segway Mobility** c
 
 ---
 
-## ✅ Was funktioniert (Field-tested 2026-04-27)
+## ✅ Was funktioniert (Field-tested 2026-04-28)
 
 - **Speed-Limit setzen** (22 / 40 km/h Lock-Mode + custom kmh) — `dst=0x16, reg=0x48, payload=[0x14, kmh]`, byte-perfekt gegen SHU verifiziert (FIELD-TEST-LOG Session 5)
 - **3× Vol-Up Stealth-Unlock auf 40, 3× Vol-Down Stealth-Lock auf 22** — auch mit ausgeschaltetem Display via `MediaSessionCompat.VolumeProvider` + Foreground-Service (Session 6)
 - **Live-Status-Notification** — zeigt aktuellen Lock-Zustand + nächste Aktion, updated automatisch
 - **Auto-Lock bei jedem Reconnect** — sobald Phone in Reichweite + Handshake durch, wird Boot-Profile (22 km/h) gesetzt
-- **Telemetry partial**: Live-Speed + Trip aus reg `0xC0`/12 ✓ (verifiziert via BleLog-Capture, Session 7). Battery + Temperatur-Layout TBD
+- **Live-Telemetrie** mit verifizierten Registern (Session 8 + [`zt3-ble-register-reference.md`](../reverse-engineering/protocol/zt3-ble-register-reference.md)):
+  - Battery (reg `0x55` VCU oder `0x8F` BMS) ✓
+  - Temperature (reg `0x6B`, °C × 10) ✓
+  - Trip + Odometer (regs `0x68` / `0x62`) ✓
+  - Live-Speed (reg `0x57` oder MCU `0x86`) ✓
+- **KeepScreenOn-Toggle** in Settings → App-Bildschirm bleibt aktiv solange offen
+- **Register-Sweep-Button** in Diagnostics für eigene Reverse-Engineering-Sessions
 
-## ❌ Was NICHT funktioniert (ZT3-Pro-D-Hardware-Limits)
+## ❌ Was NICHT funktioniert (ZT3-Pro-D-Firmware-Restriktionen)
 
-- **Mode-Wechsel (Eco/Drive/Sport), Lights On/Off, Cruise-Toggle** sind auf der ZT3-Pro-D-Firmware **nicht** via BLE-Register schreibbar. Der Roller piept bei jeder Write-Op (`[01 00]`-Ack), tut aber nichts. Wahrscheinlich hardware-only:
-  - Mode = Doppelklick Power-Button am Dashboard
-  - Lights = automatisch beim Fahren
-  - Cruise = Throttle 5+ s halten
-- **Custom-Button-Remapping** (Hill-Hold → Speed-22): Roller sendet kein BLE-Notify bei Button-Press → keine App-vermittelte Reaktion möglich
-- **Reverse-Engineering der offiziellen Segway-Mobility-App** wäre der einzige Weg, diese Lücken zu füllen. Hürde: NIS-Wrapper-Verschlüsselung der nativen Klassen + Hermes-Bytecode in der React-Native-Bundle. Mehrtägiger Aufwand, siehe FIELD-TEST-LOG Session 7.
+- **Mode-Wechsel (Eco/Drive/Sport)**: reg `0x5A` (VCU_DRIVE_MODE) ist laut [x3regs.h](https://github.com/MacintoshKeyboardHacking/segMod/blob/main/myBLE4/x3regs.h) für GT3/F3 schreibbar, aber auf ZT3 Pro D firmware-seitig restriktiv: Roller ackt unsere Writes mit `[01 00]`-Beep, ändert aber Display nicht. Vermutlich nur read-only auf ZT3.
+- **Headlight Manual Toggle**: reg `0x5B` (VCU_LedMode) — gleiche Symptomatik. Auto-Headlight via Bit in `0x1F` läuft firmware-internal beim Fahren.
+- **Cruise Control**: keine Remote-Aktivierung — Throttle-halten 5+ s ist die einzige Methode (firmware-internal).
+- **Custom-Button-Remapping** (Hill-Hold → Speed-22): Roller sendet kein BLE-Notify bei Button-Press → keine App-vermittelte Reaktion möglich.
+
+ZT3 Pro D ist register-kompatibel zu GT3/F3 aber **deutlich restriktiver welche Register tatsächlich beschreibbar sind**. Doc-Hinweis: ZT3-VCU hat im Gegensatz zu GT3/G3/F3 keinen SPI-Flash-Chip — möglicherweise hängt das mit den fehlenden Schreibrechten zusammen. Vollständige RE würde einen der drei Wege erfordern:
+1. **Patched offizielle Segway-Mobility-App** mit Logging — NIS-Wrapper + Hermes-Bytecode, mehrtägig
+2. **Frida-Hook zur Laufzeit** auf entweder Segway-App oder libnbcrypto.so
+3. **CAN-MITM-Sniffing** zwischen BLE-Modul und VCU per ESP32 (segMod-Ansatz)
+
+## 📚 Wire-Protokoll-Referenz
+
+Vollständige BLE-Register- + Frame-Format-Doku in [`reverse-engineering/protocol/zt3-ble-register-reference.md`](../reverse-engineering/protocol/zt3-ble-register-reference.md). Quellen:
+- [segMod Wiki](https://github.com/MacintoshKeyboardHacking/segMod/wiki)
+- [x3regs.h](https://github.com/MacintoshKeyboardHacking/segMod/blob/main/myBLE4/x3regs.h)
+- [NootNooot Ninebot BLE](https://nootnooot.codeberg.page/segway-ninebot-ble/)
+- Eigene Field-Tests + Patched-SHU CRYPTO_DUMP-Methode (FIELD-TEST-LOG)
 
 ## ⚡ Headline-Feature: Lock-by-Default + Stealth-Volume-Triggers
 

@@ -127,12 +127,37 @@ fun VehicleScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // NOTE: Mode-Switch (Eco/Drive/Sport), Lights und Cruise sind auf der
-            // ZT3 Pro D *nicht* per BLE-Register schreibbar — die Firmware ackt
-            // unsere Frames generisch ([01 00]) ohne sie auszuführen. Diese
-            // Funktionen werden nur per Dashboard-Hardware (Doppelklick Power für
-            // Mode, Throttle-Halten für Cruise, Auto-Headlight) gesteuert.
-            // Siehe FIELD-TEST-LOG Session 7 für die Capture-Analyse.
+            // Mode-Switch — registers verified per ZT3 BLE register reference doc.
+            SectionLabel("Modus")
+            Spacer(Modifier.height(8.dp))
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                RideMode.entries.forEachIndexed { idx, mode ->
+                    SegmentedButton(
+                        selected = state.mode == mode,
+                        onClick = { viewModel.setMode(mode) },
+                        shape = SegmentedButtonDefaults.itemShape(idx, RideMode.entries.size)
+                    ) {
+                        Text(when (mode) {
+                            RideMode.Eco -> stringResource(R.string.vehicle_mode_eco)
+                            RideMode.Drive -> stringResource(R.string.vehicle_mode_drive)
+                            RideMode.Sport -> stringResource(R.string.vehicle_mode_sport)
+                        })
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // Lights toggle — VCU_LedMode at reg 0x5B, doc-form encoding.
+            FilterChip(
+                selected = state.isLightsOn,
+                onClick = { viewModel.toggleLights() },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(if (state.isLightsOn) "Licht aus" else "Licht an") },
+                leadingIcon = { androidx.compose.material3.Icon(Icons.Outlined.Lightbulb, null) },
+            )
+
+            Spacer(Modifier.height(20.dp))
 
             SectionLabel("Quick-Profile")
             Spacer(Modifier.height(8.dp))

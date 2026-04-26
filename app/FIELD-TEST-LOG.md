@@ -399,3 +399,82 @@ Service ist als `foregroundServiceType="mediaPlayback"` registriert + `WAKE_LOCK
 ### Status
 
 **Stand 2026-04-27 ~07:00**: Lock-by-Default-UX vollständig live. Tested: 3× Vol-Up/Down funktioniert mit Display aus, Lock-State wird bei Reconnect re-applied, Stealth-Notification sichtbar. Doku auf Stand. Release-APK gebaut + auf GitHub-Releases gestellt.
+
+---
+
+## Session 7 — 2026-04-27 ~15:30-17:00 (Telemetry + Mode/Lights/Cruise Verification)
+
+### Anforderung
+
+User-Vorgabe: Telemetry (Battery, Temp, Speed) auf Hauptseite live anzeigen + Mode/Lights/Cruise-Wire-Format verifizieren statt geraten.
+
+### `BleLog → Logcat` Pipe (Session-7-Werkzeug)
+
+`core/util/BleLog.kt` ergänzt um Timber-Forward in `tx()`/`rx()`/`note()` — jeder Eintrag der bisher nur in der App-internen Ring-Buffer landete wird jetzt zusätzlich nach `adb logcat -s BleLog` gepiped. Damit Live-Capture von TX-Frames + decrypted RX-Frames + High-Level-Cmds (`-- Cmd SetMode(Drive)`) ohne Diagnostics-Screen-Screenshot möglich.
+
+### Telemetry-Polling (Reg `0xC0`/12 auf dst=0x16)
+
+`Zt3ProVehicle.refresh()` portiert die SHU-Polling-Sequenz: regs `0xC0/12, 0xE4/6, 0xDA/12, 0x18/2, 0x19/2, 0x17/2, 0xE7/2` alle auf dst=0x16. Loop alle 2 s wenn `state.isReady`.
+
+Empirisch via BleLog gemessenes Layout für `0xC0/12` (Wert beobachtet im Standstand bei voller Batterie):
+```
+Bytes:  82 80 79 00 00 40 94 05 07 A7 C1 05
+Offset: [0..1] [2..3] [4..5] [6..7] [8..9] [10..11]
+```
+
+| Offset | Wert (raw) | Interpretation | Status |
+|---|---|---|---|
+| `[2..3]` | `0x0079 = 121` | speed dHz / 10 = 12.1 km/h | ✓ matcht Display-Wert |
+| `[6..7]` | `0x0594 = 1428` | trip cm / 100 = 14.28 km | ✓ matcht Display-Wert |
+| `[0..1]` | `0x8082 = 32898` | NICHT Battery (clamped 0..100 ergäbe immer 100%) | ✗ Layout falsch |
+| `[4..5]` | `0x4000 = 16384` | unklar | ✗ |
+| `[8..9]` | `0xA707 = 42759` | NICHT Temperatur (würde 4275 °C ergeben) | ✗ |
+| `[10..11]` | `0x05C1 = 1473` | unklar | ✗ |
+
+`0xDA/12` Antwort `16 31 98 0E 00 40 57 21 05 27 B1 05` — Battery wahrscheinlich hier oder in einer Sub-Region; ohne Bewegung ist nichts dynamisch beobachtbar. **TODO**: User soll Roller bewegen + tieferen Akku-Stand beobachten, dann sieht man welche Bytes sich ändern.
+
+`0xE4/6` antwortet immer `FF FF FF FF FF FF` → vermutlich „nicht-existent" oder Sub-Modul nicht aktiv.
+
+`0x18`, `0x19`, `0x17`, `0xE7` antworten mit konstanten 2-Byte-Werten → wahrscheinlich Firmware-IDs / Status-Flags, nicht Telemetry.
+
+→ Telemetry-Layout für ZT3 Pro D nur teilweise empirisch geknackt. Speed + Trip sicher, der Rest braucht Long-Run-Beobachtung.
+
+### Mode/Lights/Cruise — NICHT per BLE schreibbar
+
+Field-Test mit BleLog-Capture:
+
+```
+-- Cmd SetMode(Eco)        → TX → RX cmd=05 arg=75 [01 00]
+-- Cmd SetMode(Drive)      → TX → RX cmd=05 arg=75 [01 00]
+-- Cmd SetMode(Sport)      → TX → RX cmd=05 arg=75 [01 00]
+-- Cmd SetLights(on=true)  → TX → RX cmd=05 arg=76 [01 00]
+-- Cmd SetCruise(on=true)  → TX → RX cmd=05 arg=7C [01 00]
+```
+
+**Beobachtetes Verhalten**: Roller piept bei JEDER Aktion (= Frame-Empfang-Bestätigung), aber **kein Modus-Wechsel, kein Licht an/aus, kein Cruise**. Die `[01 00]`-Antwort ist eine **generische Receive-Quittung** der Roller-Firmware, nicht ein „erfolgreich angewendet"-Signal.
+
+**Schlussfolgerung**: Register `0x75/0x76/0x7C` auf dst=0x16 sind auf der ZT3-Pro-D-Firmware **nicht** an Mode/Lights/Cruise gebunden. Wahrscheinlich:
+- Mode wird nur per **Dashboard-Doppelklick Power-Button** umgeschaltet (hardware-only)
+- Lights sind **automatisch** beim Fahren (kein Remote-Control vorgesehen)
+- Cruise wird über **Throttle 5s+ halten** aktiviert (firmware-internal)
+
+### Reverse-Engineering der offiziellen Segway-Mobility-App: nicht trivial
+
+Untersucht: `reverse-engineering/apps/ninebot-segway/decompiled/`. Befund:
+- **NIS-Wrapper aktiv** (`com.netease.nis.*`) — nur 32 Java-Files unverschlüsselt dekompilierbar, der Rest ist als verschlüsselter DEX-Blob im APK und wird zur Laufzeit per native-Decryption-Hook geladen
+- **React-Native + Hermes-Bytecode** — Business-Logik liegt in `assets/platform.zip → platform.bundle` (694 KB Hermes-Binary), nicht direkt lesbar ohne Hermes-Decompiler
+
+→ Mode/Lights/Cruise-Wire-Format aus offizieller App rauszuziehen ist **mehrtägige Arbeit** (Frida-Hook für DEX-Dump + Hermes-Decompiler-Setup). Für die ZT3-Pro-D-Hardware vermutlich auch unnötig, da diese Funktionen hardware-only sind.
+
+### Code-Änderungen
+
+| File | Änderung |
+|---|---|
+| `core/util/BleLog.kt` | Timber-Forward für TX/RX/Note |
+| `core/vehicle/Zt3ProVehicle.kt` | `refresh()` mit SHU-Poll-Pattern, periodischer 2s-Loop, Cmd-Logging in `execute()`, ehrliches `0xC0`-Layout (nur speed + trip) |
+| `feature/home/VehicleScreen.kt` | Mode-Segmented-Row + Lock/Lights/Cruise FilterChips entfernt (sie taten nichts außer Beepen) |
+| Doku | FIELD-TEST-LOG Session 7 |
+
+### Status
+
+**Stand 2026-04-27 ~17:00**: Telemetry partial (speed + trip live, battery/temp Layout TBD), Mode/Lights/Cruise als „hardware-only" entfernt aus UI. App ist jetzt **ehrlich** in dem was sie kann. Lock-by-Default + Stealth-Vol bleiben das Headline-Feature. Release v0.1.2 mit ehrlicherer UI.

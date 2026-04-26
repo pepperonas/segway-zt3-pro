@@ -123,6 +123,7 @@ class Zt3ProVehicle(
 
     override suspend fun execute(command: VehicleCommand): Result<Unit> = runCatching {
         if (!handshakeSent) sendHandshake()
+        bleLog?.note("Cmd", command.toString())
         val frame = encodeCrypto(command) ?: error("Cannot encode $command")
         require(gatt.send(frame)) { "BLE write failed" }
     }.onFailure { Timber.w(it, "execute($command) failed") }
@@ -244,25 +245,23 @@ class Zt3ProVehicle(
 
     private fun encodeCrypto(cmd: VehicleCommand): ByteArray? = when (cmd) {
         VehicleCommand.Lock ->
-            codec.writeRegister(FrameCodecClassic.DST_VCU, 0x70, byteArrayOf(0x01, 0x01))
+            // dst=0x16 (VCU on ZT3 — same target as speed-limit writes).
+            // Register/payload layout best-guess from M365/G30 conventions.
+            codec.writeRegister(0x16, 0x70, byteArrayOf(0x01, 0x01))
         VehicleCommand.Unlock ->
-            codec.writeRegister(FrameCodecClassic.DST_VCU, 0x70, byteArrayOf(0x01, 0x00))
+            codec.writeRegister(0x16, 0x70, byteArrayOf(0x01, 0x00))
         is VehicleCommand.SetMode ->
             codec.writeRegister(
-                FrameCodecClassic.DST_VCU, 0x75,
+                0x16, 0x75,
                 byteArrayOf(
                     0x01,
                     when (cmd.mode) { RideMode.Eco -> 0; RideMode.Drive -> 1; RideMode.Sport -> 2 }.toByte()
                 )
             )
         is VehicleCommand.SetLights ->
-            codec.writeRegister(
-                FrameCodecClassic.DST_VCU, 0x76, byteArrayOf(0x01, if (cmd.on) 1 else 0)
-            )
+            codec.writeRegister(0x16, 0x76, byteArrayOf(0x01, if (cmd.on) 1 else 0))
         is VehicleCommand.SetCruise ->
-            codec.writeRegister(
-                FrameCodecClassic.DST_VCU, 0x7C, byteArrayOf(0x01, if (cmd.on) 1 else 0)
-            )
+            codec.writeRegister(0x16, 0x7C, byteArrayOf(0x01, if (cmd.on) 1 else 0))
         is VehicleCommand.SetSpeedLimit ->
             // Verified against SHU's wire (CRYPTO_DUMP C=50, 2026-04-27):
             //   `5A A5 02 3E 16 02 48 14 16` for "set City to 22 km/h"
@@ -271,15 +270,11 @@ class Zt3ProVehicle(
                 0x16.toByte(), 0x48, byteArrayOf(0x14, cmd.kmh.toByte())
             )
         VehicleCommand.Reboot ->
-            codec.writeRegister(FrameCodecClassic.DST_VCU, 0x79, byteArrayOf(0x01, 0x01))
+            codec.writeRegister(0x16, 0x79, byteArrayOf(0x01, 0x01))
         is VehicleCommand.ChangeRegion ->
-            codec.writeRegister(
-                FrameCodecClassic.DST_VCU, 0x10, cmd.region.toByteArray(Charsets.US_ASCII)
-            )
+            codec.writeRegister(0x16, 0x10, cmd.region.toByteArray(Charsets.US_ASCII))
         is VehicleCommand.WriteSerial ->
-            codec.writeRegister(
-                FrameCodecClassic.DST_VCU, 0x10, cmd.newSerial.toByteArray(Charsets.US_ASCII)
-            )
+            codec.writeRegister(0x16, 0x10, cmd.newSerial.toByteArray(Charsets.US_ASCII))
         is VehicleCommand.ReadRegister ->
             codec.readRegister(0x16, cmd.offset.toByte(), cmd.length)
         VehicleCommand.ReadBlackBox ->
@@ -314,23 +309,20 @@ class Zt3ProVehicle(
         // drift across firmware revs.
         when (offset) {
             0xC0 -> if (data.size >= 12) {
-                // Primary status block (12 bytes). Tentative layout:
-                //   [0..1] battery%   little-endian u16, value 0..100 (or x10)
-                //   [2..3] speed dHz  little-endian u16, value km/h × 10
-                //   [4..5] odometer   km × 100
-                //   [6..7] trip       km × 100
-                //   [8..9] temperature °C × 10
-                //   [10..11] error code / flags
+                // Empirically validated layout (ZT3 Pro D, 2026-04-27 log):
+                //   [2..3] le-u16 / 10 → matches dashboard speed
+                //   [6..7] le-u16 / 100 → matches dashboard trip
+                // [0..1], [4..5], [8..11] not yet decoded — see FIELD-TEST-LOG.
                 _state.update { st ->
                     st.copy(
-                        batteryPercent = leU16(data, 0).coerceIn(0, 100),
                         speedKmh = leU16(data, 2) / 10f,
-                        odometerKm = leU16(data, 4) / 100f,
                         tripKm = leU16(data, 6) / 100f,
-                        temperatureC = leU16(data, 8) / 10f,
-                        errorCode = leU16(data, 10),
                     )
                 }
+            }
+            0xDA -> if (data.size >= 12) {
+                // Secondary status — battery / voltage / temperature suspected here.
+                // Layout TBD; for now mirror raw to lastRegisterRead only.
             }
             0xE4 -> if (data.size >= 6) {
                 // Mode/lights/cruise state — exact layout TBD via SHU capture.

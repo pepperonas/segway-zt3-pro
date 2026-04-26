@@ -40,9 +40,18 @@ class BleLog @Inject constructor() {
     private val _entries = MutableStateFlow<List<Entry>>(emptyList())
     val entries: StateFlow<List<Entry>> = _entries.asStateFlow()
 
-    fun tx(tag: String, bytes: ByteArray) = append(Direction.TX, tag, hex = bytes.toHex(), message = null)
-    fun rx(tag: String, bytes: ByteArray) = append(Direction.RX, tag, hex = bytes.toHex(), message = null)
-    fun note(tag: String, message: String) = append(Direction.Note, tag, hex = null, message = message)
+    fun tx(tag: String, bytes: ByteArray) {
+        timber.log.Timber.tag("BleLog").d("TX %-10s %s", tag, bytes.toHex())
+        append(Direction.TX, tag, hex = bytes.toHex(), message = null)
+    }
+    fun rx(tag: String, bytes: ByteArray) {
+        timber.log.Timber.tag("BleLog").d("RX %-10s %s", tag, bytes.toHex())
+        append(Direction.RX, tag, hex = bytes.toHex(), message = null)
+    }
+    fun note(tag: String, message: String) {
+        timber.log.Timber.tag("BleLog").d("-- %-10s %s", tag, message)
+        append(Direction.Note, tag, hex = null, message = message)
+    }
 
     fun clear() = _entries.update { emptyList() }
 

@@ -127,24 +127,12 @@ fun VehicleScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // Mode chooser
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                RideMode.entries.forEachIndexed { idx, mode ->
-                    SegmentedButton(
-                        selected = state.mode == mode,
-                        onClick = { viewModel.setMode(mode) },
-                        shape = SegmentedButtonDefaults.itemShape(idx, RideMode.entries.size)
-                    ) {
-                        Text(when (mode) {
-                            RideMode.Eco -> stringResource(R.string.vehicle_mode_eco)
-                            RideMode.Drive -> stringResource(R.string.vehicle_mode_drive)
-                            RideMode.Sport -> stringResource(R.string.vehicle_mode_sport)
-                        })
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
+            // NOTE: Mode-Switch (Eco/Drive/Sport), Lights und Cruise sind auf der
+            // ZT3 Pro D *nicht* per BLE-Register schreibbar — die Firmware ackt
+            // unsere Frames generisch ([01 00]) ohne sie auszuführen. Diese
+            // Funktionen werden nur per Dashboard-Hardware (Doppelklick Power für
+            // Mode, Throttle-Halten für Cruise, Auto-Headlight) gesteuert.
+            // Siehe FIELD-TEST-LOG Session 7 für die Capture-Analyse.
 
             SectionLabel("Quick-Profile")
             Spacer(Modifier.height(8.dp))
@@ -236,36 +224,6 @@ fun VehicleScreen(
                     icon = Icons.Outlined.Bolt,
                     label = stringResource(R.string.vehicle_trip),
                     value = "%.2f km".format(state.tripKm),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            SectionLabel("Steuerung")
-            Spacer(Modifier.height(8.dp))
-
-            // Quick actions
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = state.isLocked,
-                    onClick = { viewModel.toggleLock() },
-                    label = { Text(if (state.isLocked) stringResource(R.string.vehicle_unlock) else stringResource(R.string.vehicle_lock)) },
-                    leadingIcon = { androidx.compose.material3.Icon(Icons.Outlined.Lock, null) },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterChip(
-                    selected = state.isLightsOn,
-                    onClick = { viewModel.toggleLights() },
-                    label = { Text(stringResource(R.string.vehicle_lights)) },
-                    leadingIcon = { androidx.compose.material3.Icon(Icons.Outlined.Lightbulb, null) },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterChip(
-                    selected = state.isCruiseOn,
-                    onClick = { viewModel.toggleCruise() },
-                    label = { Text(stringResource(R.string.vehicle_cruise)) },
-                    leadingIcon = { androidx.compose.material3.Icon(Icons.Outlined.Bookmarks, null) },
                     modifier = Modifier.weight(1f)
                 )
             }

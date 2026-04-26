@@ -15,9 +15,22 @@ Native, open-source rebuild of the official Segway-Ninebot **Segway Mobility** c
 
 ---
 
-## ✅ Status: ZT3 Pro D Field-Tested — funktioniert
+## ✅ Was funktioniert (Field-tested 2026-04-27)
 
-Stand 2026-04-27 06:10: Crypto-Stack vollständig verifiziert gegen SHU's Wire (Patched-SHU + `CRYPTO_DUMP` Methode). Speed-Limit wird live auf den Roller übertragen. Siehe [`FIELD-TEST-LOG.md`](FIELD-TEST-LOG.md) Session 5 für die kompletten Bug-Findings.
+- **Speed-Limit setzen** (22 / 40 km/h Lock-Mode + custom kmh) — `dst=0x16, reg=0x48, payload=[0x14, kmh]`, byte-perfekt gegen SHU verifiziert (FIELD-TEST-LOG Session 5)
+- **3× Vol-Up Stealth-Unlock auf 40, 3× Vol-Down Stealth-Lock auf 22** — auch mit ausgeschaltetem Display via `MediaSessionCompat.VolumeProvider` + Foreground-Service (Session 6)
+- **Live-Status-Notification** — zeigt aktuellen Lock-Zustand + nächste Aktion, updated automatisch
+- **Auto-Lock bei jedem Reconnect** — sobald Phone in Reichweite + Handshake durch, wird Boot-Profile (22 km/h) gesetzt
+- **Telemetry partial**: Live-Speed + Trip aus reg `0xC0`/12 ✓ (verifiziert via BleLog-Capture, Session 7). Battery + Temperatur-Layout TBD
+
+## ❌ Was NICHT funktioniert (ZT3-Pro-D-Hardware-Limits)
+
+- **Mode-Wechsel (Eco/Drive/Sport), Lights On/Off, Cruise-Toggle** sind auf der ZT3-Pro-D-Firmware **nicht** via BLE-Register schreibbar. Der Roller piept bei jeder Write-Op (`[01 00]`-Ack), tut aber nichts. Wahrscheinlich hardware-only:
+  - Mode = Doppelklick Power-Button am Dashboard
+  - Lights = automatisch beim Fahren
+  - Cruise = Throttle 5+ s halten
+- **Custom-Button-Remapping** (Hill-Hold → Speed-22): Roller sendet kein BLE-Notify bei Button-Press → keine App-vermittelte Reaktion möglich
+- **Reverse-Engineering der offiziellen Segway-Mobility-App** wäre der einzige Weg, diese Lücken zu füllen. Hürde: NIS-Wrapper-Verschlüsselung der nativen Klassen + Hermes-Bytecode in der React-Native-Bundle. Mehrtägiger Aufwand, siehe FIELD-TEST-LOG Session 7.
 
 ## ⚡ Headline-Feature: Lock-by-Default + Stealth-Volume-Triggers
 

@@ -248,7 +248,7 @@ C-Block:  ?... = imperial / metric
 
 | Reg | Name | Inhalt |
 |-----|------|--------|
-| `0x10` | `VCU_SN` | Seriennummer |
+| `0x10` | `VCU_SN` | Seriennummer (kodiert auch die Region — siehe ⓘ unten) |
 | `0x17` | `VCU_CtrlV` | Controller-Version |
 | `0x18` | `VCU_MCUV` | MCU-Version |
 | `0x19` | `VCU_BmsV` | BMS-Version |
@@ -546,6 +546,57 @@ Der Scooter wirft das 5AA5-Protokoll in den **Nordic UART Service** (NUS):
 - 16-bit Service-ID `0xFE??` (Service Data)
 - 128-bit Nordic UART Service ID
 - Manufacturing Data → enthält Modell-Hint
+
+---
+
+## ⓘ Region-Codierung (kein dedizierter Register)
+
+Die x3-Plattform (ZT3/F3/G3/GT3) hat **keinen separaten Region-Register**. Die Region ist in der Seriennummer (`0x10 VCU_SN`) enkodiert, und die App leitet sie client-seitig per Pattern-Matching ab.
+
+Verifiziert via SHU-Decompile (`apps/shu/decompiled/jadx/sources/j6/p.java` + `g6/p1.java`):
+
+```java
+// j6/p.java::c() — pattern-matching
+private static String c(String sn, h hVar) {
+    JSONObject regionMap = device.getRegionMap();      // sn_region_map JSON
+    Iterator<String> keys = regionMap.keys();
+    while (keys.hasNext()) {
+        String next = keys.next();
+        JSONObject entry = regionMap.optJSONObject(next);
+        if (entry != null && b(sn, entry.optString("pattern", ""))) {
+            return entry.optString("label", next);     // z.B. "US"
+        }
+    }
+    return "unknown";
+}
+```
+
+`b(...)` macht Wildcard-Match mit `?` als Beliebig-Zeichen — z.B. `pattern = "1K1U?????????"` matcht alle SNs mit Prefix `1K1U`.
+
+### ZT3 Pro D Region-Letter (4. Zeichen der SN, nach `1K1`-Modellprefix)
+
+| Letter | Region | Speed-Limit |
+|---|---|---|
+| `U` | US | unbegrenzt / 40 km/h |
+| `D` | DE / Germany | 20 km/h (Mofa-Klasse) |
+| `E` | EU generic | 20 km/h |
+| `G` | GB / UK | 25 km/h |
+| `F` | FR / France | 25 km/h |
+| `C` | CN / China | 25 km/h |
+| `K` | KR / Korea | regional |
+| `J` | JP / Japan | regional |
+
+Beispiel: `1K1UA2551P3965` → Position 3 = `U` → **US-Region** (40 km/h Hardware-Limit weg, kompatibel mit SHU-„Change Region to US"-Workflow aus [`UNLOCK-PLAN.md`](../../UNLOCK-PLAN.md)).
+
+### Region ändern (= neuen SN schreiben)
+
+Region-Wechsel ist **kein eigener Befehl**, sondern ein `change_sn`-Write auf Reg `0x10`:
+
+```
+5A A5 0E 3E 16 02 10 [14 ASCII-bytes der neuen SN] [chk]
+```
+
+Die SHU-App nutzt diesen Mechanismus für „Change Region" (siehe `g6/p1.java::Q1()` + `V1()`).
 
 ---
 

@@ -361,7 +361,28 @@ class Zt3ProVehicle(
     private fun handleVcuRegister(offset: Int, data: ByteArray) {
         when (offset) {
             0x10 -> if (data.size >= 14) {
-                _state.update { it.copy(serialNumber = String(data, 0, 14, Charsets.US_ASCII)) }
+                val sn = String(data, 0, 14, Charsets.US_ASCII)
+                // Region is encoded in the SN — verified via SHU decompile
+                // (sources/j6/p.java + g6/p1.java): there is NO dedicated
+                // region register on the x3 platform. SHU pattern-matches
+                // the SN against a `sn_region_map` JSON loaded from its
+                // backend. ZT3 prefix `1K1` + 4th char = region letter:
+                //   U = US (40 km/h, unrestricted throttle)
+                //   D = DE  E = EU  G = GB  F = FR  C = CN  K = KR  J = JP
+                val regionLetter = sn.getOrNull(3)?.uppercaseChar()
+                val region = when (regionLetter) {
+                    'U' -> "US"
+                    'D' -> "DE"
+                    'E' -> "EU"
+                    'G' -> "GB"
+                    'F' -> "FR"
+                    'C' -> "CN"
+                    'K' -> "KR"
+                    'J' -> "JP"
+                    null -> ""
+                    else -> regionLetter.toString()
+                }
+                _state.update { it.copy(serialNumber = sn, regionCode = region) }
             }
             0x17 -> if (data.size >= 2) {
                 _state.update {

@@ -144,11 +144,11 @@ key  = SHA-1(scooterName[0..12] ++ salt[0..12])[0..16]
 
 ### Open items / „first ride" checklist
 
-1. **Field-Test der Crypto-Implementation** (Iteration 3) — Field-Test 2026-04-26 zeigt 15-km/h-Anomalie statt commandet 22; Hypothesen:
-   - **`scooterName`-Mismatch** zwischen App und Roller (Roller advertiset doppelt als `1K1Dx…` *und* `1K1Ux…` — wir verbinden uns mit dem ersten Treffer, SHU evtl. mit dem anderen)
-   - Speed-Limit-Register `0x72` evtl. falsch (anderer Default-Limit-Slot wird getroffen)
-   - Encoding `(kmh, 0x00)` vs. U8 vs. ×10-Skalierung
-2. **Diagnostics-Logger** erweitern: Inner-Frame UND Wire-Frame nebeneinander loggen, plus `scooterName`-Debug-Anzeige
+1. **Field-Test Iteration 4** — pcap-Analyse von `speed-manip.pcap` (siehe FIELD-TEST-LOG Session 4) hat drei Korrekturen ausgelöst:
+   - Hello jetzt plen=0x00 (4-Byte `[3E 21 5C 00]`) statt plen=0x10 mit 16 Random — matcht das, was SHU's funktionierende Sessions auf der Wire zeigen
+   - Token persistiert in `PairingPrefs.cryptoToken` über Disconnects/App-Restarts (SHU hält die `c`-Instanz im Speicher; wir simulieren das via DataStore)
+   - Handshake jetzt fire-and-forget — SHU wartet auch nicht auf die Response, feuert Commands sofort nach Init
+2. **`scooterName`-Verifikation im Live-Test**: Diagnostics-Screen loggt jetzt `scooterName='…' tokenLoaded=…` als Note bei jedem Connect. Auf Wire zeigt das Capture `1K1UA2551P3965` für unseren Roller — falls Android's `getDeviceName()` etwas anderes liefert, wird das hier sofort sichtbar.
 3. **0xB0 Register-Layout** gegen reale Notify-Frames cross-checken (sobald Crypto-Pfad RX-Notifies liefert)
 4. **Region-Change** → vollständige SN-Read-Modify-Write-Sequenz (aktuell wird nur das Region-Byte gesendet)
 5. **OTA-Chunk-ACK-Detection** robust machen (aktuell heuristisch)

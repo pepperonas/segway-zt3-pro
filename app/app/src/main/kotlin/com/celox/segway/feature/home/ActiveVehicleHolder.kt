@@ -54,6 +54,8 @@ class ActiveVehicleHolder @Inject constructor(
             scooterName = scooterName,
             gatt = gatt,
             pairing = pairing,
+            pairingPrefs = pairingPrefs,
+            bleLog = bleLog,
             scope = scope
         )
         _activeVehicle.value = vehicle

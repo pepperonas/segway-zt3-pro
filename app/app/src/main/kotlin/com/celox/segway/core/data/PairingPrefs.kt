@@ -33,6 +33,8 @@ class PairingPrefs @Inject constructor(
         val deviceInfo: String? = null,   // base64
         val deviceToken: String? = null,
         val beaconKey: String? = null,
+        /** NinebotCrypto token (`f5100d`, base64) — preserves session key across reconnects. */
+        val cryptoToken: String? = null,
     )
 
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
@@ -64,6 +66,22 @@ class PairingPrefs @Inject constructor(
             if (idx >= 0) current[idx] = newCfg else current.add(newCfg)
             prefs[key] = json.encodeToString(current.toList())
         }
+    }
+
+    suspend fun saveCryptoToken(mac: String, token: ByteArray) {
+        val b64 = android.util.Base64.encodeToString(token, android.util.Base64.NO_WRAP)
+        context.pairingDataStore.edit { prefs ->
+            val current = runCatching { json.decodeFromString<List<Config>>(prefs[key] ?: "[]") }
+                .getOrDefault(emptyList()).toMutableList()
+            val idx = current.indexOfFirst { it.ssid.equals(mac, true) }
+            if (idx >= 0) current[idx] = current[idx].copy(cryptoToken = b64)
+            else current.add(Config(ssid = mac, cryptoToken = b64))
+            prefs[key] = json.encodeToString(current.toList())
+        }
+    }
+
+    suspend fun loadCryptoToken(mac: String): ByteArray? = get(mac)?.cryptoToken?.let {
+        runCatching { decodeBase64(it) }.getOrNull()
     }
 
     suspend fun remove(mac: String) {

@@ -6,10 +6,11 @@ import com.celox.segway.core.ble.FrameCodecCrypto
 import com.celox.segway.core.ble.GattClient
 import com.celox.segway.core.ble.GattState
 import com.celox.segway.core.crypto.NinebotCrypto
+import com.celox.segway.core.data.PairingPrefs
+import com.celox.segway.core.util.BleLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,10 +29,14 @@ import timber.log.Timber
  *
  *   `5A A5 [len] [src=3E] [dst=21] [cmd] [arg] [enc payload] [tag(4)] [ctrHi ctrLo]`
  *
- * The very first frame after connect must be the handshake `5A A5 10 3E 21 5C 00
- * [16-byte random]`. The scooter responds with a 16-byte token; our [crypto]
- * instance then re-keys with `SHA-1(scooterName ++ token)` and the rest of the
- * session uses real AES-CBC-MAC + AES-CTR encryption.
+ * The first TX after connect is a 4-byte hello `[3E 21 5C 00]` (plen=0). The
+ * scooter responds with `5A A5 1E [rxAddr] 3E 5B …token…` (plen=30) which our
+ * [crypto] instance re-keys against. Subsequent commands use AES-CBC-MAC + AES-CTR.
+ *
+ * The handshake is fire-and-forget: pcap analysis of real SHU sessions
+ * (`reverse-engineering/ble-captures/speed-manip.pcap`) shows SHU never blocks
+ * on the response — it just keeps firing commands and the scooter accepts the
+ * ones whose decryption succeeds.
  */
 class Zt3ProVehicle(
     override val id: String,
@@ -39,6 +44,8 @@ class Zt3ProVehicle(
     private val scooterName: String,
     private val gatt: GattClient,
     private val pairing: EllipticPairing,             // kept for API compat — not used by the wire layer
+    private val pairingPrefs: PairingPrefs? = null,
+    private val bleLog: BleLog? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) : Vehicle {
 
@@ -48,23 +55,35 @@ class Zt3ProVehicle(
     private val crypto = NinebotCrypto(scooterName)
     private val codec = FrameCodecCrypto(crypto)
 
-    @Volatile private var handshakeDone = false
+    @Volatile private var handshakeSent = false
 
     init {
+        scope.launch {
+            // Try restoring a previously-persisted token so the very first command
+            // already encrypts under the resume-key — matches what SHU does in-memory
+            // across reconnects.
+            pairingPrefs?.loadCryptoToken(id)?.let { crypto.loadToken(it) }
+        }
         scope.launch {
             gatt.state.collect { gs ->
                 _state.update { it.copy(isConnected = gs == GattState.Ready) }
                 if (gs != GattState.Ready) {
                     crypto.reset()
-                    handshakeDone = false
+                    handshakeSent = false
                 }
             }
         }
         scope.launch {
+            var lastTokenSeen: ByteArray? = null
             gatt.incoming.collect { raw ->
                 val parsed = codec.parse(raw) ?: return@collect
                 handleNotify(parsed)
-                handshakeDone = crypto.isHandshakeComplete()
+                // Persist the token whenever decrypt() flipped it to a new value.
+                val current = crypto.snapshotToken()
+                if (current.any { it != 0.toByte() } && !current.contentEquals(lastTokenSeen)) {
+                    lastTokenSeen = current
+                    pairingPrefs?.let { prefs -> scope.launch { prefs.saveCryptoToken(id, current) } }
+                }
             }
         }
     }
@@ -72,40 +91,35 @@ class Zt3ProVehicle(
     override suspend fun connect() {
         gatt.connect(id)
         gatt.state.first { it == GattState.Ready || it == GattState.Error }
-        if (gatt.state.value == GattState.Ready) runHandshake()
+        if (gatt.state.value == GattState.Ready) sendHandshake()
     }
 
     override suspend fun disconnect() = gatt.disconnect()
 
     override suspend fun execute(command: VehicleCommand): Result<Unit> = runCatching {
-        ensureHandshake()
+        if (!handshakeSent) sendHandshake()
         val frame = encodeCrypto(command) ?: error("Cannot encode $command")
         require(gatt.send(frame)) { "BLE write failed" }
     }.onFailure { Timber.w(it, "execute($command) failed") }
 
     override suspend fun refresh(): Result<Unit> = runCatching {
-        ensureHandshake()
+        if (!handshakeSent) sendHandshake()
         val frame = codec.readRegister(FrameCodecClassic.DST_VCU, 0xB0.toByte(), 32)
         require(gatt.send(frame))
         withTimeoutOrNull(2_000L) { /* responses arrive via incoming */ }
     }
 
-    private suspend fun runHandshake() {
-        if (handshakeDone) return
+    /**
+     * Fire the 4-byte hello (`5A A5 00 3E 21 5C 00`) — counter=0, body f-XOR-encrypted.
+     * Does NOT block on the response: pcap shows SHU sends commands immediately after
+     * and lets the scooter sort out which decrypt successfully.
+     */
+    private suspend fun sendHandshake() {
+        bleLog?.note("Crypto", "scooterName='$scooterName' tokenLoaded=${crypto.isHandshakeComplete()}")
         val initFrame = crypto.buildInitFrame(FrameCodecClassic.DST_VCU)
-        // First TX has counter=0 → encrypt() routes through the f-XOR path and
-        // produces the handshake wire-frame. We pass it through the codec so the
-        // BleLog entry shows both inner and wire bytes.
         val wire = crypto.encrypt(initFrame)
-        require(gatt.send(wire)) { "Handshake init send failed" }
-        // Wait up to 3s for a response that flips the handshake-complete flag.
-        withTimeoutOrNull(3_000L) {
-            while (!crypto.isHandshakeComplete()) delay(50)
-        }
-    }
-
-    private suspend fun ensureHandshake() {
-        if (!handshakeDone) runHandshake()
+        gatt.send(wire)
+        handshakeSent = true
     }
 
     private fun encodeCrypto(cmd: VehicleCommand): ByteArray? = when (cmd) {

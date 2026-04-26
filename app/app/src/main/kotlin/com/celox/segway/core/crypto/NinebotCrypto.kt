@@ -154,14 +154,42 @@ class NinebotCrypto(private val scooterName: String) {
         deriveKey(scooterName.toByteArray(Charsets.UTF_8), salt)
     }
 
-    /** Build the handshake init frame: `5A A5 10 3E [txAddr] 5C 00 [16 random]`. */
-    fun buildInitFrame(txAddr: Byte, random: ByteArray = randomBytes(16)): ByteArray {
-        require(random.size == 16) { "init random must be 16 bytes" }
-        return byteArrayOf(
-            0x5A.toByte(), 0xA5.toByte(), 0x10.toByte(),
-            0x3E.toByte(), txAddr,
-            0x5C.toByte(), 0x00.toByte()
-        ) + random
+    /**
+     * Build the handshake hello.
+     *
+     * Two flavours, picked based on whether we already have a token:
+     *
+     *  - **Resume hello** (`plen=0x00`, 4-byte body `[3E txAddr 5C 00]`) — used when
+     *    [token] is non-zero. Matches SHU's working sessions in the
+     *    `speed-manip.pcap` capture (Phase B, t=6019; Phase E2, t=9585).
+     *  - **First-pair hello** (`plen=0x10`, 4-byte header + 16 random bytes) — used
+     *    on a cold start (token still zero). Matches SHU's `c.i:301-303` detection
+     *    path which captures the random into `f5101e`. The scooter's pairing logic
+     *    issues a token in response.
+     */
+    fun buildInitFrame(txAddr: Byte): ByteArray =
+        if (token.any { it != 0.toByte() }) {
+            byteArrayOf(
+                0x5A.toByte(), 0xA5.toByte(), 0x00.toByte(),
+                0x3E.toByte(), txAddr,
+                0x5C.toByte(), 0x00.toByte()
+            )
+        } else {
+            byteArrayOf(
+                0x5A.toByte(), 0xA5.toByte(), 0x10.toByte(),
+                0x3E.toByte(), txAddr,
+                0x5C.toByte(), 0x00.toByte()
+            ) + randomBytes(16)
+        }
+
+    /** Snapshot the token so the caller can persist it across BLE disconnects. */
+    fun snapshotToken(): ByteArray = token.copyOf()
+
+    /** Restore a previously-persisted token and re-derive the AES key from it. */
+    fun loadToken(persisted: ByteArray) {
+        if (persisted.size != 16 || persisted.all { it == 0.toByte() }) return
+        System.arraycopy(persisted, 0, token, 0, 16)
+        deriveKey(scooterName.toByteArray(Charsets.UTF_8), token)
     }
 
     fun isHandshakeComplete(): Boolean = counter > 0 && token.any { it != 0.toByte() }

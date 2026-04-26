@@ -148,3 +148,55 @@ Zwei parallele Analyse-Agenten lieferten widersprüchliche Befunde:
 ### Status
 
 **Stand 2026-04-26**: NinebotCrypto-Code committed, APK auf S24 Ultra installiert, **Field-Tuning offen für 2026-04-27**.
+
+---
+
+## Session 4 — 2026-04-27 (HCI-Capture-Analyse `speed-manip.pcap`)
+
+### Quelle
+
+`reverse-engineering/ble-captures/speed-manip.pcap` (4.4 MB, 32k HCI-Frames, 1248 ATT-Frames). User-bereitgestellter Live-Mitschnitt einer SHU-Session, in der der Speed erfolgreich gesetzt wurde.
+
+### Identifizierte Phasen
+
+| Phase | Zeit | Pfad | Status |
+|---|---|---|---|
+| **A** | t=5395-5718 | ECDH `55 AB` | scheitert (5 km/h Failsafe) |
+| **B** | t=6019-6034 | NinebotCrypto `5A A5` | **erfolgreich (Resume)** |
+| **C** | t=7701-7910 | Plaintext `5A A5` | das war meine App (Iteration 2) |
+| **E1** | t=9358-9415 | NinebotCrypto, plen=0x10-init mit 16-Byte-Random | TX-only, scheitert |
+| **E2** | t=9585-9605+ | NinebotCrypto, plen=0x00-init (4-Byte-Hello) | **erfolgreich (Resume)** |
+
+### Scooter-Identität
+
+- **Adv-Name**: `1K1UA2551P3965` (14 Bytes, NUR diese Variante — kein paralleles `1K1Dx*` in diesem Capture)
+- **MAC**: `c1:6b:5e:d0:c5:96`
+- **Manufacturer-ID**: `0x434E` ("NC" = NinebotCrypto-Variante, bestätigt)
+
+### Crypto-Verifikation (Phase E1)
+
+Phase E1 erste TX (counter=0): `5A A5 10 5E 42 72 49 39 A5 36 2C F9 68 8B 62 2F B8 A0 CE 80 2E F0 98 00 00 D1 FF 00 00`
+- Body[0..3] = `5E 42 72 49` = f-XOR von `[3E 21 5C 00]` mit Key `SHA-1(name[0..12] ++ salt[0..12])[0..16]`
+- Verifikations-Script (Python + PyCryptodome): output `5e427249` ≡ Wire ✓
+
+→ **Algorithmus von `NinebotCrypto.kt` ist 1:1 korrekt**. Schlüssel-Ableitung, AES-ECB, f-XOR alles bestätigt.
+
+### Entscheidende Wire-Erkenntnisse
+
+1. **Funktionierender Hello ist plen=0x00** (4 Bytes inneren Frame `[3E 21 5C 00]`), nicht plen=0x10 mit 16-Byte-Random. Der 16-Byte-Random ist nur First-Pair und scheitert ohne Power-Button-OOB.
+2. **Counter-Sprung 0 → 2 → 3 → ...**: i() inkrementiert nach Send (0→1), h() inkrementiert nach Receive (1→2), nächster Send rechnet `iA = counter+1 = 3`. Counter=1 erscheint nie auf der Wire.
+3. **Fire-and-Forget**: SHU wartet NICHT auf Handshake-Response. Sendet sofort nach Init weitere Commands. Roller picks die ersten korrekt entschlüsselbaren Frames.
+4. **SHU hält `c`-Instanz über BLE-Disconnects am Leben**: f5100d (Token) bleibt im Speicher, daher startet die nächste Session schon mit `SHA-1(name + token)`-Key, NICHT `SHA-1(name + salt)`. Phase B + Phase E2 zeigen dies — der wire-body `89 5C 97 9D` für `[3E 21 5C 00]` matcht keine fresh-derived Key.
+
+### Code-Anpassungen
+
+| File | Change |
+|---|---|
+| `core/crypto/NinebotCrypto.kt` | `buildInitFrame()` produziert jetzt plen=0x00 statt plen=0x10. Neue API: `snapshotToken()`, `loadToken(persisted)` für Persistenz. |
+| `core/data/PairingPrefs.kt` | Neues Feld `cryptoToken` in `Config`, plus `saveCryptoToken()` / `loadCryptoToken()` Helpers. |
+| `core/vehicle/Zt3ProVehicle.kt` | Bei Init: lade persisted Token. Bei jedem Decrypt: Token-Diff erkennen + persist. Handshake fire-and-forget (keine 3s-Blockade mehr). BleLog-Note loggt `scooterName` + Token-State zur Diagnose. |
+| `feature/home/ActiveVehicleHolder.kt` | `pairingPrefs` + `bleLog` durchreichen. |
+
+### Status
+
+**Stand 2026-04-27 morgens**: Code-Anpassungen aus pcap-Analyse committed, Build steht. APK noch nicht auf Phone (User-Phone gerade nicht verbunden). **Bereit für nächsten Field-Test, sobald Phone wieder live ist.**

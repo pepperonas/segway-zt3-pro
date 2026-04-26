@@ -200,3 +200,97 @@ Phase E1 erste TX (counter=0): `5A A5 10 5E 42 72 49 39 A5 36 2C F9 68 8B 62 2F 
 ### Status
 
 **Stand 2026-04-27 morgens**: Code-Anpassungen aus pcap-Analyse committed, Build steht. APK noch nicht auf Phone (User-Phone gerade nicht verbunden). **Bereit für nächsten Field-Test, sobald Phone wieder live ist.**
+
+---
+
+## Session 5 — 2026-04-27 ~05:30-06:10 (Patched-SHU Methode → DURCHBRUCH)
+
+### Problem-Stand
+
+Drei Bug-Klassen verhinderten dass unsere Frames vom Roller akzeptiert wurden:
+1. **Falsche Key-Derivation**: `minOf(size, 12)` statt voller Source-Länge in SHA-1-Input → komplett falscher AES-Key
+2. **Falsche dst-Routing**: alle Frames an 0x21 statt das per-Funktion korrekte dst (0x04 für Handshake, 0x16 für VCU-Register)
+3. **Falsches Speed-Limit-Register**: `arg=0x72` (= 114 dec) statt `arg=0x48` (= 72 dec)
+
+### Methode: Patched SHU mit Logging
+
+`reverse-engineering/apps/shu/decompiled/apktool/smali/c6/c.smali` an Zeile 1166 (`i([B)[B`) gepatcht — ein Block Smali der bei jedem TX `Log.d("CRYPTO_DUMP", ...)` mit Token+Random+Key+Counter+Data ausgibt:
+
+```smali
+.method public final i([B)[B
+    .locals 9
+    const-string v0, "Data"
+    invoke-static {p1, v0}, Lkotlin/jvm/internal/m;->e(Ljava/lang/Object;Ljava/lang/String;)V
+    # === CRYPTO_DUMP injection — alle Felder als Base64 ausgeben
+    const-string v6, "CRYPTO_DUMP"
+    const/4 v7, 0x2
+    invoke-static {p1, v7}, Landroid/util/Base64;->encodeToString([BI)Ljava/lang/String;
+    move-result-object v8
+    iget-object v0, p0, Lc6/c;->d:[B
+    invoke-static {v0, v7}, Landroid/util/Base64;->encodeToString([BI)Ljava/lang/String;
+    ...
+```
+
+Dann `apktool b` + `apksigner` + `adb install -r`. Phone braucht **kein Root** — patched APK wird mit Debug-Keystore neu signiert und überschreibt die Originale.
+
+### Findings via CRYPTO_DUMP
+
+**Initial Key (C=0)**: `K = f9 94 cf aa 13 f1 1c fc 8a b4 b9 39 d0 ad 9a 8d`
+
+Mit unserer alten 12-Byte-Truncation: `K = 12 17 b5 df 7c 61 10 61 …` ❌  
+Mit korrekter voller Länge: `K = f9 94 cf aa 13 f1 1c fc …` ✅
+
+**SHU's `c6.c.d()`-Smali**:
+```smali
+const/4 v3, 0x0      # destOffset
+const/4 v4, 0x0      # startIndex
+const/4 v5, 0x0      # endIndex (default-Marker, siehe v6)
+const/16 v6, 0xc     # flags=12=0b1100 → bit-2 gesetzt → endIndex defaultet auf src.size
+invoke-static/range {v1 .. v7}, Lkotlin/collections/d;->e([B[BIIIILjava/lang/Object;)[B
+```
+
+→ kopiert die KOMPLETTE src-Länge (max 16 Bytes Slot), NICHT nur 12. Bug-Fix in `NinebotCrypto.deriveKey()`:
+
+```kotlin
+// VORHER (falsch)
+System.arraycopy(left, 0, buf, 0, minOf(left.size, 12))
+// NACHHER (korrekt)
+System.arraycopy(left, 0, buf, 0, minOf(left.size, 16))
+```
+
+### Wire-Format-Konstanten (1:1 von SHU)
+
+| Stage | Wire-Bytes (Plaintext-Body) | dst | cmd | arg | payload |
+|---|---|---|---|---|---|
+| 1. getBleRandom | `[3E 04 5B 00]` | **0x04** | 0x5B | 0x00 | (none) |
+| 2. o1 (pair-init) | `[3E 04 5C 00 + 16 random]` | 0x04 | 0x5C | 0x00 | 16 R |
+| 3. D0 (challenge) | `[3E 04 5D 00 + 14 challenge]` | 0x04 | 0x5D | 0x00 | 14 chal |
+| **SetSpeedLimit** | `[3E 16 02 48 14 kmh]` | **0x16** | 0x02 | **0x48** | `[0x14, kmh]` |
+| Status-Read | `[3E 16 01 reg len 00]` | 0x16 | 0x01 | reg | `[len, 0x00]` |
+
+→ **dst-Routing ist per-Modul**: 0x04 = Cellular/IoT-Module (handshake), 0x16 = VCU (register), 0x02/0x07 = andere Sub-Module.
+
+### Resume-Flow
+
+Persisted Random (`f5101e`) wird über Sessions hinweg in `PairingPrefs` gespeichert. Token (`f5100d`) wird bei JEDEM Connect frisch vom Roller ausgegeben (cmd=0x5B-Response).
+
+Für unseren Roller (MAC `C1:6B:5E:D0:C5:96`) per CRYPTO_DUMP extrahiert:
+```
+appRandom = b1 59 e5 ed 55 54 7d 3e 8c a9 97 a1 61 d9 5b 42
+```
+
+(Hardcoded in `Zt3ProVehicle.persistedRandomForDevScooter` für die Dev-Phase.)
+
+### Verifikation
+
+Field-Test 2026-04-27 ~06:10:
+- Handshake: TX1 `5A A5 00 89 5C 97 9D ... 00 00 62 FF 00 00` ✅ byte-perfect zu SHU's Phase B/E2
+- RX-Notify ankommend mit 30-Byte plen=0x1E Token+Challenge ✅
+- `L: token+challenge received` ✅
+- `M: resumed via persisted random (key=SHA-1(R+T))` ✅
+- `O: fully paired` ✅
+- **22 km/h Tap** → Roller drosselt sofort auf 22 km/h ✅✅✅
+
+### Status
+
+**Stand 2026-04-27 06:10**: ZT3 Pro D **funktioniert vollständig** über die App. Crypto, Routing, Register-Map alles korrekt. Nächste Schritte: Token-Persistenz in DataStore prüfen, andere Commands (Lock/Mode/Lights) gegen SHU verifizieren, persistedRandom dynamisch über Frida/CRYPTO_DUMP-Workflow oder Echt-Pair-Flow ableiten.

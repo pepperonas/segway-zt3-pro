@@ -220,12 +220,43 @@ class NinebotCrypto(private val scooterName: String) {
         deriveKey(scooterName.toByteArray(Charsets.UTF_8), token)
     }
 
+    /**
+     * Mirror of SHU's `setRandomAppData([B)V` (`c6.c.smali` line 1467): sets
+     * [appRandom] AND re-derives the session key as `SHA-1(appRandom + token)`.
+     * That is the final key both sides converge on after a successful pair.
+     */
+    fun setRandomAppData(data: ByteArray) {
+        require(data.size == 16) { "appRandom must be 16 bytes" }
+        System.arraycopy(data, 0, appRandom, 0, 16)
+        deriveKey(appRandom, token)
+    }
+
+    /**
+     * Pre-flight all three stages by injecting a known-good `(token, random)` pair
+     * extracted from a previous successful pairing. After this call the cipher is
+     * already at the final session key — sending any frame at counter=0 will be
+     * accepted by the scooter (assuming the scooter retains the same R/T in its
+     * NVRAM, which is true between pair-resets).
+     */
+    fun loadSession(persistedToken: ByteArray, persistedRandom: ByteArray) {
+        loadToken(persistedToken)
+        setRandomAppData(persistedRandom)
+        stageReceivedToken = true
+        stagePairedKey = true
+        stageFullyPaired = true
+    }
+
     fun isHandshakeComplete(): Boolean = counter > 0 && token.any { it != 0.toByte() }
 
     private fun deriveKey(left: ByteArray, right: ByteArray) {
+        // SHU's `c6.c.d()` calls `kotlin.collections.copyInto` with flags=12 which
+        // means "endIndex defaulted to src.size". So it copies the *entire* src
+        // (capped at the 16-byte slot in the 32-byte buffer), NOT first-12-bytes
+        // as we previously did. Verified against CRYPTO_DUMP K bytes from the
+        // patched-SHU run on 2026-04-27.
         val buf = ByteArray(32)
-        System.arraycopy(left, 0, buf, 0, minOf(left.size, 12))
-        System.arraycopy(right, 0, buf, 16, minOf(right.size, 12))
+        System.arraycopy(left, 0, buf, 0, minOf(left.size, 16))
+        System.arraycopy(right, 0, buf, 16, minOf(right.size, 16))
         val md = MessageDigest.getInstance("SHA-1").digest(buf)
         System.arraycopy(md, 0, aesKey, 0, 16)
     }

@@ -7,13 +7,17 @@
 [![Architecture](https://img.shields.io/badge/architecture-MVVM%20%2B%20Hilt-success)](#)
 [![Maps](https://img.shields.io/badge/maps-OpenStreetMap-7EBC6F?logo=openstreetmap)](#)
 [![BLE](https://img.shields.io/badge/BLE-Nordic%20UART-blue)](#)
-[![Crypto Path](https://img.shields.io/badge/crypto-NinebotCrypto%20(5A%20A5)%20%E2%80%94%20handshake%20live%2C%20field--tuning-yellow)](#wichtig-ble-protokoll-pfad)
+[![Crypto Path](https://img.shields.io/badge/crypto-NinebotCrypto%20(5A%20A5)%20%E2%80%94%20FIELD--TESTED%20%E2%9C%85-success)](#wichtig-ble-protokoll-pfad)
 
 Native, open-source rebuild of the official Segway-Ninebot **Segway Mobility** companion app, focused on the **ZT3 Pro D**. Built with Jetpack Compose + Material 3, OpenStreetMap, and the reverse-engineered Ninebot 2nd-gen pairing protocol.
 
 > ⚠ For private use / private property only. Tuning a StVZO-registered scooter voids warranty, insurance and street-legality.
 
 ---
+
+## ✅ Status: ZT3 Pro D Field-Tested — funktioniert
+
+Stand 2026-04-27 06:10: Crypto-Stack vollständig verifiziert gegen SHU's Wire (Patched-SHU + `CRYPTO_DUMP` Methode). Speed-Limit wird live auf den Roller übertragen. Siehe [`FIELD-TEST-LOG.md`](FIELD-TEST-LOG.md) Session 5 für die kompletten Bug-Findings.
 
 ## ⚡ Headline-Feature: Lock-by-Default + Stealth-Unlock
 
@@ -110,11 +114,17 @@ app/
 | **Auto-Pair** | Beim ersten gefundenen Scooter im Pair-Screen wird automatisch verbunden + Pair-Screen schließt sich selbst |
 | **`CancellationException`-Hygiene** | Coroutine-Cancel beim Pair-Screen-Close zeigt nicht mehr „StandaloneCoroutine was cancelled" als Fehler an |
 
-### ⚠ Wichtig: BLE-Protokoll-Pfad — Stand 2026-04-26
+### ⚠ Wichtig: BLE-Protokoll-Pfad — Stand 2026-04-27 ✅ FUNKTIONIERT
 
-Iteration 1 (ECDH `55 AB`) → **verworfen** (FIELD-TEST 2026-04-25: Roller ging in 5-km/h-Failsafe).
-Iteration 2 (Plaintext-Stock `5A A5` ohne CRC-Encryption, SHU `c6.b#a()` Case 3) → **verworfen** (TX-Writes ohne RX-Notifies — Frame-Format akzeptiert, aber stumm).
-Iteration 3 (**NinebotCrypto** `5A A5` mit AES-CBC-MAC + AES-CTR + Handshake, SHU Case 2) → **aktuell live**.
+Iteration 1 (ECDH `55 AB`) → verworfen (5-km/h-Failsafe).
+Iteration 2 (Plaintext-Stock `5A A5` Case 3) → verworfen (TX ohne RX).
+Iteration 3 (**NinebotCrypto** `5A A5` Case 2 + 3-stage Handshake) → **funktioniert** nach Bug-Fix-Triple in Session 5.
+
+**Drei kritische Bugs** verhinderten dass Frames vom Roller akzeptiert wurden — alle drei via "Patched-SHU mit `Log.d`-Logging"-Methode aufgedeckt (siehe FIELD-TEST-LOG Session 5):
+
+1. **Key-Derivation**: SHU's `c.d()` kopiert die volle Source-Länge (kotlin `copyInto` mit flags=12 → endIndex=src.size), nicht nur die ersten 12 Bytes. Wir hatten 12 hardcoded.
+2. **Per-Modul dst-Routing**: Der ZT3 Pro D hat MEHRERE BLE-Module mit eigenen Adressen.
+3. **Speed-Limit-Register-Adresse**: `0x48` (= 72 dezimal), nicht `0x72` hex (= 114 dezimal). Wir hatten den Hex/Dezimal-Mismatch.
 
 **Auflösung der Konflikt-Analyse**: Die HCI-Capture vom 2026-04-25 ([`2026-04-25-shu-flash-session.md`](../reverse-engineering/ble-captures/2026-04-25-shu-flash-session.md)) zeigt eindeutig Manufacturer-ID `0x434E` ("NC") und alle 3142 ATT-Payloads mit verschlüsseltem Body. SHU's `ScooterActivity.n():1046` wählt für Devices mit `usesCrypto=true` den `f0.a.NinebotCrypto`-Pfad — für ZT3 Pro D ist `usesCrypto=true`.
 
@@ -125,15 +135,30 @@ Iteration 3 (**NinebotCrypto** `5A A5` mit AES-CBC-MAC + AES-CTR + Handshake, SH
        └─ payload-bytes only      └─ CBC-MAC, 4 byte    └─ 16-bit BE counter
 ```
 
-**Schlüssel-Ableitung (`c6/c.java:73,199-205`):**
+**Schlüssel-Ableitung (`c6/c.java:199-205`, smali-flags-bitmask analysiert):**
 
 ```
 salt = {0x97, 0xCF, 0xB8, 0x02, 0x84, 0x41, 0x43, 0xDE,
         0x56, 0x00, 0x2B, 0x3B, 0x34, 0x78, 0x0A, 0x5D}   # global Ninebot salt
-key  = SHA-1(scooterName[0..12] ++ salt[0..12])[0..16]
+buf  = scooterName(14B) ++ zeros(2) ++ salt(16B)          # 32-byte SHA-1 input
+key  = SHA-1(buf)[0..16]                                   # full src.size copyInto, NOT 12-byte
 ```
 
-**Handshake**: erstes Frame nach Connect ist `5A A5 10 3E 21 5C 00 [16 random]` (counter=0, nur f-XOR-obfuscation). Roller antwortet mit Token, `key` wird als `SHA-1(scooterName ++ token)[0..16]` neu abgeleitet, anschließend laufen alle Frames mit echter Crypto + auf-/abzählendem 16-Bit-Counter.
+**Per-Modul dst-Adressen** (ZT3 Pro D-spezifisch, via CRYPTO_DUMP verifiziert):
+
+| dst | Modul | Verwendung |
+|---|---|---|
+| `0x04` | Cellular/IoT | Crypto-Handshake (cmd=0x5B/5C/5D), wenige reads (reg 0x01) |
+| `0x16` | VCU | Speed-Limit (reg 0x48), Status-Reads (0x18/0x19/0x17/0xC0/0xE7/0xDA/0xE4) |
+| `0x02` | ESC | manche Reads (reg 0xE4) |
+| `0x07` | BMS? | reg 0x82 |
+
+**Drei-Stage-Handshake** (matcht `ScooterActivity.java:484-514`):
+1. **Stage 1** (`L`-Flag): App → Roller `[3E 04 5B 00]` plen=0 → Roller antwortet mit `5A A5 1E [rxAddr] 3E 5B [16 token + 14 challenge]`. App speichert Token, Key wird zu `SHA-1(name + token)`.
+2. **Stage 2** (`M`-Flag): App → Roller `[3E 04 5C 00 + 16 random]` plen=0x10 — ODER bei Resume: App ruft intern `setRandomAppData(persisted_random)` (kein Frame nötig). Roller antwortet mit `5A A5 00 ... 3E 5C 01`. Key transitioniert zu `SHA-1(R + T)`.
+3. **Stage 3** (`O`-Flag): App → Roller `[3E 04 5D 00 + 14 challenge]` plen=0x0E (Challenge ist die ASCII-Form des Scooter-Namens). Roller bestätigt mit `5A A5 00 ... 3E 5D 01`.
+
+**SetSpeedLimit** (verifiziert via patched-SHU): `dst=0x16, cmd=0x02, arg=0x48, payload=[0x14, kmh]`.
 
 **Code-Ort:**
 - [`core/crypto/NinebotCrypto.kt`](app/src/main/kotlin/com/celox/segway/core/crypto/NinebotCrypto.kt) — port von `c6.c`
@@ -142,17 +167,24 @@ key  = SHA-1(scooterName[0..12] ++ salt[0..12])[0..16]
 
 [`FrameCodecClassic.kt`](app/src/main/kotlin/com/celox/segway/core/ble/FrameCodecClassic.kt) (Plaintext-Pfad) bleibt für andere Modelle / Diagnose erhalten.
 
-### Open items / „first ride" checklist
+### Patched-SHU als Referenz-Tool
 
-1. **Field-Test Iteration 4** — pcap-Analyse von `speed-manip.pcap` (siehe FIELD-TEST-LOG Session 4) hat drei Korrekturen ausgelöst:
-   - Hello jetzt plen=0x00 (4-Byte `[3E 21 5C 00]`) statt plen=0x10 mit 16 Random — matcht das, was SHU's funktionierende Sessions auf der Wire zeigen
-   - Token persistiert in `PairingPrefs.cryptoToken` über Disconnects/App-Restarts (SHU hält die `c`-Instanz im Speicher; wir simulieren das via DataStore)
-   - Handshake jetzt fire-and-forget — SHU wartet auch nicht auf die Response, feuert Commands sofort nach Init
-2. **`scooterName`-Verifikation im Live-Test**: Diagnostics-Screen loggt jetzt `scooterName='…' tokenLoaded=…` als Note bei jedem Connect. Auf Wire zeigt das Capture `1K1UA2551P3965` für unseren Roller — falls Android's `getDeviceName()` etwas anderes liefert, wird das hier sofort sichtbar.
-3. **0xB0 Register-Layout** gegen reale Notify-Frames cross-checken (sobald Crypto-Pfad RX-Notifies liefert)
-4. **Region-Change** → vollständige SN-Read-Modify-Write-Sequenz (aktuell wird nur das Region-Byte gesendet)
-5. **OTA-Chunk-ACK-Detection** robust machen (aktuell heuristisch)
-6. Launcher-Icon polishen (aktuell Vector-Stub)
+Das Reverse-Engineering der drei oben genannten Bugs erfolgte über eine **gepatchte SHU-APK mit `Log.d`-Injection**:
+
+- Original-Smali: `reverse-engineering/apps/shu/decompiled/apktool/smali/c6/c.smali`
+- Patch-Stelle: `i([B)[B` (encrypt-Methode), Zeile 1166. Block direkt nach der `kotlin.jvm.internal.m.e()`-Validation eingefügt, der per Base64 alle Crypto-Felder loggt.
+- Build: `apktool b /tmp/shu-patched.apk` + `apksigner sign --ks ~/.android/debug.keystore`. Kein Root nötig.
+- Lese-Pipeline: `adb logcat -s CRYPTO_DUMP -v time` zeigt für jeden TX `D=<base64> T=<token> R=<random> K=<aesKey> C=<counter>`.
+
+So lassen sich jederzeit weitere SHU-Befehle byte-für-byte verifizieren (Mode-Wechsel, Lights, Lock, OTA-Chunks, etc.).
+
+### Open items
+
+1. **Übrige Commands gegen SHU verifizieren**: Mode-Wechsel (Eco/Drive/Sport), Lights, Lock, Cruise-Toggle — Register/dst sind aktuell noch unsere Annahmen, sollten via patched-SHU einmal jeweils gecaptured werden.
+2. **Persisted-Random für andere Roller-MACs**: Aktuell ist `f5101e` für `C1:6B:5E:D0:C5:96` hardcoded. Für ein generisches App-Verteilen brauchen wir entweder einen sauberen Fresh-First-Pair-Flow (16-Byte-Random + Power-Button-OOB) oder eine UI um `f5101e` aus `CRYPTO_DUMP` per Hand einzutippen.
+3. **OTA-Chunk-ACK-Detection** robust machen (aktuell heuristisch)
+4. **Token-Persistenz**: Mehrfache Disconnect/Reconnect-Tests — das `PairingPrefs.cryptoToken`-Feld wird beim Decrypt-Sucess gespeichert, sollte nach App-Restart resume-fähig sein.
+5. Launcher-Icon polishen (aktuell Vector-Stub)
 
 ## Wie weiter testen / debuggen
 

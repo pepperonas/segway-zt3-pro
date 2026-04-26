@@ -58,11 +58,24 @@ class Zt3ProVehicle(
 
     @Volatile private var handshakeSent = false
 
+    /**
+     * Persisted appRandom (`f5101e`) extracted from a successful SHU pair via
+     * the patched-SHU `CRYPTO_DUMP` log at 2026-04-27. SHU keeps this in its
+     * SharedPreferences keyed by MAC; we reuse it on every connect so we don't
+     * need a fresh first-pair (which would require the user to press the power
+     * button for OOB confirmation).
+     *
+     * The token (`f5100d`) is NOT persisted — the scooter issues a fresh one
+     * in every cmd=0x5B handshake response. Only the random survives.
+     */
+    private val persistedRandomForDevScooter: ByteArray? =
+        if (id.equals("C1:6B:5E:D0:C5:96", ignoreCase = true)) byteArrayOf(
+            0xB1.toByte(), 0x59, 0xE5.toByte(), 0xED.toByte(), 0x55, 0x54, 0x7D, 0x3E,
+            0x8C.toByte(), 0xA9.toByte(), 0x97.toByte(), 0xA1.toByte(), 0x61, 0xD9.toByte(), 0x5B, 0x42
+        ) else null
+
     init {
         scope.launch {
-            // Try restoring a previously-persisted token so the very first command
-            // already encrypts under the resume-key — matches what SHU does in-memory
-            // across reconnects.
             pairingPrefs?.loadCryptoToken(id)?.let { crypto.loadToken(it) }
         }
         scope.launch {
@@ -111,10 +124,11 @@ class Zt3ProVehicle(
     }
 
     /**
-     * Three-stage handshake matching SHU's `ScooterActivity.java:484-514`:
+     * Resume-or-pair handshake matching `ScooterActivity.java:484-514`:
      *  1. Send `getBleRandom` (`[3E 04 5B 00]`, cmd=0x5B) until L flag (token+challenge captured)
-     *  2. Send `o1(R)` (`[3E 04 5C 00 R…]`, cmd=0x5C, plen=0x10) until M flag (paired-key)
-     *  3. Send `D0(challenge)` (`[3E 04 5D 00 chal…]`, cmd=0x5D, plen=0x0E) until O flag (fully paired)
+     *  2. **If `persistedRandomForDevScooter != null`**: skip o1 and call `setRandomAppData(persisted)`
+     *     directly — SHU's resume path. Else: send `o1(R)` (cmd=0x5C, plen=0x10) until M flag.
+     *  3. Send `D0(challenge)` (cmd=0x5D, plen=0x0E) until O flag (fully paired)
      *
      * After stage 1 the wire-key transitions to `SHA-1(name + token)`; after stage 2 it
      * settles on `SHA-1(appRandom + token)` which becomes the session key. If a stage
@@ -129,7 +143,7 @@ class Zt3ProVehicle(
         )
 
         // Stage 1: getBleRandom → wait for L (token+challenge).
-        val s1Frame = crypto.buildGetRandomFrame(FrameCodecClassic.DST_VCU)
+        val s1Frame = crypto.buildGetRandomFrame(FrameCodecClassic.DST_HANDSHAKE)
         for (attempt in 0 until 6) {
             if (crypto.stageReceivedToken) break
             gatt.send(crypto.encrypt(s1Frame.copyOf()))
@@ -146,30 +160,35 @@ class Zt3ProVehicle(
         }
         bleLog?.note("Crypto", "L: token+challenge received")
 
-        // Stage 2: o1(R) → wait for M (paired-key).
-        // Build random ONCE so every retry sends the same payload (matches SHU's loop).
-        val pairInit = crypto.buildPairInitFrame(FrameCodecClassic.DST_VCU)
-        for (attempt in 0 until 6) {
-            if (crypto.stagePairedKey) break
-            gatt.send(crypto.encrypt(pairInit.copyOf()))
-            withTimeoutOrNull(600L) {
-                while (!crypto.stagePairedKey) delay(20)
+        // Stage 2: either inject persisted random (resume) or do o1 first-pair.
+        val persisted = persistedRandomForDevScooter
+        if (persisted != null) {
+            crypto.setRandomAppData(persisted)
+            bleLog?.note("Crypto", "M: resumed via persisted random (key=SHA-1(R+T))")
+        } else {
+            val pairInit = crypto.buildPairInitFrame(FrameCodecClassic.DST_HANDSHAKE)
+            for (attempt in 0 until 6) {
+                if (crypto.stagePairedKey) break
+                gatt.send(crypto.encrypt(pairInit.copyOf()))
+                withTimeoutOrNull(600L) {
+                    while (!crypto.stagePairedKey) delay(20)
+                }
+                if (crypto.stagePairedKey) break
+                delay(300L)
             }
-            if (crypto.stagePairedKey) break
-            delay(300L)
+            if (!crypto.stagePairedKey) {
+                bleLog?.note("Crypto", "stage 2 (M) timed out — pair-init not acked")
+                handshakeSent = true
+                return
+            }
+            bleLog?.note("Crypto", "M: paired-key (SHA-1(R+T))")
         }
-        if (!crypto.stagePairedKey) {
-            bleLog?.note("Crypto", "stage 2 (M) timed out — pair-init not acked")
-            handshakeSent = true
-            return
-        }
-        bleLog?.note("Crypto", "M: paired-key (SHA-1(R+T))")
 
         // Stage 3: D0(challenge) → wait for O (fully paired).
         val challengeBytes = crypto.snapshotChallenge()
         for (attempt in 0 until 4) {
             if (crypto.stageFullyPaired) break
-            gatt.send(codec.challengeResponse(FrameCodecClassic.DST_VCU, challengeBytes))
+            gatt.send(codec.challengeResponse(FrameCodecClassic.DST_HANDSHAKE, challengeBytes))
             withTimeoutOrNull(600L) {
                 while (!crypto.stageFullyPaired) delay(20)
             }
@@ -207,8 +226,11 @@ class Zt3ProVehicle(
                 FrameCodecClassic.DST_VCU, 0x7C, byteArrayOf(0x01, if (cmd.on) 1 else 0)
             )
         is VehicleCommand.SetSpeedLimit ->
+            // Verified against SHU's wire (CRYPTO_DUMP C=50, 2026-04-27):
+            //   `5A A5 02 3E 16 02 48 14 16` for "set City to 22 km/h"
+            //   = write reg 0x48 on dst=0x16, payload=[eco_limit=0x14, city_limit=kmh]
             codec.writeRegister(
-                FrameCodecClassic.DST_VCU, 0x72, byteArrayOf(cmd.kmh.toByte(), 0x00)
+                0x16.toByte(), 0x48, byteArrayOf(0x14, cmd.kmh.toByte())
             )
         VehicleCommand.Reboot ->
             codec.writeRegister(FrameCodecClassic.DST_VCU, 0x79, byteArrayOf(0x01, 0x01))

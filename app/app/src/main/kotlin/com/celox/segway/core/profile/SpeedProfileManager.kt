@@ -62,8 +62,12 @@ class SpeedProfileManager @Inject constructor(
     enum class UnlockTrigger { Pin, AccessibilityVolume }
 
     private companion object {
-        const val POLL_INTERVAL_MS = 250L
-        const val DOUBLE_TAP_WINDOW_MS = 1500L
+        const val POLL_INTERVAL_MS = 200L
+        // Empirically observed: real-world double-taps land 0.3-2.5 s apart
+        // due to firmware debounce + BLE poll cadence. 3 s window covers
+        // virtually all intentional taps without false-positives from
+        // accidental mode-cycling 5+ s apart.
+        const val DOUBLE_TAP_WINDOW_MS = 3000L
     }
 
     /** Source of a re-lock action. Used for telemetry and the BleLog hint. */
@@ -74,26 +78,30 @@ class SpeedProfileManager @Inject constructor(
 
     init {
         // Custom-button double-tap watcher — fast-polls reg 0x5A
-        // (VCU_DRIVE_MODE) at 250 ms so we can resolve real <1.5 s
-        // double-taps. The main poll loop only hits 0x5A every ~4 s,
-        // way too slow. The custom button on ZT3 toggles Walk mode,
-        // so each tap flips reg 0x5A between Walk (0x04) and the
-        // previous mode. Two such transitions within 1.5 s = double-tap.
-        // Only runs while `customButtonDoubleTapEnabled` is true and a
-        // vehicle is ready.
+        // (VCU_DRIVE_MODE) at 200 ms so we can resolve real double-taps.
+        // The custom button on ZT3 toggles Walk mode, so each tap flips
+        // reg 0x5A between Walk (0x04) and the previous mode. Two such
+        // transitions within DOUBLE_TAP_WINDOW_MS = double-tap.
+        //
+        // Restart logic: the inner Flow combines (vehicle, isReady,
+        // customButtonDoubleTapEnabled). Any change cancels the previous
+        // watcher and starts a fresh one if all three are positive.
         scope.launch {
-            activeHolder.activeVehicle.collect { vehicle ->
-                if (vehicle == null) return@collect
-                vehicle.state
-                    .map { it.isReady }
-                    .distinctUntilChanged()
-                    .collect { ready ->
-                        if (!ready) return@collect
-                        val settings = repo.flow.first()
-                        if (!settings.customButtonDoubleTapEnabled) return@collect
+            var watcherJob: Job? = null
+            kotlinx.coroutines.flow.combine(
+                activeHolder.activeVehicle,
+                repo.flow.map { it.customButtonDoubleTapEnabled }.distinctUntilChanged(),
+            ) { v, enabled -> v to enabled }
+                .collect { (vehicle, enabled) ->
+                    watcherJob?.cancel()
+                    watcherJob = null
+                    if (vehicle == null || !enabled) return@collect
+                    watcherJob = scope.launch {
+                        // Wait until the vehicle is ready, then run.
+                        vehicle.state.first { it.isReady }
                         runCustomButtonTapWatcher(vehicle)
                     }
-            }
+                }
         }
 
         // Auto-apply boot profile whenever a vehicle becomes ready.

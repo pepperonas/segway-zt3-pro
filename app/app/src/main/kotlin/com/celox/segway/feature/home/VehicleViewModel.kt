@@ -45,6 +45,14 @@ class VehicleViewModel @Inject constructor(
     )
     val snackbar: kotlinx.coroutines.flow.SharedFlow<String> = _snackbar
 
+    init {
+        viewModelScope.launch {
+            profileManager.customButtonTapEvents.collect {
+                _snackbar.tryEmit("🔒 Doppel-Tap Walk-Knopf → ${profiles.value.boot.speedKmh} km/h")
+            }
+        }
+    }
+
     fun toggleLock() = vehicle.value?.let { v ->
         viewModelScope.launch {
             v.execute(if (state.value.isLocked) VehicleCommand.Unlock else VehicleCommand.Lock)

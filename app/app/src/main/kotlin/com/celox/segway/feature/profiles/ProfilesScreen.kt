@@ -185,6 +185,23 @@ fun ProfilesScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                Spacer(Modifier.height(12.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Custom-Button doppel-Tap = 22 km/h", fontWeight = FontWeight.Medium)
+                        Text(
+                            "2× Walk-Knopf am Roller (≤ 1,5 s) → Boot-Profile (Lock). Pollt 0x5A alle 250 ms während aktiv.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = settings.customButtonDoubleTapEnabled,
+                        onCheckedChange = vm::setCustomButtonDoubleTap,
+                    )
+                }
             }
         }
     }

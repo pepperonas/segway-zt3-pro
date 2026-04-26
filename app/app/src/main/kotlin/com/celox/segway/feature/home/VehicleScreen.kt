@@ -97,7 +97,12 @@ fun VehicleScreen(
         topBar = {
             TopAppBar(title = { Text(vehicle?.displayName ?: stringResource(R.string.app_name)) })
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        // Parent SegwayApp Scaffold already excludes the bottom nav inset
+        // via its own padding(padding) on NavHost. Without this override the
+        // inner Scaffold would ADD the system-nav inset a second time,
+        // creating a black gap above the bottom bar.
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0)
     ) { padding ->
         if (vehicle == null) {
             EmptyState(onPairClick, modifier = Modifier.fillMaxSize().padding(padding))
@@ -304,11 +309,6 @@ fun VehicleScreen(
             ) {
                 Text(stringResource(R.string.vehicle_disconnect))
             }
-
-            // Bottom-nav lives outside this Scaffold so its inset is not in
-            // `padding`. Reserve space so the disconnect button is reachable
-            // when scrolled to the end.
-            Spacer(Modifier.height(96.dp))
         }
     }
 

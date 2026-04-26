@@ -729,3 +729,96 @@ Wichtige Korrekturen gegen die generischen x3regs.h-Annahmen — ZT3-Pro-D-Firmw
 ### Status
 
 **Stand 2026-04-28 ~22:00**: ZT3-Telemetrie ~95 % vollständig live. Verbleibend: BLE FW-Version (Reg `0x1A`) — wurde aus Poll-Plan rausgenommen und wieder reinkommt. Motor-Temps werden erst während Fahrt valid (Sensor offline im Stand). Cycle-Count `0` bei nur 9 h Total-Laufzeit ist plausibel.
+
+---
+
+## Session 11 — 2026-04-28 spät (Custom-Button Doppel-Tap = Lock auf 22 km/h)
+
+### Anforderung
+
+> „Können wir den custom button so belegen, dass geschwindigkeit 22 km/h aktiviert wird?"
+
+Der **Custom-Button am ZT3-Pro-D-Lenker** (auch „Walk-Knopf" — toggelt zwischen Walk und vorherigem Mode) sollte als zusätzlicher Lock-Trigger nutzbar sein, parallel zu Vol-Down-3×.
+
+### Recherche: Firmware-seitig nicht möglich
+
+Vor dem Bau einer Phone-side-Lösung hatten wir geprüft, ob es ein **Register zur Button-Remap-Konfiguration** gibt. Resultat:
+
+- Doku (`zt3-ble-register-reference.md`) hat **keine** Button-Remap-Register dokumentiert — auch nicht in den `0x1D`/`0x1E`/`0x1F`-Bitfeldern
+- Stock-Segway-App macht's auch phone-seitig — keine Direkt-Steuerung im Roller verdrahtet
+- Walk-Mode-Speed ist firmware-hardcoded auf ~6 km/h, kein Konfig-Register
+
+→ Ergebnis: **Custom-Button-Funktion ist firmware-fix, nicht remappbar via BLE**. Workaround = phone-seitige Detection.
+
+### Detection-Mechanismus
+
+Der Custom-Button ändert **reg `0x5A` (`VCU_DRIVE_MODE`)** bei jedem Druck (toggelt zwischen Walk und vorherigem Mode). Da der Hauptpoll-Cycle nur ~4 s ist, würden wir echte <1,5-s-Doppel-Taps verpassen.
+
+**Lösung: dedizierter Fast-Poll-Loop nur für reg `0x5A` alle 250 ms**, lebt in `SpeedProfileManager` als Singleton-Coroutine, gestartet bei `vehicle.isReady && customButtonDoubleTapEnabled`.
+
+```kotlin
+// Pseudocode aus runCustomButtonTapWatcher()
+val taps = ArrayDeque<Long>()
+var lastMode: RideMode? = null
+while (active && customButtonDoubleTapEnabled) {
+    vehicle.execute(ReadRegister(0x5A, 2, 0x16))
+    delay(250)
+    val current = state.value.mode ?: continue
+    if (lastMode != null && current != lastMode) {
+        taps.addLast(now())
+        taps.removeAll { now() - it > 1500 }   // sliding window
+        if (taps.size >= 2) applyProfile(boot)  // 22 km/h Lock
+        lastMode = current
+    }
+}
+```
+
+### Background-Verhalten
+
+`StealthVolumeService` (Foreground-Service) hält den App-Prozess + die BLE-Connection auch im Hintergrund / mit Display-Off am Leben. Wir starten ihn jetzt, wenn **mindestens einer** der beiden Trigger aktiv ist:
+
+```kotlin
+// SegwayApp.onCreate()
+profileRepo.flow
+    .map { it.accessibilityTriggerEnabled || it.customButtonDoubleTapEnabled }
+    .distinctUntilChanged()
+    .collect { needed ->
+        if (needed) StealthVolumeService.start(this)
+        else        StealthVolumeService.stop(this)
+    }
+```
+
+Damit funktioniert Custom-Button-Doppel-Tap auch wenn:
+- App im Hintergrund / minimiert
+- Bildschirm aus
+- App aus Recents geswiped (Force-Stop killt aber alles)
+
+### Field-Test-Resultat
+
+**Funktioniert grundsätzlich.** User-Bestätigung: Doppeltap des Walk-Knopfs am Lenker triggert das Lock-auf-22-km/h reproduzierbar.
+
+**Bekanntes Problem: Inkonsistenz.** Nicht jeder Doppeltap wird erkannt. Vermutete Ursachen:
+
+1. **Poll-Race**: Fast-Poll-Intervall 250 ms vs. Doppeltap-Window 1500 ms. Wenn die zwei Taps in die GLEICHE 250-ms-Slot fallen, sieht der Watcher nur den End-Mode (= unverändert) und keine Transition.
+2. **BLE-Latenz**: Crypto-Frame round-trip ~80-150 ms unter Last; bei zeitgleichem Hauptpoll konkurrieren beide um die GATT-Connection.
+3. **Mode-Persistenz im Roller**: Der Roller braucht Zeit zum Settling — wenn Tap 2 zu schnell auf Tap 1 folgt, evt. ignoriert er den zweiten.
+
+### Verbesserungs-Ideen (nicht implementiert)
+
+- **Polling auf 150 ms drücken** — mehr Auflösung, mehr BLE-Last
+- **Transitions-Counter-Register suchen** — falls reg 0x5A einen Tap-Counter im high-byte hat (analog zu unserem 0x68-Trip-Counter)
+- **Hauptpoll während Custom-Button-Watcher pausieren** — kein Polling-Konflikt, aber Telemetrie steht still
+
+### Code-Pointer
+
+| Datei | Funktion |
+|---|---|
+| `core/profile/SpeedProfile.kt` | neuer Setting-Eintrag `customButtonDoubleTapEnabled: Boolean = false` |
+| `core/profile/SpeedProfileManager.kt::runCustomButtonTapWatcher` | Fast-poll Loop |
+| `feature/profiles/ProfilesScreen.kt` | UI-Toggle „Custom-Button doppel-Tap = 22 km/h" |
+| `feature/home/VehicleViewModel.kt` | Snackbar-Feedback bei Trigger |
+| `SegwayApp.kt::onCreate()` | Foreground-Service-Start an beide Toggles gekoppelt |
+
+### Status
+
+**Stand 2026-04-28 ~23:00**: Custom-Button-Doppel-Tap **funktioniert grundsätzlich**, ist aber timing-sensitiv. Akzeptabel als drittes Lock-Triggermethode neben Vol-Down-3× und In-App-Button. Inkonsistenz dokumentiert; künftige Iteration könnte Fast-Poll auf 150 ms drücken oder dynamisch Hauptpoll pausieren.

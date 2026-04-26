@@ -71,4 +71,8 @@ class ProfilesViewModel @Inject constructor(
     fun setAutoApplyOnConnect(enabled: Boolean) = viewModelScope.launch {
         repo.update { it.copy(autoApplyOnConnect = enabled) }
     }
+
+    fun setCustomButtonDoubleTap(enabled: Boolean) = viewModelScope.launch {
+        repo.update { it.copy(customButtonDoubleTapEnabled = enabled) }
+    }
 }

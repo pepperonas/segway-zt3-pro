@@ -47,4 +47,12 @@ data class SpeedProfileSettings(
      * unlocks. Switch it off only if you want to control everything manually.
      */
     val autoApplyOnConnect: Boolean = true,
+    /**
+     * If true, double-tapping the scooter's custom button (the Walk-mode
+     * toggle button on the dashboard, ≤ 1.5 s between taps) re-applies the
+     * [boot] profile (= locks to 22 km/h by default). Single tap stays the
+     * normal Walk-toggle. Off by default — when on, the app fast-polls reg
+     * 0x5A (VCU_DRIVE_MODE) at 250 ms to catch real double-taps.
+     */
+    val customButtonDoubleTapEnabled: Boolean = false,
 )

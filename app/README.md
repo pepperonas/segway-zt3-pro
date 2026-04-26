@@ -34,6 +34,7 @@ Native, open-source rebuild of the official Segway-Ninebot **Segway Mobility** c
   - Live-Speed (reg `0x57` oder MCU `0x86`)
   - Error- + Warncode (VCU `0x58`/`0x59`, sichtbar bei ≠ 0)
 - **Mode-Anzeige live** — Roller-Display-Wechsel (Walk → E → D → S via Power-Button-Doppeltap) wird in der App reflektiert. ZT3-Firmware ist 1-indexed: `0x01=E, 0x02=D, 0x03=S, 0x04=Männchen` (Session 9)
+- **Custom-Button-Doppel-Tap (Walk-Knopf am Lenker) → Lock auf 22 km/h** — opt-in via Profile-Settings. Detection via Fast-Poll auf reg `0x5A` alle 250 ms; läuft auch im Hintergrund (gleicher Foreground-Service wie Vol-Down). Funktioniert grundsätzlich, aber timing-sensitiv — siehe [FIELD-TEST-LOG Session 11](FIELD-TEST-LOG.md#session-11) (Session 11)
 - **KeepScreenOn-Toggle** in Settings → App-Bildschirm bleibt aktiv solange offen
 - **Register-Sweep-Button** in Diagnostics für eigene Reverse-Engineering-Sessions
 
@@ -42,7 +43,7 @@ Native, open-source rebuild of the official Segway-Ninebot **Segway Mobility** c
 - **Mode-Wechsel (Eco/Drive/Sport)**: reg `0x5A` (VCU_DRIVE_MODE) ist laut [x3regs.h](https://github.com/MacintoshKeyboardHacking/segMod/blob/main/myBLE4/x3regs.h) für GT3/F3 schreibbar, aber auf ZT3 Pro D firmware-seitig restriktiv: Roller ackt unsere Writes mit `[01 00]`-Beep, ändert aber Display nicht. Vermutlich nur read-only auf ZT3.
 - **Headlight Manual Toggle**: reg `0x5B` (VCU_LedMode) — gleiche Symptomatik. Auto-Headlight via Bit in `0x1F` läuft firmware-internal beim Fahren.
 - **Cruise Control**: keine Remote-Aktivierung — Throttle-halten 5+ s ist die einzige Methode (firmware-internal).
-- **Custom-Button-Remapping** (Hill-Hold → Speed-22): Roller sendet kein BLE-Notify bei Button-Press → keine App-vermittelte Reaktion möglich.
+- ~~**Custom-Button-Remapping** (Hill-Hold → Speed-22): Roller sendet kein BLE-Notify bei Button-Press → keine App-vermittelte Reaktion möglich.~~ **Aufgelöst (Session 11)**: der Custom-Button (= Walk-Knopf) ändert reg `0x5A`. Via Fast-Poll alle 250 ms ist Doppel-Tap-Detection möglich → Lock auf 22 km/h. Inkonsistent aber funktional.
 
 ZT3 Pro D ist register-kompatibel zu GT3/F3 aber **deutlich restriktiver welche Register tatsächlich beschreibbar sind**. Doc-Hinweis: ZT3-VCU hat im Gegensatz zu GT3/G3/F3 keinen SPI-Flash-Chip — möglicherweise hängt das mit den fehlenden Schreibrechten zusammen. Vollständige RE würde einen der drei Wege erfordern:
 1. **Patched offizielle Segway-Mobility-App** mit Logging — NIS-Wrapper + Hermes-Bytecode, mehrtägig

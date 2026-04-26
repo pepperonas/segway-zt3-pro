@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -60,10 +61,41 @@ class SpeedProfileManager @Inject constructor(
 
     enum class UnlockTrigger { Pin, AccessibilityVolume }
 
+    private companion object {
+        const val POLL_INTERVAL_MS = 250L
+        const val DOUBLE_TAP_WINDOW_MS = 1500L
+    }
+
     /** Source of a re-lock action. Used for telemetry and the BleLog hint. */
     enum class LockTrigger { ManualButton, AccessibilityVolume, AutoRevert, ConnectAutoApply }
 
+    private val _customButtonTapEvents = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 4)
+    val customButtonTapEvents: SharedFlow<Unit> = _customButtonTapEvents.asSharedFlow()
+
     init {
+        // Custom-button double-tap watcher — fast-polls reg 0x5A
+        // (VCU_DRIVE_MODE) at 250 ms so we can resolve real <1.5 s
+        // double-taps. The main poll loop only hits 0x5A every ~4 s,
+        // way too slow. The custom button on ZT3 toggles Walk mode,
+        // so each tap flips reg 0x5A between Walk (0x04) and the
+        // previous mode. Two such transitions within 1.5 s = double-tap.
+        // Only runs while `customButtonDoubleTapEnabled` is true and a
+        // vehicle is ready.
+        scope.launch {
+            activeHolder.activeVehicle.collect { vehicle ->
+                if (vehicle == null) return@collect
+                vehicle.state
+                    .map { it.isReady }
+                    .distinctUntilChanged()
+                    .collect { ready ->
+                        if (!ready) return@collect
+                        val settings = repo.flow.first()
+                        if (!settings.customButtonDoubleTapEnabled) return@collect
+                        runCustomButtonTapWatcher(vehicle)
+                    }
+            }
+        }
+
         // Auto-apply boot profile whenever a vehicle becomes ready.
         // `isReady` flips to true only AFTER the crypto handshake has reached
         // at least Stage M (paired-key) — at that point write-register commands
@@ -167,6 +199,51 @@ class SpeedProfileManager @Inject constructor(
     /** Backwards-compat: legacy single-button trigger. Routes to Vol-Up = unlock. */
     @Deprecated("Use onAccessibilityVolumeUpTriggered or onAccessibilityVolumeDownTriggered")
     fun onAccessibilityVolumeTriggered() = onAccessibilityVolumeUpTriggered()
+
+    /**
+     * Fast-poll loop on reg 0x5A (VCU_DRIVE_MODE) to detect custom-button
+     * taps. The custom button toggles between Walk and the previous mode,
+     * so each tap flips the register value. Two such transitions within
+     * [DOUBLE_TAP_WINDOW_MS] → re-lock to boot profile.
+     */
+    private suspend fun runCustomButtonTapWatcher(vehicle: com.celox.segway.core.vehicle.Vehicle) {
+        bleLog.note("BtnTap", "watcher started — fast-polling 0x5A every 250 ms")
+        val taps = ArrayDeque<Long>()
+        var lastMode: com.celox.segway.core.vehicle.RideMode? = null
+        try {
+            while (currentScopeIsActive() && repo.flow.first().customButtonDoubleTapEnabled) {
+                if (vehicle.state.value.isConnected && vehicle.state.value.isReady) {
+                    vehicle.execute(VehicleCommand.ReadRegister(0x5A, 2, 0x16))
+                }
+                delay(POLL_INTERVAL_MS)
+                val current = vehicle.state.value.mode ?: continue
+                if (lastMode == null) {
+                    lastMode = current
+                    continue
+                }
+                if (current != lastMode) {
+                    val now = System.currentTimeMillis()
+                    taps.addLast(now)
+                    while (taps.isNotEmpty() && now - taps.first() > DOUBLE_TAP_WINDOW_MS) {
+                        taps.removeFirst()
+                    }
+                    bleLog.note("BtnTap", "$lastMode → $current (recent=${taps.size})")
+                    if (taps.size >= 2) {
+                        bleLog.note("BtnTap", "double-tap → re-lock to boot")
+                        val settings = repo.flow.first()
+                        applyProfile(settings.boot)
+                        _customButtonTapEvents.tryEmit(Unit)
+                        taps.clear()
+                    }
+                    lastMode = current
+                }
+            }
+        } finally {
+            bleLog.note("BtnTap", "watcher stopped")
+        }
+    }
+
+    private fun currentScopeIsActive(): Boolean = scope.isActive
 
     private fun scheduleAutoRevertIfNeeded(settings: SpeedProfileSettings) {
         autoRevertJob?.cancel()

@@ -32,16 +32,20 @@ class SegwayApp : Application() {
             osmdroidBasePath = filesDir
             osmdroidTileCache = filesDir.resolve("osmdroid-tiles")
         }
-        // Start/stop the stealth volume service whenever the user toggles
-        // accessibilityTriggerEnabled. The service uses a MediaSession to
-        // capture Vol-Down 3× even with the screen off — the AccessibilityService
-        // alone can't do that.
+        // Start/stop the stealth volume service whenever any
+        // background-running feature is toggled. The service uses a
+        // MediaSession to capture Vol-Down 3× even with the screen off,
+        // and (as a side effect) keeps the app process alive so the
+        // SpeedProfileManager's reg-0x5A poll loop can detect custom-
+        // button double-taps in the background. We start it if EITHER
+        // accessibilityTriggerEnabled OR customButtonDoubleTapEnabled
+        // is on.
         appScope.launch {
             profileRepo.flow
-                .map { it.accessibilityTriggerEnabled }
+                .map { it.accessibilityTriggerEnabled || it.customButtonDoubleTapEnabled }
                 .distinctUntilChanged()
-                .collect { enabled ->
-                    if (enabled) {
+                .collect { needed ->
+                    if (needed) {
                         StealthVolumeService.start(this@SegwayApp)
                     } else {
                         StealthVolumeService.stop(this@SegwayApp)

@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ClearAll
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -71,6 +72,9 @@ class DiagnosticsViewModel @Inject constructor(
         .flatMapLatest { v -> v?.state ?: MutableStateFlow(VehicleState()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VehicleState())
 
+    /** Fire-and-forget channel for short user-facing notifications (Toasts). */
+    val toasts = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 8)
+
     fun readFirmware() = sendCmd(VehicleCommand.ReadFirmware)
     fun readBlackBox() = sendCmd(VehicleCommand.ReadBlackBox)
     fun readStatus() = sendCmd(VehicleCommand.ReadRegister(0xB0, 32))
@@ -89,6 +93,7 @@ class DiagnosticsViewModel @Inject constructor(
     fun registerSweep() {
         val v = activeHolder.activeVehicle.value ?: return
         viewModelScope.launch {
+            toasts.emit("Sweep startet — bitte ~30 s warten")
             for (dst in listOf(0x16.toByte(), 0x02.toByte(), 0x07.toByte(), 0x23.toByte())) {
                 log.note("SCAN", "=== sweep dst=0x${"%02X".format(dst)} regs 0x00..0xFF len=2 ===")
                 for (reg in 0x00..0xFF) {
@@ -97,7 +102,110 @@ class DiagnosticsViewModel @Inject constructor(
                 }
             }
             log.note("SCAN", "=== sweep end ===")
+            toasts.emit("✓ Sweep fertig")
         }
+    }
+
+    /**
+     * Phase counter for the button-hunt helper. UI uses it to show a big
+     * "DRÜCK JETZT DEN BUTTON" hint between the two sweeps.
+     *
+     *  0 = idle
+     *  1 = sweep A in flight (don't press yet)
+     *  2 = waiting for user to press the custom button
+     *  3 = sweep B in flight (don't release yet)
+     *  4 = done — diff visible in the log as `DIFF` notes
+     */
+    val buttonHuntPhase = kotlinx.coroutines.flow.MutableStateFlow(0)
+
+    /**
+     * Two-sweep helper to find which register reflects a custom-button press.
+     * VCU-only (dst=0x16) for speed; sweeps the same range twice with a user
+     * press in between, then walks both captures and emits `DIFF | reg 0xNN
+     * before=[..] after=[..]` notes for any byte that changed.
+     */
+    fun runButtonHunt() {
+        val v = activeHolder.activeVehicle.value ?: return
+        if (buttonHuntPhase.value != 0) return  // already running
+        viewModelScope.launch {
+            try {
+                // Phase 1: sweep A, capture by walking BleLog entries afterwards.
+                buttonHuntPhase.value = 1
+                log.note("HUNT", "=== sweep A (BEFORE press) start ===")
+                val seqBeforeA = log.entries.value.lastOrNull()?.seq ?: 0L
+                for (reg in 0x00..0xFF) {
+                    v.execute(VehicleCommand.ReadRegister(reg, 2, 0x16))
+                    kotlinx.coroutines.delay(35L)
+                }
+                kotlinx.coroutines.delay(500L) // drain pipe
+                val seqAfterA = log.entries.value.lastOrNull()?.seq ?: seqBeforeA
+                val before = collectVcuReads(seqBeforeA, seqAfterA)
+                log.note("HUNT", "sweep A captured ${before.size} regs — DRÜCK JETZT (5 s)")
+
+                // Phase 2: 5 s for the user.
+                buttonHuntPhase.value = 2
+                kotlinx.coroutines.delay(5_000L)
+
+                // Phase 3: sweep B, same idea.
+                buttonHuntPhase.value = 3
+                log.note("HUNT", "=== sweep B (AFTER press) start ===")
+                val seqBeforeB = log.entries.value.lastOrNull()?.seq ?: 0L
+                for (reg in 0x00..0xFF) {
+                    v.execute(VehicleCommand.ReadRegister(reg, 2, 0x16))
+                    kotlinx.coroutines.delay(35L)
+                }
+                kotlinx.coroutines.delay(500L)
+                val seqAfterB = log.entries.value.lastOrNull()?.seq ?: seqBeforeB
+                val after = collectVcuReads(seqBeforeB, seqAfterB)
+                log.note("HUNT", "sweep B captured ${after.size} regs — diffing")
+
+                // Phase 4: emit diffs.
+                var diffs = 0
+                for (reg in 0x00..0xFF) {
+                    val a = before[reg] ?: continue
+                    val b = after[reg] ?: continue
+                    if (!a.contentEquals(b)) {
+                        diffs++
+                        log.note(
+                            "DIFF",
+                            "reg 0x%02X  before=[%s]  after=[%s]".format(
+                                reg,
+                                a.joinToString(" ") { "%02X".format(it) },
+                                b.joinToString(" ") { "%02X".format(it) },
+                            )
+                        )
+                    }
+                }
+                log.note("HUNT", "=== done — $diffs register(s) changed ===")
+                buttonHuntPhase.value = 4
+                kotlinx.coroutines.delay(3_000L)
+                buttonHuntPhase.value = 0
+            } catch (t: Throwable) {
+                log.note("HUNT", "aborted: ${t.message}")
+                buttonHuntPhase.value = 0
+            }
+        }
+    }
+
+    /**
+     * Walk the BleLog entries between [startSeqExclusive] and [endSeq], pick
+     * out the `RX-DEC src=16 ... arg=NN [HH HH ...]` notes from the VCU and
+     * return register-id → bytes. The format is fixed (set in
+     * Zt3ProVehicle.handleNotify) so a simple regex is enough.
+     */
+    private fun collectVcuReads(startSeqExclusive: Long, endSeq: Long): Map<Int, ByteArray> {
+        val out = HashMap<Int, ByteArray>()
+        val rx = Regex("src=16 dst=3E cmd=04 arg=([0-9A-Fa-f]{2}) \\[([0-9A-Fa-f ]+)\\]")
+        for (e in log.entries.value) {
+            if (e.seq <= startSeqExclusive || e.seq > endSeq) continue
+            val msg = e.message ?: continue
+            val m = rx.find(msg) ?: continue
+            val reg = m.groupValues[1].toInt(16)
+            val bytes = m.groupValues[2].trim().split(' ')
+                .map { it.toInt(16).toByte() }.toByteArray()
+            out[reg] = bytes
+        }
+        return out
     }
 
     private fun sendCmd(cmd: VehicleCommand) {
@@ -119,6 +227,11 @@ fun DiagnosticsScreen(
 
     LaunchedEffect(entries.size) {
         if (entries.isNotEmpty()) listState.animateScrollToItem(entries.size - 1)
+    }
+    LaunchedEffect(Unit) {
+        vm.toasts.collect { msg ->
+            android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show()
+        }
     }
 
     Scaffold(
@@ -154,7 +267,10 @@ fun DiagnosticsScreen(
                 onFirmware = vm::readFirmware,
                 onBlackBox = vm::readBlackBox,
                 onSweep = vm::registerSweep,
+                onButtonHunt = vm::runButtonHunt,
             )
+            val huntPhase by vm.buttonHuntPhase.collectAsStateWithLifecycle()
+            ButtonHuntBanner(huntPhase)
             FieldTestBar(
                 isConnected = state.isConnected,
                 onSpeed = vm::sendSpeedLimit,
@@ -174,6 +290,7 @@ private fun ActionsBar(
     onFirmware: () -> Unit,
     onBlackBox: () -> Unit,
     onSweep: () -> Unit,
+    onButtonHunt: () -> Unit,
 ) {
     val scrollState = androidx.compose.foundation.rememberScrollState()
     Row(
@@ -206,6 +323,37 @@ private fun ActionsBar(
             enabled = isConnected,
             leadingIcon = { Icon(Icons.Outlined.Refresh, null) },
             label = { Text("Sweep") }
+        )
+        AssistChip(
+            onClick = onButtonHunt,
+            enabled = isConnected,
+            leadingIcon = { Icon(Icons.Outlined.Search, null) },
+            label = { Text("Btn-Hunt") }
+        )
+    }
+}
+
+@Composable
+private fun ButtonHuntBanner(phase: Int) {
+    if (phase == 0) return
+    val (text, color) = when (phase) {
+        1 -> "📸 Sweep A läuft — NICHT drücken" to MaterialTheme.colorScheme.tertiary
+        2 -> "▶ JETZT BUTTON DRÜCKEN UND HALTEN" to MaterialTheme.colorScheme.error
+        3 -> "📸 Sweep B läuft — Button noch halten" to MaterialTheme.colorScheme.error
+        4 -> "✓ Fertig — siehe DIFF-Zeilen unten" to MaterialTheme.colorScheme.primary
+        else -> return
+    }
+    androidx.compose.material3.Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = color)
+    ) {
+        Text(
+            text,
+            modifier = Modifier.padding(16.dp),
+            style = MaterialTheme.typography.titleMedium,
+            color = androidx.compose.ui.graphics.Color.White,
         )
     }
 }

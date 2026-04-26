@@ -261,8 +261,33 @@ fun VehicleScreen(
                     modifier = Modifier.weight(1f)
                 )
             }
+            Spacer(Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                StatTile(
+                    icon = Icons.Outlined.RocketLaunch,
+                    label = "Reichweite",
+                    value = if (state.rangeRemainingKm > 0f) "%.1f km".format(state.rangeRemainingKm) else "—",
+                    modifier = Modifier.weight(1f)
+                )
+                StatTile(
+                    icon = Icons.Outlined.Speed,
+                    label = "Gesamt",
+                    value = "%.0f km".format(state.odometerKm),
+                    modifier = Modifier.weight(1f)
+                )
+            }
 
             Spacer(Modifier.height(24.dp))
+
+            // Battery deep telemetry from BMS
+            BatteryDetailsCard(state)
+
+            Spacer(Modifier.height(16.dp))
+
+            // Motor + ride telemetry
+            DiagnosticsTelemetryCard(state)
+
+            Spacer(Modifier.height(16.dp))
 
             // Firmware info
             FirmwareInfoCard(state)
@@ -576,4 +601,72 @@ private fun InfoRow(label: String, value: String) {
         Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodyLarge)
     }
+}
+
+@Composable
+private fun BatteryDetailsCard(state: com.celox.segway.core.vehicle.VehicleState) {
+    val cells = state.cellVoltagesMv
+    val bmsKnown = cells.isNotEmpty() || state.batteryVoltage > 0f
+    val cellSpread = if (cells.size >= 2) (cells.max() - cells.min()) else 0
+    val chargingLabel = when (state.chargingState) {
+        0 -> "Idle"
+        1 -> "Lädt"
+        2 -> "Voll"
+        else -> "Status ${state.chargingState}"
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Akku — Detail", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            InfoRow("Spannung", if (state.batteryVoltage > 0f) "%.2f V".format(state.batteryVoltage) else "—")
+            InfoRow("Strom", if (bmsKnown) "%+.2f A".format(state.batteryCurrentA) else "—")
+            if (bmsKnown) {
+                InfoRow("Leistung", "%+.0f W".format(state.batteryVoltage * state.batteryCurrentA))
+            }
+            InfoRow("Akku-Temp", if (state.batteryTempC != 0f) "%.1f °C".format(state.batteryTempC) else "—")
+            InfoRow("Lade-Status", if (bmsKnown) chargingLabel else "—")
+            InfoRow("Gesundheit", if (bmsKnown) "${state.batteryHealthPercent} %" else "—")
+            InfoRow("Zyklen", if (bmsKnown) state.batteryCycleCount.toString() else "—")
+            if (cells.isNotEmpty()) {
+                InfoRow("Zellen", "${cells.size} × ⌀ %d mV".format(cells.average().toInt()))
+                InfoRow("Spreizung", "$cellSpread mV")
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticsTelemetryCard(state: com.celox.segway.core.vehicle.VehicleState) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Motor & Fahrt", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            InfoRow(
+                "Motor-Temp A",
+                if (state.motorTempAC != 0f) "%.1f °C".format(state.motorTempAC) else "—"
+            )
+            InfoRow(
+                "Motor-Temp B",
+                if (state.motorTempBC != 0f) "%.1f °C".format(state.motorTempBC) else "—"
+            )
+            InfoRow("Trip-Zeit", formatDuration(state.tripDurationSeconds))
+            InfoRow("Total-Laufzeit", formatDuration(state.totalRuntimeSeconds))
+            if (state.errorCode != 0) InfoRow("Fehlercode", "0x%04X".format(state.errorCode))
+            if (state.warnCode != 0) InfoRow("Warncode", "0x%04X".format(state.warnCode))
+        }
+    }
+}
+
+private fun formatDuration(seconds: Long): String {
+    if (seconds <= 0L) return "—"
+    val h = seconds / 3600
+    val m = (seconds % 3600) / 60
+    val s = seconds % 60
+    return if (h > 0) "%d h %02d m".format(h, m) else "%d m %02d s".format(m, s)
 }

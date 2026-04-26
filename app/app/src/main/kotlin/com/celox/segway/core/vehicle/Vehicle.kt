@@ -46,10 +46,34 @@ data class VehicleState(
     val serialNumber: String = "",
     val regionCode: String = "",
     val errorCode: Int = 0,
-    /** Last read black-box (crash-log) entry. Format implementation-defined. */
-    val blackBoxRaw: ByteArray? = null,
+    val warnCode: Int = 0,
+    /** Estimated remaining range in km, from `VCU_LeftMileage` (reg 0x5F). */
+    val rangeRemainingKm: Float = 0f,
+    /** Total runtime since manufacture in seconds (`VCU_Runtime`, reg 0x64). */
+    val totalRuntimeSeconds: Long = 0L,
+    /** Trip ride time in seconds (`VCU_SingleRideTime`, reg 0x6A). */
+    val tripDurationSeconds: Long = 0L,
+    /** Pack voltage in volts (BMS 0x8C, raw V × 100). */
+    val batteryVoltage: Float = 0f,
+    /** Pack current in amperes, signed (BMS 0x8D, raw A × 100). Negative = discharge. */
+    val batteryCurrentA: Float = 0f,
+    /** Battery state-of-health % (BMS 0x8E `BMS_FULL_CAP_PCT`). */
+    val batteryHealthPercent: Int = 0,
+    /** Lifetime charge cycle count (BMS 0x59). */
+    val batteryCycleCount: Int = 0,
+    /** Charging state from BMS 0x92: 0=idle, 1=charging, 2=fully charged, ... */
+    val chargingState: Int = 0,
+    /** Battery pack temperature, °C (BMS 0xF9). */
+    val batteryTempC: Float = 0f,
+    /** Per-cell voltages in millivolts. Length = number of series cells (typically 12 for ZT3). */
+    val cellVoltagesMv: IntArray = intArrayOf(),
+    /** Motor controller temperatures (sensor A and B), °C. */
+    val motorTempAC: Float = 0f,
+    val motorTempBC: Float = 0f,
     /** Last raw register read (offset → bytes), so the diagnostics screen can show arbitrary regs. */
     val lastRegisterRead: Pair<Int, ByteArray>? = null,
+    /** Last read black-box (crash-log) entry. Format implementation-defined. */
+    val blackBoxRaw: ByteArray? = null,
 )
 
 /** ZT3 has 4 modes shown on the dashboard: Walk, E, D, S. */

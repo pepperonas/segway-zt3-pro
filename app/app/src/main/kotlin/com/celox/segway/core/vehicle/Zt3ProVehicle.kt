@@ -140,22 +140,37 @@ class Zt3ProVehicle(
      * `reverse-engineering/protocol/zt3-ble-register-reference.md`.
      */
     private val pollPlan: List<Triple<Byte, Byte, Int>> = listOf(
+        // VCU identity (rarely changes; cheap to re-poll)
+        Triple(0x16, 0x10.toByte(), 14),  // VCU_SN — serial number
+        Triple(0x16, 0x1A.toByte(), 16),  // VCU/MCU/BLE firmware versions
+        // VCU live state
         Triple(0x16, 0x55.toByte(), 2),   // VCU_BATTPCT — battery %
         Triple(0x16, 0x57.toByte(), 2),   // VCU_Speed — throttle
-        Triple(0x16, 0x5A.toByte(), 2),   // VCU_DRIVE_MODE — read-only on ZT3 Pro D
-        Triple(0x16, 0x5B.toByte(), 2),   // VCU_LedMode — read-only on ZT3 Pro D
+        Triple(0x16, 0x5A.toByte(), 2),   // VCU_DRIVE_MODE
+        Triple(0x16, 0x5B.toByte(), 2),   // VCU_LedMode
+        Triple(0x16, 0x5F.toByte(), 2),   // VCU_LeftMileage — range remaining (km × 10?)
         Triple(0x16, 0x68.toByte(), 4),   // VCU_SingleMileage — trip
         Triple(0x16, 0x62.toByte(), 4),   // VCU_Mileage — total
+        Triple(0x16, 0x64.toByte(), 4),   // VCU_Runtime — total seconds since manufacture
+        Triple(0x16, 0x6A.toByte(), 4),   // VCU_SingleRideTime — trip seconds
         Triple(0x16, 0x6B.toByte(), 2),   // VCU_BodyTemp — °C × 10
         Triple(0x16, 0x58.toByte(), 2),   // VCU_ErrorCode
         Triple(0x16, 0x59.toByte(), 2),   // VCU_WarnCode
+        // BMS deep telemetry
         Triple(0x07, 0x8F.toByte(), 2),   // BMS_SOC — actual battery
-        Triple(0x07, 0x8C.toByte(), 2),   // BMS_VOLTAGE
-        Triple(0x07, 0x96.toByte(), 4),   // BMS_Temps
+        Triple(0x07, 0x8C.toByte(), 2),   // BMS_VOLTAGE — pack voltage
+        Triple(0x07, 0x8D.toByte(), 2),   // BMS_CURRENT — pack current (signed)
+        Triple(0x07, 0x8E.toByte(), 2),   // BMS_FULL_CAP_PCT — health %
+        Triple(0x07, 0x59.toByte(), 2),   // BMS_CycleCountLT — lifetime cycles
+        Triple(0x07, 0x92.toByte(), 2),   // BMS_ChargeStatus
+        Triple(0x07, 0x96.toByte(), 4),   // BMS_Temps — pack temperatures
+        Triple(0x07, 0xF9.toByte(), 2),   // BMS_TEMP — alt temp register
+        Triple(0x07, 0xA0.toByte(), 26),  // BMS_CellVolts — 13S pack (verified: 53.35 V / 4.10 V/cell)
+        // MCU
         Triple(0x02, 0x86.toByte(), 2),   // MCU_SPEED — actual current speed
-        Triple(0x02, 0x48.toByte(), 2),   // MCU_TEMP_A — motor controller temp
-        Triple(0x02, 0x49.toByte(), 2),   // MCU_TEMP_B — second motor sensor
-        Triple(0x02, 0x40.toByte(), 2),   // MCU_TEMP_A_LASTMAX
+        Triple(0x02, 0x48.toByte(), 2),   // MCU_TEMP_A — motor controller temp A
+        Triple(0x02, 0x49.toByte(), 2),   // MCU_TEMP_B — sensor B
+        Triple(0x02, 0x40.toByte(), 2),   // MCU_TEMP_A_LASTMAX — historic max
         Triple(0x02, 0x3E.toByte(), 2),   // MCU_TEMP — overall MCU temp
     )
 
@@ -383,13 +398,24 @@ class Zt3ProVehicle(
                 _state.update { it.copy(isLightsOn = (data[0].toInt() and 0xFF) != 0) }
             }
             0x58 -> if (data.size >= 2) _state.update { it.copy(errorCode = leU16(data, 0)) }
-            // VCU_Mileage / VCU_SingleMileage — empirically observed to be in
-            // 10-meter units → divide by 100 for km, but ZT3 returns very large
-            // values implying a different scaling. Field-test 2026-04-27 shows
-            // tripKm = 136970.25 km with /100, suggesting the actual unit is
-            // smaller. /100000 brings it to ~14 km which matches the dashboard.
-            0x62 -> if (data.size >= 4) _state.update { it.copy(odometerKm = leU32(data, 0) / 100000f) }
-            0x68 -> if (data.size >= 4) _state.update { it.copy(tripKm = leU32(data, 0) / 100000f) }
+            0x59 -> if (data.size >= 2) _state.update { it.copy(warnCode = leU16(data, 0)) }
+            // VCU_Mileage / VCU_SingleMileage — empirically (2026-04-28 logcat
+            // capture) the meaningful value sits in the low u16: e.g.
+            // odometer reg 0x62 = `[12 00 00 00]` → 18 km, trip reg 0x68 =
+            // `[07 00 46 0A]` → 7 km. The high u16 contains either a counter
+            // (#rides) or a precision-fractional component we don't decode.
+            0x62 -> if (data.size >= 2) _state.update { it.copy(odometerKm = leU16(data, 0).toFloat()) }
+            0x68 -> if (data.size >= 2) _state.update { it.copy(tripKm = leU16(data, 0).toFloat()) }
+            // VCU_LeftMileage — verified `[04 0B]` = 2820 → 28.2 km matches
+            // dashboard at 94 % SOC, so unit is km × 100.
+            0x5F -> if (data.size >= 2) _state.update { it.copy(rangeRemainingKm = leU16(data, 0) / 100f) }
+            // VCU_Runtime — verified `[E8 7F 00 00]` = 32744 sec = 9h 05m as
+            // 32-bit second counter. Reasonable for a young scooter.
+            0x64 -> if (data.size >= 4) _state.update { it.copy(totalRuntimeSeconds = leU32(data, 0).toLong() and 0xFFFFFFFFL) }
+            // VCU_SingleRideTime — verified `[4F 00 BE 00]` → low u16 = 79 sec
+            // (= current ride, makes sense). The high u16 might be number of
+            // rides or peak duration, leave undecoded.
+            0x6A -> if (data.size >= 2) _state.update { it.copy(tripDurationSeconds = leU16(data, 0).toLong()) }
             0x6B -> if (data.size >= 2) {
                 _state.update { it.copy(temperatureC = leU16Signed(data, 0) / 10f) }
             }
@@ -399,9 +425,36 @@ class Zt3ProVehicle(
 
     private fun handleBmsRegister(offset: Int, data: ByteArray) {
         when (offset) {
+            // BMS_CycleCountLT — lifetime cycle count.
+            0x59 -> if (data.size >= 2) _state.update { it.copy(batteryCycleCount = leU16(data, 0)) }
+            // BMS_VOLTAGE — pack voltage, raw V × 100 (e.g. 4200 = 42.00 V).
+            0x8C -> if (data.size >= 2) _state.update { it.copy(batteryVoltage = leU16(data, 0) / 100f) }
+            // BMS_CURRENT — pack current, signed A × 100. Negative = discharge.
+            0x8D -> if (data.size >= 2) _state.update { it.copy(batteryCurrentA = leU16Signed(data, 0) / 100f) }
+            // BMS_FULL_CAP_PCT — battery state-of-health (% of original capacity).
+            0x8E -> if (data.size >= 1) _state.update { it.copy(batteryHealthPercent = (data[0].toInt() and 0xFF).coerceIn(0, 100)) }
             // BMS_SOC — actual battery state-of-charge, more accurate than VCU_BATTPCT.
             0x8F -> if (data.size >= 1) {
                 _state.update { it.copy(batteryPercent = (data[0].toInt() and 0xFF).coerceIn(0, 100)) }
+            }
+            // BMS_ChargeStatus.
+            0x92 -> if (data.size >= 2) _state.update { it.copy(chargingState = leU16(data, 0)) }
+            // BMS_Temps — verified `[13 00 13 00]` = both probes 19 °C raw,
+            // direct °C (no bias). Two probes packed as 4 × u8.
+            0x96 -> if (data.size >= 2) {
+                val t1 = data[0].toInt() and 0xFF
+                val t2 = data[1].toInt() and 0xFF
+                _state.update { it.copy(batteryTempC = maxOf(t1, t2).toFloat()) }
+            }
+            // BMS_TEMP — single probe, also direct °C in u16 LE (verified [13 00] = 19).
+            0xF9 -> if (data.size >= 2) {
+                val t = leU16Signed(data, 0)
+                if (t in -40..120) _state.update { it.copy(batteryTempC = t.toFloat()) }
+            }
+            // BMS_CellVolts — N × 16-bit cell voltages in millivolts (LE).
+            0xA0 -> if (data.size >= 4 && data.size % 2 == 0) {
+                val cells = IntArray(data.size / 2) { i -> leU16(data, i * 2) }
+                _state.update { it.copy(cellVoltagesMv = cells) }
             }
         }
     }
@@ -412,12 +465,18 @@ class Zt3ProVehicle(
             0x86 -> if (data.size >= 2) {
                 _state.update { it.copy(speedKmh = leU16(data, 0) / 10f) }
             }
-            // MCU_TEMP_A — motor-controller temperature, °C × 10. Live updates
-            // when riding. Replaces the static VCU_BodyTemp (= ambient/case
-            // temp at reg 0x6B which barely changes during riding).
+            // MCU_TEMP_A — motor-controller temperature, °C × 10. While
+            // standing still it returns `[00 00]` (= 0 °C), so we don't
+            // override `temperatureC` (which carries VCU body temp 0x6B).
+            // Motor temps live separately in motorTempAC/BC and are surfaced
+            // by the dedicated motor card.
             0x48 -> if (data.size >= 2) {
                 val v = leU16Signed(data, 0) / 10f
-                if (v in -20f..150f) _state.update { it.copy(temperatureC = v) }
+                if (v in -20f..150f) _state.update { it.copy(motorTempAC = v) }
+            }
+            0x49 -> if (data.size >= 2) {
+                val v = leU16Signed(data, 0) / 10f
+                if (v in -20f..150f) _state.update { it.copy(motorTempBC = v) }
             }
         }
     }

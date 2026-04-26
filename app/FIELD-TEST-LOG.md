@@ -684,3 +684,48 @@ when (cmd.mode) {
 ### Status
 
 **Stand 2026-04-28 ~21:00**: Mode-Mapping byte-perfekt verifiziert (1-indexed). Loading-State verhindert irreführende Default-Anzeige. Release v0.1.4. Mode-WRITES bleiben firmware-seitig blockiert (Roller-Display ändert sich nicht), aber Mode-READS sind jetzt 100 % korrekt — d.h. Dashboard-Wechsel via Power-Button-Doppeltap wird live in der App reflektiert.
+
+---
+
+## Session 10 — 2026-04-28 ~21:30 (Deep-Telemetrie via BMS / VCU)
+
+### Anforderung
+
+Nach Mode-Fix: weitere Sensorwerte auslesen, orientiert an [`zt3-ble-register-reference.md`](../reverse-engineering/protocol/zt3-ble-register-reference.md). Ziel: Spannung, Strom, Zellenspannungen, Reichweite, Trip-Zeit, Total-Laufzeit, Motor-Temps.
+
+### Empirisch verifizierte ZT3-Skalierungen (per logcat-Capture)
+
+Wichtige Korrekturen gegen die generischen x3regs.h-Annahmen — ZT3-Pro-D-Firmware weicht in **Encoding** und **Wert-Layout** von GT3/F3 ab:
+
+| Reg | Doc-Annahme | ZT3-Realität (Bytes → Wert) | Einheit |
+|---|---|---|---|
+| `0x62` (VCU_Mileage) | u32 × 10 m | `[12 00 00 00]` → low u16 = **18** | km, **direkt** (kein Divisor) |
+| `0x68` (VCU_SingleMileage) | u32 × 10 m | `[07 00 46 0A]` → low u16 = **7** | km, direkt; high u16 (`0A46`) = unbekannt |
+| `0x5F` (VCU_LeftMileage) | „Restreichweite" | `[04 0B]` = 0x0B04 = 2820 | km × 100 (= 28,2 km) |
+| `0x64` (VCU_Runtime) | 32-bit Runtime | `[E8 7F 00 00]` = 32744 | **Sekunden** seit Herstellung (= 9h 05m, plausibel für jungen Roller) |
+| `0x6A` (VCU_SingleRideTime) | „Trip-Time" | `[4F 00 BE 00]` → low u16 = **79** | Sekunden current ride; high u16 (`00BE`) = unbekannt |
+| `0x6B` (VCU_BodyTemp) | °C × 10 | `[BE 00]` = 190 | °C × 10 (= 19,0 °C ✓) |
+| `0x96` (BMS_Temps) | u8 + 20 bias (Doc-Konvention) | `[13 00 13 00]` = beide Probes 19 | **direkt °C** (kein Bias bei ZT3) |
+| `0xF9` (BMS_TEMP) | uint16 | `[13 00]` = 19 | direkt °C |
+| `0x8C` (BMS_VOLTAGE) | V × 100 | `[D7 14]` = 5335 | V × 100 (= 53,35 V ✓ matched 13S × 4,104 V/Zelle) |
+| `0x8D` (BMS_CURRENT) | A × 100 signed | `[FA FF]` = -6 | A × 100 (= -0,06 A idle discharge) |
+| `0x8E` (BMS_FULL_CAP_PCT) | % | `[64 00]` = 100 | % direkt |
+| `0x8F` (BMS_SOC) | % | `[5E 00]` = 94 | % direkt |
+| `0x92` (BMS_ChargeStatus) | enum | `[02 00]` = 2 | 0=idle, 1=charging, **2=fully charged/standby** (verifiziert bei Battery 94 %) |
+| `0xA0` (BMS_CellVolts) | N × 16-bit cells | `[09 10 ...]` × 13 | mV LE; **13S** (nicht 12S — entspricht 48-V-Nominal-Pack) |
+
+### Schlüssel-Lehre
+
+1. **Zellzahl im Datenblatt steht NICHT für die Datenmenge die der BMS pusht.** ZT3 ist 13S (53,35 V / 4,104 V ≈ 13). Erste Iteration mit 24 Bytes (12S-Annahme) ergab 12 × 4,104 = 49,25 V vs. Pack-Spannung 53,35 V → 4 V Lücke = 1 Zelle. Lösung: 26 Bytes pollen.
+2. **VCU body temp (0x6B) darf nicht von MCU temps (0x48) überschrieben werden.** MCU returned `[00 00]` = 0 °C im Stand (Sensor offline ohne Fahrt). Zuerst überschrieb das fälschlicherweise den 19 °C body temp. Fix: separate `motorTempAC/BC`-Felder, `temperatureC` bleibt VCU-only.
+3. **Trip / Odometer sind low-u16, NICHT u32.** Der Doc-Hinweis „32-bit Runtime" gilt für 0x64/Runtime, aber für 0x62/0x68 nutzt ZT3 nur die unteren 2 Bytes. Vorherige Skalierung `/100000` brachte stochastisch glaubwürdige Werte beim Speichersitzungsbeginn, schlug aber bei nicht-trivialen Reichweiten fehl.
+
+### Code-Änderungen
+
+- `Vehicle.kt`: 12 neue Felder in `VehicleState` (rangeRemainingKm, totalRuntimeSeconds, tripDurationSeconds, batteryVoltage, batteryCurrentA, batteryHealthPercent, batteryCycleCount, chargingState, batteryTempC, cellVoltagesMv, motorTempAC, motorTempBC, warnCode).
+- `Zt3ProVehicle.kt`: Poll-Plan auf 27 Register erweitert (VCU + BMS + MCU). Parser für jedes neue Register.
+- `VehicleScreen.kt`: 3-Reihe Live-Daten Stat-Grid (Battery/MaxSpeed, Temp/Trip, Reichweite/Gesamt). Zwei neue Cards: „Akku — Detail" (Spannung/Strom/Leistung/Health/Zyklen/Zell-Spreizung) und „Motor & Fahrt" (MCU-Temps, Trip-/Total-Zeit, Fehler-/Warn-Codes).
+
+### Status
+
+**Stand 2026-04-28 ~22:00**: ZT3-Telemetrie ~95 % vollständig live. Verbleibend: BLE FW-Version (Reg `0x1A`) — wurde aus Poll-Plan rausgenommen und wieder reinkommt. Motor-Temps werden erst während Fahrt valid (Sensor offline im Stand). Cycle-Count `0` bei nur 9 h Total-Laufzeit ist plausibel.

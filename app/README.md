@@ -21,11 +21,18 @@ Native, open-source rebuild of the official Segway-Ninebot **Segway Mobility** c
 - **3× Vol-Up Stealth-Unlock auf 40, 3× Vol-Down Stealth-Lock auf 22** — auch mit ausgeschaltetem Display via `MediaSessionCompat.VolumeProvider` + Foreground-Service (Session 6)
 - **Live-Status-Notification** — zeigt aktuellen Lock-Zustand + nächste Aktion, updated automatisch
 - **Auto-Lock bei jedem Reconnect** — sobald Phone in Reichweite + Handshake durch, wird Boot-Profile (22 km/h) gesetzt
-- **Live-Telemetrie** mit verifizierten Registern (Session 8 + [`zt3-ble-register-reference.md`](../reverse-engineering/protocol/zt3-ble-register-reference.md)):
-  - Battery (reg `0x55` VCU oder `0x8F` BMS) ✓
-  - Temperature (reg `0x6B`, °C × 10) ✓
-  - Trip + Odometer (regs `0x68` / `0x62`) ✓
-  - Live-Speed (reg `0x57` oder MCU `0x86`) ✓
+- **Live-Telemetrie** mit verifizierten Registern (Sessions 8-10 + [`zt3-ble-register-reference.md`](../reverse-engineering/protocol/zt3-ble-register-reference.md)):
+  - Battery % (VCU `0x55` + BMS `0x8F`)
+  - Pack-Spannung (BMS `0x8C`, V × 100) + Strom (BMS `0x8D`, A × 100 signed) + Leistung
+  - 13 Zell-Spannungen + Spreizung (BMS `0xA0`, 26 Bytes — 13S Pack verifiziert via 53,35 V / 4,104 V)
+  - Battery Health % (BMS `0x8E`) + Lifetime Cycle Count (BMS `0x59`) + Charging State (BMS `0x92`)
+  - Battery Pack Temp (BMS `0x96` / `0xF9`, direct °C, kein Bias bei ZT3)
+  - Body / Motor Temps (VCU `0x6B`, MCU `0x48`/`0x49`)
+  - Trip / Odometer (VCU `0x68`/`0x62`, low-u16 km direkt — **nicht** /100000 wie x3regs.h andeutet)
+  - Reichweite (VCU `0x5F`, km × 100)
+  - Trip-Zeit (VCU `0x6A`, low-u16 sec) + Total-Laufzeit (VCU `0x64`, u32 sec)
+  - Live-Speed (reg `0x57` oder MCU `0x86`)
+  - Error- + Warncode (VCU `0x58`/`0x59`, sichtbar bei ≠ 0)
 - **Mode-Anzeige live** — Roller-Display-Wechsel (Walk → E → D → S via Power-Button-Doppeltap) wird in der App reflektiert. ZT3-Firmware ist 1-indexed: `0x01=E, 0x02=D, 0x03=S, 0x04=Männchen` (Session 9)
 - **KeepScreenOn-Toggle** in Settings → App-Bildschirm bleibt aktiv solange offen
 - **Register-Sweep-Button** in Diagnostics für eigene Reverse-Engineering-Sessions

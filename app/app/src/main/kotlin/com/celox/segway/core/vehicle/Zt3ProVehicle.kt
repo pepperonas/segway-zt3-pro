@@ -7,6 +7,7 @@ import com.celox.segway.core.ble.GattClient
 import com.celox.segway.core.ble.GattState
 import com.celox.segway.core.crypto.NinebotCrypto
 import com.celox.segway.core.data.PairingPrefs
+import com.celox.segway.core.data.VehicleStateCache
 import com.celox.segway.core.util.BleLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +47,7 @@ class Zt3ProVehicle(
     private val gatt: GattClient,
     private val pairing: EllipticPairing,             // kept for API compat — not used by the wire layer
     private val pairingPrefs: PairingPrefs? = null,
+    private val stateCache: VehicleStateCache? = null,
     private val bleLog: BleLog? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) : Vehicle {
@@ -58,25 +60,73 @@ class Zt3ProVehicle(
 
     @Volatile private var handshakeSent = false
 
-    /**
-     * Persisted appRandom (`f5101e`) extracted from a successful SHU pair via
-     * the patched-SHU `CRYPTO_DUMP` log at 2026-04-27. SHU keeps this in its
-     * SharedPreferences keyed by MAC; we reuse it on every connect so we don't
-     * need a fresh first-pair (which would require the user to press the power
-     * button for OOB confirmation).
-     *
-     * The token (`f5100d`) is NOT persisted — the scooter issues a fresh one
-     * in every cmd=0x5B handshake response. Only the random survives.
-     */
-    private val persistedRandomForDevScooter: ByteArray? =
-        if (id.equals("C1:6B:5E:D0:C5:96", ignoreCase = true)) byteArrayOf(
-            0xB1.toByte(), 0x59, 0xE5.toByte(), 0xED.toByte(), 0x55, 0x54, 0x7D, 0x3E,
-            0x8C.toByte(), 0xA9.toByte(), 0x97.toByte(), 0xA1.toByte(), 0x61, 0xD9.toByte(), 0x5B, 0x42
-        ) else null
-
     init {
+        // NB: do NOT pre-load a persisted cryptoToken into the cipher here.
+        // The scooter rotates the token on every cmd=0x5B handshake, so the
+        // saved value is always stale; loading it derives `SHA-1(name+token)`
+        // as the AES key and breaks Stage-1 (which the scooter still expects
+        // to be encrypted with `SHA-1(name+salt)`). The token is captured
+        // fresh inside [decrypt] when the cmd=0x5B response arrives.
+        // Hydrate from cache: restore the last-known telemetry so the UI shows
+        // real values immediately on cold start, instead of zeros until the
+        // first poll cycle completes (~2 s after handshake). Live-only fields
+        // (speed, current, cells) are NOT cached and stay at default until BLE
+        // delivers fresh data.
         scope.launch {
-            pairingPrefs?.loadCryptoToken(id)?.let { crypto.loadToken(it) }
+            stateCache?.load(id)?.let { snap ->
+                _state.update { s ->
+                    s.copy(
+                        batteryPercent = snap.batteryPercent,
+                        batteryVoltage = snap.batteryVoltage,
+                        batteryHealthPercent = snap.batteryHealthPercent,
+                        rangeRemainingKm = snap.rangeRemainingKm,
+                        odometerKm = snap.odometerKm,
+                        tripKm = snap.tripKm,
+                        temperatureC = snap.temperatureC,
+                        mode = snap.mode?.let { name ->
+                            runCatching { RideMode.valueOf(name) }.getOrNull()
+                        },
+                        isLocked = snap.isLocked,
+                        isLightsOn = snap.isLightsOn,
+                        firmwareVcu = snap.firmwareVcu,
+                        firmwareMcu = snap.firmwareMcu,
+                        firmwareBle = snap.firmwareBle,
+                        serialNumber = snap.serialNumber,
+                        regionCode = snap.regionCode,
+                    )
+                }
+            }
+        }
+        // Persist updates back to the cache, throttled to every 5 s to avoid
+        // hammering DataStore on every poll cycle.
+        scope.launch {
+            var lastSave = 0L
+            _state.collect { s ->
+                if (!s.isReady) return@collect
+                val now = System.currentTimeMillis()
+                if (now - lastSave < 5_000L) return@collect
+                lastSave = now
+                stateCache?.save(
+                    VehicleStateCache.Snapshot(
+                        mac = id,
+                        batteryPercent = s.batteryPercent,
+                        batteryVoltage = s.batteryVoltage,
+                        batteryHealthPercent = s.batteryHealthPercent,
+                        rangeRemainingKm = s.rangeRemainingKm,
+                        odometerKm = s.odometerKm,
+                        tripKm = s.tripKm,
+                        temperatureC = s.temperatureC,
+                        mode = s.mode?.name,
+                        isLocked = s.isLocked,
+                        isLightsOn = s.isLightsOn,
+                        firmwareVcu = s.firmwareVcu,
+                        firmwareMcu = s.firmwareMcu,
+                        firmwareBle = s.firmwareBle,
+                        serialNumber = s.serialNumber,
+                        regionCode = s.regionCode,
+                    )
+                )
+            }
         }
         scope.launch {
             gatt.state.collect { gs ->
@@ -89,15 +139,9 @@ class Zt3ProVehicle(
             }
         }
         scope.launch {
-            var lastTokenSeen: ByteArray? = null
             gatt.incoming.collect { raw ->
                 val parsed = codec.parse(raw) ?: return@collect
                 handleNotify(parsed)
-                val current = crypto.snapshotToken()
-                if (current.any { it != 0.toByte() } && !current.contentEquals(lastTokenSeen)) {
-                    lastTokenSeen = current
-                    pairingPrefs?.let { prefs -> scope.launch { prefs.saveCryptoToken(id, current) } }
-                }
             }
         }
         // Periodic telemetry poll: every 2s while ready, fetch the SHU-style
@@ -187,8 +231,10 @@ class Zt3ProVehicle(
     /**
      * Resume-or-pair handshake matching `ScooterActivity.java:484-514`:
      *  1. Send `getBleRandom` (`[3E 04 5B 00]`, cmd=0x5B) until L flag (token+challenge captured)
-     *  2. **If `persistedRandomForDevScooter != null`**: skip o1 and call `setRandomAppData(persisted)`
-     *     directly — SHU's resume path. Else: send `o1(R)` (cmd=0x5C, plen=0x10) until M flag.
+     *  2. **If a validated 16-byte appRandom is in [pairingPrefs] for this MAC**:
+     *     skip o1 and call `setRandomAppData(persisted)` — SHU's resume path.
+     *     Else: send `o1(R)` (cmd=0x5C, plen=0x10) until M flag, then persist
+     *     the freshly-generated random for next-time resume.
      *  3. Send `D0(challenge)` (cmd=0x5D, plen=0x0E) until O flag (fully paired)
      *
      * After stage 1 the wire-key transitions to `SHA-1(name + token)`; after stage 2 it
@@ -221,45 +267,39 @@ class Zt3ProVehicle(
         }
         bleLog?.note("Crypto", "L: token+challenge received")
 
-        // Stage 2: either inject persisted random (resume) or do o1 first-pair.
-        val persisted = persistedRandomForDevScooter
+        // Stage 2: try resume first (if we have a validated persisted random),
+        // then fall back to fresh pair (o1) if Stage 3 times out — that catches
+        // the case where the scooter regenerated its pair-key while we weren't
+        // looking (e.g. after the user paired with the official Segway app or
+        // SHU). Length and zero-checks happen inside loadCryptoRandom.
+        val persisted = pairingPrefs?.loadCryptoRandom(id)
+        var resumedFromPersisted = false
         if (persisted != null) {
             crypto.setRandomAppData(persisted)
             bleLog?.note("Crypto", "M: resumed via persisted random (key=SHA-1(R+T))")
+            resumedFromPersisted = true
         } else {
-            val pairInit = crypto.buildPairInitFrame(FrameCodecClassic.DST_HANDSHAKE)
-            for (attempt in 0 until 6) {
-                if (crypto.stagePairedKey) break
-                gatt.send(crypto.encrypt(pairInit.copyOf()))
-                withTimeoutOrNull(600L) {
-                    while (!crypto.stagePairedKey) delay(20)
-                }
-                if (crypto.stagePairedKey) break
-                delay(300L)
-            }
-            if (!crypto.stagePairedKey) {
-                bleLog?.note("Crypto", "stage 2 (M) timed out — pair-init not acked")
-                handshakeSent = true
-                return
-            }
-            bleLog?.note("Crypto", "M: paired-key (SHA-1(R+T))")
+            if (!sendStage2FreshPair()) return
         }
 
-        // Stage 3: D0(challenge) → wait for O (fully paired).
-        val challengeBytes = crypto.snapshotChallenge()
-        for (attempt in 0 until 4) {
-            if (crypto.stageFullyPaired) break
-            gatt.send(codec.challengeResponse(FrameCodecClassic.DST_HANDSHAKE, challengeBytes))
-            withTimeoutOrNull(600L) {
-                while (!crypto.stageFullyPaired) delay(20)
+        // Stage 3: D0(challenge) → wait for O (fully paired). If we resumed
+        // from a persisted random and Stage 3 times out, the scooter has
+        // rotated its pair-key on us (e.g. after pairing with the stock
+        // Segway app, SHU, or XiaoDash). Drop persisted, do fresh o1, retry.
+        if (!sendStage3ChallengeEcho()) {
+            if (resumedFromPersisted) {
+                bleLog?.note("Crypto", "Stage 3 failed on resume — fall back to fresh pair")
+                crypto.resetPairingState()  // wipe stale stage-2 key, keep token
+                if (!sendStage2FreshPair()) return
+                if (!sendStage3ChallengeEcho()) {
+                    bleLog?.note("Crypto", "stage 3 (O) timed out even after fresh-pair fallback")
+                }
+            } else {
+                bleLog?.note("Crypto", "stage 3 (O) timed out — challenge-echo not acked")
             }
-            if (crypto.stageFullyPaired) break
-            delay(300L)
         }
         if (crypto.stageFullyPaired) {
             bleLog?.note("Crypto", "O: fully paired — ready for commands")
-        } else {
-            bleLog?.note("Crypto", "stage 3 (O) timed out — challenge-echo not acked")
         }
 
         handshakeSent = true
@@ -271,6 +311,56 @@ class Zt3ProVehicle(
         if (crypto.stagePairedKey) {
             _state.update { it.copy(isReady = true) }
         }
+    }
+
+    /**
+     * Stage 2 — fresh pair: send `o1(R)` (cmd=0x5C, plen=0x10) until M flag.
+     * Returns true on success. On failure, sets handshakeSent=true and logs.
+     * On success persists the freshly-generated appRandom to [pairingPrefs]
+     * so the next connect can take the resume path without an OOB press.
+     */
+    private suspend fun sendStage2FreshPair(): Boolean {
+        val pairInit = crypto.buildPairInitFrame(FrameCodecClassic.DST_HANDSHAKE)
+        for (attempt in 0 until 6) {
+            if (crypto.stagePairedKey) break
+            gatt.send(crypto.encrypt(pairInit.copyOf()))
+            withTimeoutOrNull(600L) {
+                while (!crypto.stagePairedKey) delay(20)
+            }
+            if (crypto.stagePairedKey) break
+            delay(300L)
+        }
+        if (!crypto.stagePairedKey) {
+            bleLog?.note("Crypto", "stage 2 (M) timed out — pair-init not acked")
+            handshakeSent = true
+            return false
+        }
+        bleLog?.note("Crypto", "M: paired-key (SHA-1(R+T))")
+        // Persist the freshly-generated appRandom so the next connect can
+        // resume without bothering the user for a power-button press.
+        pairingPrefs?.let { prefs ->
+            runCatching { prefs.saveCryptoRandom(id, crypto.snapshotRandom()) }
+                .onFailure { bleLog?.note("Crypto", "saveCryptoRandom failed: ${it.message}") }
+        }
+        return true
+    }
+
+    /**
+     * Stage 3 — challenge-echo: send `D0(challenge)` (cmd=0x5D) until O flag.
+     * Returns true on success, false on timeout.
+     */
+    private suspend fun sendStage3ChallengeEcho(): Boolean {
+        val challengeBytes = crypto.snapshotChallenge()
+        for (attempt in 0 until 4) {
+            if (crypto.stageFullyPaired) break
+            gatt.send(codec.challengeResponse(FrameCodecClassic.DST_HANDSHAKE, challengeBytes))
+            withTimeoutOrNull(600L) {
+                while (!crypto.stageFullyPaired) delay(20)
+            }
+            if (crypto.stageFullyPaired) break
+            delay(300L)
+        }
+        return crypto.stageFullyPaired
     }
 
     private fun encodeCrypto(cmd: VehicleCommand): ByteArray? = when (cmd) {

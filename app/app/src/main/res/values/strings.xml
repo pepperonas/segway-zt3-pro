@@ -16,11 +16,15 @@
     <string name="pair_handshake">Performing secure handshake (ECDH)…</string>
     <string name="pair_success">Paired</string>
     <string name="pair_failed">Pairing failed</string>
-    <string name="pair_press_power">Press the power button on your scooter to confirm</string>
+    <string name="pair_press_power">Press the power button on your scooter to wake it up</string>
 
     <!-- Vehicle -->
     <string name="vehicle_no_paired">No vehicle paired</string>
     <string name="vehicle_pair_now">Pair now</string>
+    <string name="vehicle_offline_title">Scooter offline</string>
+    <string name="vehicle_offline_subtitle">Press the scooter\'s power button to wake it up</string>
+    <string name="vehicle_handshaking">Securing connection…</string>
+    <string name="vehicle_retry">Retry</string>
     <string name="vehicle_lock">Lock</string>
     <string name="vehicle_unlock">Unlock</string>
     <string name="vehicle_lights">Lights</string>

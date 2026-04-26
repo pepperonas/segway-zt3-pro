@@ -822,3 +822,62 @@ Damit funktioniert Custom-Button-Doppel-Tap auch wenn:
 ### Status
 
 **Stand 2026-04-28 ~23:00**: Custom-Button-Doppel-Tap **funktioniert grundsätzlich**, ist aber timing-sensitiv. Akzeptabel als drittes Lock-Triggermethode neben Vol-Down-3× und In-App-Button. Inkonsistenz dokumentiert; künftige Iteration könnte Fast-Poll auf 150 ms drücken oder dynamisch Hauptpoll pausieren.
+
+---
+
+## Session 9 — 2026-04-28 ~23:30 (Pairing-Persistenz Cleanup + UX)
+
+### Reported
+
+User beschwert sich der Reihe nach über mehrere Symptome (alle gleicher Root-Cause: kaputter Resume-Pfad bei mehreren App-Starts):
+
+1. „App schaltet Rotation ein" → MainActivity-Manifest hatte kein `screenOrientation`
+2. „BLE verliert Verbindung wenn Bildschirm aus" → `BleConnectionService` (im Manifest deklariert) wurde **nie gestartet**, deshalb keinen Foreground-Schutz
+3. „Ich muss jedes Mal neu pairen" → kein Status-Banner, kein Auto-Reconnect-Watchdog, Vehicle-Screen voller Nullen wenn Scooter schläft
+4. „Securing-connection-Banner ist scheiße" → bei jedem Reconnect 1-3 s Flash-Banner, sieht broken aus
+5. **„Jetzt kann ich nicht mehr pairen"** → eigentlicher Crypto-Bug
+
+### Root Cause (#5)
+
+Code-Review-Tool flagged: **Handshake startet bevor `loadCryptoToken` async fertig ist**. Die Init-Block-Coroutine `pairingPrefs?.loadCryptoToken(id)?.let { crypto.loadToken(it) }` läuft race-y mit `vehicle.connect()`. Wenn der Token-Load gewinnt, wird `aesKey` auf `SHA-1(name + token)` umgestellt — aber Stage 1 (counter=0, cmd=0x5B) erwartet noch `SHA-1(name + salt)`. Scooter kann den ersten Frame nicht decoden → kein cmd=0x5B-Response → Stage 1 (L) timeoutet → Pair scheitert.
+
+Bestätigung: Der Token-Pre-Load ist sowieso **fundamental nutzlos** — der Roller rotiert seinen Token bei jedem Connect (per cmd=0x5B-Response), der gespeicherte Wert ist also immer stale. Die ganze Token-Persistence-Logik war Müll.
+
+### Code Cleanup (verworfen)
+
+| Entfernt aus | Was |
+|---|---|
+| `core/crypto/NinebotCrypto.kt` | `loadToken()`, `loadSession()`, `snapshotToken()` |
+| `core/data/PairingPrefs.kt` | `cryptoToken` Feld in `Config`, `saveCryptoToken()`, `loadCryptoToken()` |
+| `core/vehicle/Zt3ProVehicle.kt` | Init-Coroutine die `loadCryptoToken` aufrief; Token-Diff-Watcher in `gatt.incoming.collect` der `saveCryptoToken` triggerte; `persistedRandomForDevScooter` (hardcoded 16 Byte für `C1:6B:...`) |
+
+### Was jetzt funktioniert
+
+| Feld | Persistenz | Loaded |
+|---|---|---|
+| `cryptoToken` (`f5100d`) | **niemals** — Roller rotiert bei jedem Connect | aus cmd=0x5B-Response decoded |
+| `cryptoRandom` (`f5101e`) | nach erfolgreichem Stage 2 (M flag), validiert (size==16, not all-zero) | bei nächstem Connect aus `PairingPrefs` |
+
+`Zt3ProVehicle.sendStage2FreshPair()` ruft am Ende `prefs.saveCryptoRandom(id, crypto.snapshotRandom())`. `sendHandshake()` lädt am Anfang von Stage 2 `pairingPrefs.loadCryptoRandom(id)` — bei Hit: `setRandomAppData(persisted)` direkt, Stage 2 Send entfällt. Bei Stage-3-Timeout im Resume-Pfad greift Auto-Fallback (`crypto.resetPairingState()` + frischer `o1`), neuer Random wird persistiert.
+
+`PairingPrefs.remove(mac)` (aufgerufen von `GarageViewModel.unpair()`) löscht den Random-Eintrag → erzwingt echtes Fresh-Pair beim nächsten Mal. Vorher hat der hardcoded `persistedRandomForDevScooter` „Löschen" stillschweigend untergraben.
+
+### UX-Fixes (Sessions 7-9 zusammengefasst)
+
+| File | Change |
+|---|---|
+| `AndroidManifest.xml` | `MainActivity` auf `screenOrientation="portrait"` gelockt |
+| `feature/home/ActiveVehicleHolder.kt` | `BleConnectionService.start/stop()` an `bind/unbind` gekoppelt; Auto-Reconnect-Watchdog (8 s polling) während gebunden; `reconnectActive()` für UI-Retry |
+| `feature/home/VehicleScreen.kt` | `ConnectionBanner` zeigt **nur** bei echtem Offline (>4 s) — kein „Securing connection"-Flash mehr; Banner mit Power-Button-Hinweis + Retry-Button |
+| `core/data/VehicleStateCache.kt` | **NEU** — DataStore-basierter Cache letzte Telemetrie (Akku %, Mode, Mileage, Range, FW, Lock/Lights, Serial, Region). Hydratet beim Vehicle-Init, persistiert throttled alle 5 s. Live-Daten (Speed, Strom, Cells) absichtlich NICHT gecached. |
+| `feature/pair/PairScreen.kt` | Power-Button-Hinweis immer sichtbar (nicht nur bei Scanning) |
+| `feature/pair/PairViewModel.kt` | `waitForReady`-Timeout 12 s → 20 s (deckt Worst-Case mit Resume-Fail + Fresh-Pair-Fallback ab) |
+
+### Status
+
+**Stand 2026-04-28 ~23:30**: Pair geht wieder ✅. Resume klappt sauber über App-Restarts hinweg (Random aus Prefs). „Löschen" forciert echtes Fresh-Pair. UX zeigt cached State sofort beim Start, kein Banner-Flash mehr während des stillen Reconnects. BLE überlebt Screen-Off via `connectedDevice` Foreground-Service. Custom-Button-Watcher läuft auch im Hintergrund weil Process alive bleibt.
+
+**Verworfen** weil broken oder von SHU-Architektur missverstanden:
+- Token-Persistence (fundamental nutzlos — Token wird bei jedem Connect rotiert)
+- Hardcoded Dev-MAC-Random (untergrub „Löschen / neu pairen")
+- „Securing connection"-Banner während des kurzen Handshakes (= UX-Falschalarm)

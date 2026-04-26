@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.Highlight
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
+import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.RocketLaunch
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Thermostat
@@ -34,7 +35,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -117,6 +120,12 @@ fun VehicleScreen(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            ConnectionBanner(
+                isConnected = state.isConnected,
+                isReady = state.isReady,
+                onRetry = { viewModel.reconnect() },
+            )
+
             LockStatusBanner(
                 isUnlocked = isUnlockActive,
                 autoRevertAt = autoRevertAt,
@@ -560,6 +569,68 @@ private fun QuickProfilesRow(
     }
 }
 
+
+/**
+ * Offline banner — appears only after the BLE link has been down for >4 s.
+ * Mirrors SHU's pattern: silent reconnect during the brief handshake, banner
+ * only when something is actually wrong. The handshake phase (isConnected=true,
+ * isReady=false) is intentionally invisible — it's normally <1 s and the
+ * cached telemetry stays on screen.
+ */
+@Composable
+private fun ConnectionBanner(
+    isConnected: Boolean,
+    isReady: Boolean,
+    onRetry: () -> Unit,
+) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(isConnected) {
+        if (isConnected) {
+            visible = false
+        } else {
+            kotlinx.coroutines.delay(4_000L)
+            visible = true
+        }
+    }
+    if (!visible) return
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Outlined.PowerSettingsNew,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.padding(end = 12.dp),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.vehicle_offline_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+                Text(
+                    stringResource(R.string.vehicle_offline_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Button(onClick = onRetry) {
+                Text(stringResource(R.string.vehicle_retry))
+            }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+}
 
 @Composable
 private fun EmptyState(onPairClick: () -> Unit, modifier: Modifier = Modifier) {

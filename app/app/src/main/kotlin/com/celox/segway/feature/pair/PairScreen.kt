@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Bluetooth
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -89,6 +90,36 @@ fun PairScreen(
                 return@Scaffold
             }
 
+            // Wake-up hint: scooter must be powered on for BLE to advertise
+            // AND for the handshake to complete. Always visible on this screen
+            // — most pairing timeouts are caused by a sleeping scooter, which
+            // only the user can fix. Once paired, navigation leaves this
+            // screen entirely so the hint disappears naturally.
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Outlined.PowerSettingsNew,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.padding(end = 12.dp),
+                    )
+                    Text(
+                        stringResource(R.string.pair_press_power),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (ui.scanning) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.padding(end = 12.dp))
                 Text(
@@ -99,16 +130,57 @@ fun PairScreen(
             Spacer(Modifier.height(12.dp))
 
             ui.errorText?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                ) {
+                    Text(
+                        it,
+                        modifier = Modifier.padding(12.dp),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
                 Spacer(Modifier.height(12.dp))
             }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(ui.devices, key = { it.address }) { device ->
-                    DeviceCard(device, onPair = { viewModel.pair(device) })
+            // While we're handshaking, take over the screen so the user
+            // doesn't navigate away thinking the connection is up.
+            if (ui.pairedAddress != null && ui.pairingStatus != null) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.padding(end = 12.dp),
+                        )
+                        Column {
+                            Text(
+                                ui.pairingStatus!!,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                            Text(
+                                "Pairing ${ui.pairedAddress}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(ui.devices, key = { it.address }) { device ->
+                        DeviceCard(device, onPair = { viewModel.pair(device) })
+                    }
                 }
             }
         }

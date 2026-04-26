@@ -1,18 +1,24 @@
 package com.celox.segway.feature.home
 
+import android.content.Context
+import com.celox.segway.core.ble.BleConnectionService
 import com.celox.segway.core.ble.EllipticPairing
 import com.celox.segway.core.ble.GattClient
 import com.celox.segway.core.data.PairingPrefs
 import com.celox.segway.core.data.UserPreferencesRepository
 import com.celox.segway.core.data.VehicleDao
+import com.celox.segway.core.data.VehicleStateCache
 import com.celox.segway.core.ota.FirmwareUpdater
 import com.celox.segway.core.repo.FirmwareTarget
 import com.celox.segway.core.util.BleLog
 import com.celox.segway.core.vehicle.Vehicle
 import com.celox.segway.core.vehicle.Zt3ProVehicle
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,10 +38,12 @@ import javax.inject.Singleton
  */
 @Singleton
 class ActiveVehicleHolder @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val gatt: GattClient,
     private val pairingPrefs: PairingPrefs,
     private val vehicleDao: VehicleDao,
     private val userPrefs: UserPreferencesRepository,
+    private val stateCache: VehicleStateCache,
     private val bleLog: BleLog,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -44,6 +52,9 @@ class ActiveVehicleHolder @Inject constructor(
 
     /** Reference to the EllipticPairing of the active vehicle. Needed for OTA flashing. */
     private var activePairing: EllipticPairing? = null
+
+    /** Watchdog that re-runs connect() while the BLE link is down. Cancelled on unbind. */
+    private var reconnectJob: Job? = null
 
     fun bind(mac: String, displayName: String, scooterName: String = displayName) {
         val pairing = EllipticPairing(gatt, pairingPrefs, mac, bleLog)
@@ -55,10 +66,18 @@ class ActiveVehicleHolder @Inject constructor(
             gatt = gatt,
             pairing = pairing,
             pairingPrefs = pairingPrefs,
+            stateCache = stateCache,
             bleLog = bleLog,
             scope = scope
         )
         _activeVehicle.value = vehicle
+
+        // Foreground service keeps the OS from killing our process when the
+        // screen turns off — without this, BLE drops within seconds and the
+        // SpeedProfileManager's reg-0x5A poll loop (custom-button double-tap
+        // detector) goes silent. `connectedDevice` foreground type matches
+        // the manifest declaration.
+        BleConnectionService.start(appContext)
 
         scope.launch {
             userPrefs.setLastVehicle(mac)
@@ -68,13 +87,44 @@ class ActiveVehicleHolder @Inject constructor(
             // is kept around for OTA only.
             vehicle.connect()
         }
+
+        // Auto-reconnect watchdog: while a vehicle is bound, ensure the BLE
+        // link stays up. If the user opens the app with the scooter asleep,
+        // the first connect() either hangs ~30 s (Android internal timeout)
+        // and resolves to Error, or succeeds when the user presses the power
+        // button. Either way, this loop retries until isConnected=true.
+        // Loop is cancelled in unbind() so an explicit disconnect doesn't
+        // immediately reconnect.
+        reconnectJob?.cancel()
+        reconnectJob = scope.launch {
+            while (true) {
+                delay(8_000L)
+                val v = _activeVehicle.value ?: break
+                if (!v.state.value.isConnected) {
+                    bleLog.note("Reconnect", "watchdog → retry connect to $mac")
+                    runCatching { v.connect() }
+                }
+            }
+        }
     }
 
     fun unbind() {
+        reconnectJob?.cancel()
+        reconnectJob = null
         val v = _activeVehicle.value
         scope.launch { v?.disconnect() }
         _activeVehicle.value = null
         activePairing = null
+        BleConnectionService.stop(appContext)
+    }
+
+    /** Manual retry — used by the connection banner on the home screen. */
+    fun reconnectActive() {
+        val v = _activeVehicle.value ?: return
+        scope.launch {
+            bleLog.note("Reconnect", "manual retry from UI")
+            runCatching { v.connect() }
+        }
     }
 
     /**

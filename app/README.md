@@ -234,11 +234,15 @@ So lassen sich jederzeit weitere SHU-Befehle byte-für-byte verifizieren (Mode-W
 ### Open items
 
 1. **Übrige Commands gegen SHU verifizieren**: Mode-Wechsel (Eco/Drive/Sport), Lights, Lock, Cruise-Toggle — Register/dst sind aktuell noch unsere Annahmen, sollten via patched-SHU einmal jeweils gecaptured werden.
-2. **Persisted-Random für andere Roller-MACs**: Aktuell ist `f5101e` für `C1:6B:5E:D0:C5:96` hardcoded. Für ein generisches App-Verteilen brauchen wir entweder einen sauberen Fresh-First-Pair-Flow (16-Byte-Random + Power-Button-OOB) oder eine UI um `f5101e` aus `CRYPTO_DUMP` per Hand einzutippen.
-3. **Custom-Button-Firmware-Remapping** (Weg B): Aktuell beobachten wir nur den Hill-Hold-Notify und reagieren in der App (Weg A — funktioniert nur wenn Phone verbunden). Für eine permanente Roller-seitige Änderung müsste das Custom-Button-Mapping-Register gefunden werden — entweder via patched offizielle Segway-Mobility-App (NIS-Wrapper, deutlich aufwändiger) oder Trial-and-Error auf den verdächtigen Registern (`0x82` dst=0x07, `0xC0` dst=0x16). Risiko: „Set Speed Limit X km/h" ist möglicherweise gar keine valide Function-ID des Roller-Firmware — die Standard-Mappings sind Hill-Hold, Cruise, Headlight, Mode-Toggle, Lock.
-4. **OTA-Chunk-ACK-Detection** robust machen (aktuell heuristisch)
-5. **Token-Persistenz**: Mehrfache Disconnect/Reconnect-Tests — das `PairingPrefs.cryptoToken`-Feld wird beim Decrypt-Sucess gespeichert, sollte nach App-Restart resume-fähig sein.
-6. Launcher-Icon polishen (aktuell Vector-Stub)
+2. **Custom-Button-Firmware-Remapping** (Weg B): Aktuell beobachten wir nur den Hill-Hold-Notify und reagieren in der App (Weg A — funktioniert nur wenn Phone verbunden). Für eine permanente Roller-seitige Änderung müsste das Custom-Button-Mapping-Register gefunden werden — entweder via patched offizielle Segway-Mobility-App (NIS-Wrapper, deutlich aufwändiger) oder Trial-and-Error auf den verdächtigen Registern (`0x82` dst=0x07, `0xC0` dst=0x16). Risiko: „Set Speed Limit X km/h" ist möglicherweise gar keine valide Function-ID des Roller-Firmware — die Standard-Mappings sind Hill-Hold, Cruise, Headlight, Mode-Toggle, Lock.
+3. **OTA-Chunk-ACK-Detection** robust machen (aktuell heuristisch)
+4. Launcher-Icon polishen (aktuell Vector-Stub)
+
+### Pairing-Persistenz (gelöst 2026-04-27)
+
+Per-MAC `cryptoRandom` (16 Byte, Base64) wird in `PairingPrefs.Config` gespeichert nachdem der Fresh Pair (Stage 2 / `o1`-Frame) ack'ed wurde. Beim nächsten Connect lädt `Zt3ProVehicle.sendHandshake()` den Random aus den Prefs und überspringt Stage 2 (`setRandomAppData(persisted)` direkt). Stage 1 läuft jedes Mal — der Scooter rotiert seinen Token (`f5100d`) bei jedem cmd=0x5B, daher wäre Token-Persistenz nutzlos und sogar schädlich (würde Stage 1 fehlkeyen, weil counter=0 noch `SHA-1(name+salt)` erwartet).
+
+Wenn Resume Stage 3 timeoutet (Scooter hat den Pair-Key rotiert, z. B. nach Pair mit Stock-App), greift automatisch ein Fallback: `crypto.resetPairingState()` + frischer `o1` + Stage 3. Der neue Random wird dann persistiert. `PairingPrefs.remove(mac)` (aus `GarageViewModel.unpair`) löscht den Random-Eintrag → erzwingt echtes Fresh-Pair.
 
 ## Wie weiter testen / debuggen
 

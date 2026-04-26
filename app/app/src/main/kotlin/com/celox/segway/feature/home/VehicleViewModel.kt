@@ -99,7 +99,18 @@ class VehicleViewModel @Inject constructor(
         }
     }
 
-    fun disconnect() = vehicle.value?.let { v ->
-        viewModelScope.launch { v.disconnect() }
+    /**
+     * Tear down the active vehicle: drop the BLE connection AND clear the
+     * holder so the UI immediately falls back to the EmptyState. Without
+     * the unbind() call the holder still points at the dead vehicle and
+     * the screen looks like it's still connected.
+     */
+    fun disconnect() {
+        activeVehicleHolder.unbind()
+    }
+
+    /** Re-run connect() on the active vehicle. Used by the offline banner. */
+    fun reconnect() {
+        activeVehicleHolder.reconnectActive()
     }
 }

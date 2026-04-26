@@ -170,6 +170,23 @@ class NinebotCrypto(private val scooterName: String) {
     /** Get the 14-byte challenge captured from the cmd=0x5B response (Stage 1). */
     fun snapshotChallenge(): ByteArray = challenge.copyOf()
 
+    /**
+     * Wipe stage-2 (M) and stage-3 (O) state so a fresh `o1` pair-init can be
+     * sent — but KEEP the token from Stage 1 and the AES key derived from it
+     * (`SHA-1(name + token)`), which is what we need to encrypt the new `o1`.
+     *
+     * Used as automatic fallback when a resume (persisted random) fails at
+     * Stage 3 because the scooter rotated its pair-key.
+     */
+    fun resetPairingState() {
+        stagePairedKey = false
+        stageFullyPaired = false
+        for (i in appRandom.indices) appRandom[i] = 0
+        // Re-derive the post-Stage-1 key (SHA-1(name + token)) so the next
+        // o1 frame goes out under the correct cipher.
+        deriveKey(scooterName.toByteArray(Charsets.UTF_8), token)
+    }
+
     /** Reset to fresh-connect state (called on disconnect). */
     fun reset() {
         counter = 0
@@ -210,15 +227,8 @@ class NinebotCrypto(private val scooterName: String) {
     /** Legacy alias retained for callers that haven't migrated to the explicit stages. */
     fun buildInitFrame(txAddr: Byte): ByteArray = buildGetRandomFrame(txAddr)
 
-    /** Snapshot the token so the caller can persist it across BLE disconnects. */
-    fun snapshotToken(): ByteArray = token.copyOf()
-
-    /** Restore a previously-persisted token and re-derive the AES key from it. */
-    fun loadToken(persisted: ByteArray) {
-        if (persisted.size != 16 || persisted.all { it == 0.toByte() }) return
-        System.arraycopy(persisted, 0, token, 0, 16)
-        deriveKey(scooterName.toByteArray(Charsets.UTF_8), token)
-    }
+    /** Snapshot the appRandom so the caller can persist it for resume. */
+    fun snapshotRandom(): ByteArray = appRandom.copyOf()
 
     /**
      * Mirror of SHU's `setRandomAppData([B)V` (`c6.c.smali` line 1467): sets
@@ -229,21 +239,6 @@ class NinebotCrypto(private val scooterName: String) {
         require(data.size == 16) { "appRandom must be 16 bytes" }
         System.arraycopy(data, 0, appRandom, 0, 16)
         deriveKey(appRandom, token)
-    }
-
-    /**
-     * Pre-flight all three stages by injecting a known-good `(token, random)` pair
-     * extracted from a previous successful pairing. After this call the cipher is
-     * already at the final session key — sending any frame at counter=0 will be
-     * accepted by the scooter (assuming the scooter retains the same R/T in its
-     * NVRAM, which is true between pair-resets).
-     */
-    fun loadSession(persistedToken: ByteArray, persistedRandom: ByteArray) {
-        loadToken(persistedToken)
-        setRandomAppData(persistedRandom)
-        stageReceivedToken = true
-        stagePairedKey = true
-        stageFullyPaired = true
     }
 
     fun isHandshakeComplete(): Boolean = counter > 0 && token.any { it != 0.toByte() }

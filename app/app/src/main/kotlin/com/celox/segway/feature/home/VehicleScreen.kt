@@ -1,6 +1,8 @@
 package com.celox.segway.feature.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Battery5Bar
@@ -49,8 +53,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.celox.segway.R
@@ -136,7 +144,10 @@ fun VehicleScreen(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp))
+
+            SectionLabel("Quick-Profile")
+            Spacer(Modifier.height(8.dp))
 
             // Quick speed-profile actions
             QuickProfilesRow(
@@ -151,12 +162,20 @@ fun VehicleScreen(
             if (isUnlockActive) {
                 Button(
                     onClick = viewModel::reLock,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors()
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    )
                 ) {
-                    androidx.compose.material3.Icon(Icons.Outlined.Lock, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Lock to ${profiles.boot.speedKmh} km/h")
+                    androidx.compose.material3.Icon(Icons.Outlined.Lock, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "Sperren — ${profiles.boot.speedKmh} km/h",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
                 }
             } else {
                 Button(
@@ -168,18 +187,27 @@ fun VehicleScreen(
                             unlockDialogVisible = true
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
-                    )
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
                 ) {
-                    androidx.compose.material3.Icon(Icons.Outlined.RocketLaunch, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Unlock ${profiles.unlock.speedKmh} km/h")
+                    androidx.compose.material3.Icon(Icons.Outlined.RocketLaunch, null, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "Entsperren — ${profiles.unlock.speedKmh} km/h",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(24.dp))
+
+            SectionLabel("Live-Daten")
+            Spacer(Modifier.height(8.dp))
 
             // Stat grid (2x2)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -213,6 +241,9 @@ fun VehicleScreen(
             }
 
             Spacer(Modifier.height(24.dp))
+
+            SectionLabel("Steuerung")
+            Spacer(Modifier.height(8.dp))
 
             // Quick actions
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -302,44 +333,125 @@ private fun LockStatusBanner(
         "%02d:%02d".format(remaining / 60, remaining % 60)
     } else null
 
-    val container = if (isUnlocked) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surfaceVariant
-    val onContainer = if (isUnlocked) MaterialTheme.colorScheme.onPrimaryContainer
-                      else MaterialTheme.colorScheme.onSurfaceVariant
+    val activeKmh = if (isUnlocked) unlockKmh else bootKmh
+    val gradientColors = if (isUnlocked) {
+        listOf(
+            MaterialTheme.colorScheme.primary,
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.6f),
+        )
+    } else {
+        listOf(
+            MaterialTheme.colorScheme.surfaceContainerHighest,
+            MaterialTheme.colorScheme.surfaceContainerHigh,
+            MaterialTheme.colorScheme.surfaceContainer,
+        )
+    }
+    val onGradient = if (isUnlocked) MaterialTheme.colorScheme.onPrimary
+                     else MaterialTheme.colorScheme.onSurface
 
     Card(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-        colors = CardDefaults.cardColors(containerColor = container)
+        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isUnlocked) 8.dp else 2.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Box(
+            modifier = Modifier
+                .background(brush = Brush.linearGradient(gradientColors))
+                .fillMaxWidth()
+                .padding(20.dp)
         ) {
-            androidx.compose.material3.Icon(
-                if (isUnlocked) Icons.Outlined.LockOpen else Icons.Outlined.Lock,
-                null,
-                tint = onContainer,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    if (isUnlocked) "Unlocked – max $unlockKmh km/h" else "Locked – max $bootKmh km/h",
-                    color = onContainer,
-                    style = MaterialTheme.typography.titleMedium
-                )
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(color = onGradient.copy(alpha = 0.15f), shape = CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.material3.Icon(
+                            if (isUnlocked) Icons.Outlined.LockOpen else Icons.Outlined.Lock,
+                            null,
+                            tint = onGradient,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            if (isUnlocked) "UNLOCKED" else "LOCKED",
+                            color = onGradient,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 2.sp,
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        Text(
+                            if (isUnlocked) "Sport-Modus aktiv" else "Sicherheits-Limit aktiv",
+                            color = onGradient.copy(alpha = 0.8f),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    if (countdownText != null) {
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    color = onGradient.copy(alpha = 0.18f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                "↻ $countdownText",
+                                color = onGradient,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        "$activeKmh",
+                        color = onGradient,
+                        fontSize = 64.sp,
+                        fontWeight = FontWeight.Black,
+                        style = MaterialTheme.typography.displayLarge,
+                    )
+                    Text(
+                        "km/h",
+                        color = onGradient.copy(alpha = 0.7f),
+                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(start = 8.dp, bottom = 14.dp)
+                    )
+                }
+                Spacer(Modifier.height(2.dp))
                 Text(
                     when {
-                        isUnlocked && countdownText != null -> "Auto-revert in $countdownText"
-                        isUnlocked -> "Stays unlocked until you re-lock or disconnect"
-                        else -> "Tap below to unlock $unlockKmh km/h"
+                        isUnlocked && countdownText != null -> "Auto-Revert in $countdownText"
+                        isUnlocked -> "3× Vol-Down oder Lock-Button zum Sperren"
+                        else -> "3× Vol-Up oder Unlock-Button für $unlockKmh km/h"
                     },
-                    color = onContainer.copy(alpha = 0.7f),
+                    color = onGradient.copy(alpha = 0.65f),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
         }
     }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text.uppercase(),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.5.sp,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+    )
 }
 
 @Composable

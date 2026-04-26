@@ -18,8 +18,16 @@ import androidx.media.VolumeProviderCompat
 import com.celox.segway.MainActivity
 import com.celox.segway.R
 import com.celox.segway.core.profile.SpeedProfileManager
+import com.celox.segway.core.profile.SpeedProfileRepository
 import com.celox.segway.core.util.BleLog
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
@@ -37,11 +45,14 @@ import javax.inject.Inject
 class StealthVolumeService : android.app.Service() {
 
     @Inject lateinit var profileManager: SpeedProfileManager
+    @Inject lateinit var profileRepo: SpeedProfileRepository
     @Inject lateinit var bleLog: BleLog
 
     private var mediaSession: MediaSessionCompat? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var audioFocusRequest: AudioFocusRequest? = null
+    private val notifScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var notifJob: Job? = null
 
     private val downTimes = ArrayDeque<Long>()
     private val upTimes = ArrayDeque<Long>()
@@ -52,10 +63,31 @@ class StealthVolumeService : android.app.Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIF_ID, buildNotification())
+        startForeground(NOTIF_ID, buildNotification(unlocked = false, kmh = 22))
         acquireWakeLock()
         installMediaSession()
-        bleLog.note("Stealth", "service started — listening for Vol-Down (screen-off OK)")
+        observeStateForNotification()
+        bleLog.note("Stealth", "service started — listening for Vol-Up/Down (screen-off OK)")
+    }
+
+    private fun observeStateForNotification() {
+        // Refresh the notification whenever lock-state OR speed-profiles change
+        // so the user sees the current status at a glance.
+        notifJob?.cancel()
+        notifJob = notifScope.launch {
+            combine(
+                profileManager.isUnlockModeActive,
+                profileRepo.flow,
+            ) { unlocked, settings ->
+                val kmh = if (unlocked) settings.unlock.speedKmh else settings.boot.speedKmh
+                unlocked to kmh
+            }
+                .distinctUntilChanged()
+                .collect { (unlocked, kmh) ->
+                    val nm = getSystemService(NotificationManager::class.java)
+                    nm?.notify(NOTIF_ID, buildNotification(unlocked, kmh))
+                }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -64,6 +96,7 @@ class StealthVolumeService : android.app.Service() {
     }
 
     override fun onDestroy() {
+        notifJob?.cancel()
         try { mediaSession?.isActive = false } catch (_: Throwable) {}
         try { mediaSession?.release() } catch (_: Throwable) {}
         try { wakeLock?.release() } catch (_: Throwable) {}
@@ -164,12 +197,12 @@ class StealthVolumeService : android.app.Service() {
         }
     }
 
-    private fun buildNotification(): Notification {
+    private fun buildNotification(unlocked: Boolean, kmh: Int): Notification {
         val nm = getSystemService(NotificationManager::class.java)
         val channel = NotificationChannel(
             CHANNEL_ID, "Stealth Unlock", NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Hört auf Vol-Down 3× während der Bildschirm aus ist"
+            description = "Live-Status + Vol-Up/Down 3× Stealth-Trigger"
             setShowBadge(false)
             enableVibration(false)
             setSound(null, null)
@@ -181,13 +214,23 @@ class StealthVolumeService : android.app.Service() {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
+        val title = if (unlocked) "🔓 Unlocked — $kmh km/h" else "🔒 Locked — $kmh km/h"
+        val text = if (unlocked) {
+            "Vol-Down 3× → sperren"
+        } else {
+            "Vol-Up 3× → entsperren"
+        }
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Stealth-Unlock aktiv")
-            .setContentText("Vol-Down 3× zum Entsperren — auch bei Screen aus")
-            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(
+                "$text\n\n• Vol-Up 3× innerhalb 2s = Entsperren auf 40 km/h\n• Vol-Down 3× innerhalb 2s = Sperren auf 22 km/h\n\nFunktioniert auch bei ausgeschaltetem Bildschirm."
+            ))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .setContentIntent(pi)
+            .setSilent(true)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }

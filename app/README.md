@@ -1,4 +1,6 @@
-# Segway Mobility (Reborn) – Android App
+# zt3-fxx — Android App for ZT3 Pro D
+
+> ApplicationId: `io.celox.zt3fxx` · Code namespace: `com.celox.segway` · Native Kotlin / Compose / Material 3
 
 [![Min SDK](https://img.shields.io/badge/minSdk-26-blue)](#)
 [![Target SDK](https://img.shields.io/badge/targetSdk-35-blue)](#)
@@ -37,6 +39,13 @@ Native, open-source rebuild of the official Segway-Ninebot **Segway Mobility** c
 - **Custom-Button-Doppel-Tap (Walk-Knopf am Lenker) → Lock auf 22 km/h** — opt-in via Profile-Settings. Detection via Fast-Poll auf reg `0x5A` alle 250 ms; läuft auch im Hintergrund (gleicher Foreground-Service wie Vol-Down). Funktioniert grundsätzlich, aber timing-sensitiv — siehe [FIELD-TEST-LOG Session 11](FIELD-TEST-LOG.md#session-11) (Session 11)
 - **KeepScreenOn-Toggle** in Settings → App-Bildschirm bleibt aktiv solange offen
 - **Register-Sweep-Button** in Diagnostics für eigene Reverse-Engineering-Sessions
+- **Battery-Detail-Screen** (Tap auf Akku-Card im Home) — BMS-FW (VCU `0x19`), Charge-Threshold (BMS `0x82`), Live-Power (V·I), Range@Full (= remaining ÷ SOC × 100), Cell-Diff aus 13 Cells, alle Cells einzeln, Pack-Temp, FW-Versionen
+- **Roller-Einstellungen-Screen** (Mine-Tab) — 22 von ~25 XiaoDash-Settings, byte-genau extrahiert aus SHU's `bootstrap.zip` / `zt3.json` (Session 12). Siehe [`zt3-settings-registers.md`](../reverse-engineering/protocol/zt3-settings-registers.md):
+  - **17 Bitfield-Toggles**: Traction Control, Imperial Units, Walk/Drive/Sport-Mode-Enables, Hill-Hold (= Hold Descent), Boost, Indicator Sound, App Tone, Alarm, Auto Headlight, Front Position Lamp, UnderGlow, Breathing Charging Light, Power-off-on-folding, Disable-alarm-on-folding
+  - **4 Slider**: Start Speed (0–5 km/h, VCU `0x42`), Auto Shutdown (0–60 min, VCU `0x49`), Charge Threshold (80–100 %, BMS `0x82`), Custom Button Action (VCU `0x4A`)
+  - **3 Enums**: Taillight Mode (VCU `0x5D`), Acceleration Level (VCU `0x6E`), KERS / Motorbremse (VCU `0x70`)
+  - **Bitfield-Write-Guard** (Session 13): User-Toggles werden 3 s lang gegen Poll-Antworten geschützt — deckt Firmware-Settling ab (z. B. Alarm-Aktivierung blinkte vorher Indicator-Sound 1 s lang off-then-on).
+- **Persistente BLE-Verbindung über App-Restarts** — `BleConnectionService` als Foreground-Service mit `connectedDevice`-Type, Auto-Reconnect-Watchdog (8 s Polling), Per-MAC `cryptoRandom` in DataStore (Resume statt First-Pair). Kein „Securing connection"-Flash mehr, State-Cache in DataStore zeigt letzte Telemetrie sofort beim Cold-Start.
 
 ## ❌ Was NICHT funktioniert (ZT3-Pro-D-Firmware-Restriktionen)
 

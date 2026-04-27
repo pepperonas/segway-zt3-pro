@@ -100,27 +100,48 @@ git clone https://github.com/pepperonas/segway-zt3-pro.git
 
 ## Eigene App – aktueller Stand
 
-[![App: Reborn](https://img.shields.io/badge/app-Segway%20Mobility%20Reborn-FF6F1F)](app/)
+[![App: zt3-fxx](https://img.shields.io/badge/app-io.celox.zt3fxx-FF6F1F)](app/)
 [![Compose M3](https://img.shields.io/badge/Compose-Material%203-4285F4?logo=jetpackcompose)](app/)
 [![Hilt](https://img.shields.io/badge/DI-Hilt-2C2D72)](app/)
 [![Stealth Unlock](https://img.shields.io/badge/feature-Vol--Down--3%C3%97%20Stealth%20Unlock-success)](app/)
+[![Settings: 22 toggles](https://img.shields.io/badge/Settings-22%20XiaoDash--equiv.-success)](app/FEATURE-PARITY.md)
 
-Native Kotlin-App mit:
-- **Speed-Profiles** (Boot-Default 22 km/h, 3 Quick-Actions, Unlock-Profil 40 km/h)
-- **Stealth-Unlock** via PIN-Dialog **oder** Volume-Down-3× (Accessibility-Service, auch bei Screen aus)
-- **Auto-Apply-on-Connect** (Boot-Profil setzt sich automatisch nach jedem Pairing)
-- **Auto-Revert-Timer** mit Live-Countdown-Banner
-- **OTA-Flash** mit IAP-State-Machine + CFW-Repo-Client
-- **Region-Change** (D → U) als One-Tap-Aktion
-- **Multi-Vehicle Garage** (Room-DB, aktivieren / umbenennen / entkoppeln)
+Native Kotlin-App, voll funktionsfähig auf realem ZT3 Pro D (DE-Region):
+
+**Connectivity & Crypto**
+- **NinebotCrypto Wire-Protokoll** (`0x5A 0xA5` Magic, AES-CBC-MAC + AES-CTR) — verifiziert byte-genau gegen SHU
+- **Per-MAC Resume** via persisted appRandom — kein Power-Button-Drücken nach App-Restart
+- **Auto-Reconnect-Watchdog** (8 s Polling) + Foreground-Service hält BLE auch bei Screen-Off / Bildschirmsperre
+- **State-Cache** in DataStore — letzte Telemetrie sofort sichtbar beim Cold-Start, kein „Securing connection"-Flash
+
+**Telemetrie & UI**
+- **Speedometer + Mode + Lock + Lights + Cruise** als primäre Steuerung
+- **Battery-Detail-Screen** mit BMS-FW, SoC, Live-Power (V·I), Range@Full, Cell-Diff, alle 13 Cells
 - **OSM-Karte** + GPS-Track-Recording mit Persistenz und History-Overlay
-- **Diagnostics** mit Live-BLE-Frame-Log + Field-Test-Buttons (Send 22 / 40 / Lock / Unlock)
-- **AirLock** (Proximity-Auto-Unlock per RSSI-EMA)
 - **Beacon-Live-Decoder** (Speed/Battery aus Adv ohne Connect)
+- **Diagnostics** mit Live-BLE-Frame-Log + Field-Test-Buttons
 
-Setup: `cd app && ./gradlew :app:installDebug`. Min-SDK 26 (Android 8). Details: [`app/README.md`](app/README.md).
+**Speed-Profiles & Unlock**
+- **Speed-Profiles** (Boot-Default 22 km/h, 3 Quick-Actions, Unlock-Profil 40 km/h)
+- **Stealth-Unlock** via PIN-Dialog **oder** Vol-Down-3× / Vol-Up-3× (Accessibility-Service, auch bei Screen aus)
+- **Custom-Button Doppel-Tap** → 22 km/h-Lock (Hill-Hold-Notify-Polling alle 200 ms)
+- **Auto-Revert-Timer** mit Live-Countdown-Banner
 
-> ✅ **Field-Test 2026-04-25** ([Log](app/FIELD-TEST-LOG.md)): GATT-Layer + Service-Discovery + MTU laufen sauber. Aber wie aus der Capture vorhergesagt — der Roller reagiert nicht auf den ECDH-Pfad (`0x55 0xAB`). Konsequenz: Auto-Apply default OFF, Auto-Reconnect aktiv, **Classic-Pfad (`0x5A 0xA5`)** als nächste Implementierung.
+**Roller-Einstellungen-Tab** (neu, bytegenau aus SHU bootstrap.zip extrahiert):
+- 17 Bitfield-Toggles: Traction Control, Imperial Units, Hill-Hold (=Hold Descent), Boost, Indicator Sound, App Tone, Alarm, Walk/Drive/Sport-Mode-Enables, Auto Headlight, Front Position Lamp, UnderGlow, Breathing Charging Light, Power-off-on-folding, Disable-alarm-on-folding, Front Lamp
+- 4 Slider: Start-Speed, Auto-Shutdown, Charge-Threshold (80–100 %), Custom Button Action
+- 3 Enums: Taillight Mode, Acceleration, KERS (= Motorbremse)
+- **Bitfield-Write-Guard**: 3 s nach User-Toggle werden widersprüchliche Poll-Antworten ignoriert (deckt Firmware-Settling ab — z. B. Alarm-Aktivierung blinkt Indicator-Sound nicht mehr off-then-on)
+
+**Garage & OTA**
+- **Multi-Vehicle Garage** (Room-DB, aktivieren / umbenennen / entkoppeln, „Löschen" forciert echten Fresh-Pair)
+- **OTA-Flash** mit IAP-State-Machine + CFW-Repo-Client
+- **Region-Change** (D → U) als One-Tap-Aktion (oder direkt aus dem SN derived)
+- **AirLock** (Proximity-Auto-Unlock per RSSI-EMA)
+
+Setup: `cd app && ./gradlew :app:installDebug`. Min-SDK 26 (Android 8). ApplicationId: `io.celox.zt3fxx`. Details: [`app/README.md`](app/README.md). Feature-Status: [`app/FEATURE-PARITY.md`](app/FEATURE-PARITY.md).
+
+> ✅ **Production-Ready für ZT3 Pro D** (Stand 2026-04-28). Field-Test-Historie: [`app/FIELD-TEST-LOG.md`](app/FIELD-TEST-LOG.md). Open Items (Volume + Battery-Capacity / Manufacture-Date / Throughput, Dashboard-Settings) brauchen HCI-Snoop oder Frida-Hook auf XiaoDash — Register sind weder in SHU-Bootstrap noch im obfuskierten XiaoDash-Smali statisch greifbar.
 
 ## Top-Findings
 

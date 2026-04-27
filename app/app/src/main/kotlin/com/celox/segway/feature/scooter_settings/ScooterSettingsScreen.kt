@@ -14,13 +14,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -28,6 +30,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -177,12 +180,15 @@ fun ScooterSettingsScreen(
                     enabled = isReady,
                     onToggle = { v -> vm.setBitfieldBit(0x1F, VcuBitfield.CHARGING_BREATHING_LIGHT, v) }
                 )
-                EnumPicker(
+                EnumDropdown(
                     label = "Taillight Mode",
-                    options = listOf("Brighter when braking", "Flash when braking"),
+                    options = listOf(
+                        0 to "Heller beim Bremsen",
+                        1 to "Blinkend beim Bremsen",
+                    ),
                     selected = state.tailLightMode,
                     enabled = isReady,
-                    onChange = { idx -> vm.writeVcuU16(0x5D, idx) }
+                    onChange = { v -> vm.writeVcuU16(0x5D, v) }
                 )
             }
 
@@ -216,19 +222,27 @@ fun ScooterSettingsScreen(
                     enabled = isReady,
                     onCommit = { v -> vm.writeVcuU16(0x49, v) }
                 )
-                EnumPicker(
+                EnumDropdown(
                     label = "Beschleunigung",
-                    options = listOf("Niedrig", "Mittel", "Hoch"),
+                    options = listOf(
+                        1 to "Energiesparen",
+                        2 to "Standard",
+                        3 to "Maximale Geschwindigkeit",
+                    ),
                     selected = state.accelerationLevel,
                     enabled = isReady,
-                    onChange = { idx -> vm.writeVcuU16(0x6E, idx) }
+                    onChange = { v -> vm.writeVcuU16(0x6E, v) }
                 )
-                EnumPicker(
+                EnumDropdown(
                     label = "Motorbremse / KERS",
-                    options = listOf("Aus", "Niedrig", "Mittel", "Hoch"),
+                    options = listOf(
+                        0 to "Aus",
+                        1 to "Schwach",
+                        2 to "Standard",
+                    ),
                     selected = state.kersLevel,
                     enabled = isReady,
-                    onChange = { idx -> vm.writeVcuU16(0x70, idx) }
+                    onChange = { v -> vm.writeVcuU16(0x70, v) }
                 )
                 Text(
                     "Bestimmt wie stark der Motor beim Gas-Loslassen bremst (Energierückgewinnung).",
@@ -256,15 +270,25 @@ fun ScooterSettingsScreen(
             // === CUSTOM BUTTON (VCU 0x4A) ===
             Section("Custom-Button") {
                 Text(
-                    "Aktion beim Long-Press auf den Custom-Button am Lenker.",
+                    "Aktion beim Tap auf den Custom-Button (Walk-Knopf) am Lenker.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                IntSlider(
-                    label = "Custom Button Action (Enum)",
-                    value = state.customKeyMode, range = 0..5, unit = "",
+                EnumDropdown(
+                    label = "Aktion",
+                    // Values from SHU bootstrap zt3.json. Value 4 is a gap
+                    // (not present in the option_map) — firmware-reserved.
+                    options = listOf(
+                        0 to "Deaktiviert",
+                        1 to "Park-Mode umschalten",
+                        2 to "Auto-Hill-Hold umschalten",
+                        3 to "Walk-Mode umschalten",
+                        5 to "KERS-Stufe wechseln",
+                        6 to "Warnblinker",
+                    ),
+                    selected = state.customKeyMode,
                     enabled = isReady,
-                    onCommit = { v -> vm.writeVcuU16(0x4A, v) }
+                    onChange = { v -> vm.writeVcuU16(0x4A, v) }
                 )
             }
         }
@@ -333,24 +357,63 @@ private fun IntSlider(
     }
 }
 
+/**
+ * Dropdown-style enum picker that maps **explicit register values** (not
+ * sequential indices) to display labels. Necessary for register fields like
+ * `custom_key` whose option_map has gaps (values 1, 2, 3, 5, 6 — value 4
+ * is firmware-reserved) and for fields like `acc_level` where 0 is invalid
+ * (values are 1, 2, 3).
+ *
+ * The display shows the friendly label whenever [selected] matches an
+ * entry, falling back to "Unbekannt (n)" if the scooter ever reports a
+ * value we don't have a label for (e.g. SHFW custom firmware adding new
+ * options).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EnumPicker(
+private fun EnumDropdown(
     label: String,
-    options: List<String>,
+    options: List<Pair<Int, String>>,
     selected: Int,
     enabled: Boolean,
     onChange: (Int) -> Unit,
 ) {
+    var expanded by remember { mutableStateOf(false) }
+    val currentLabel = options.firstOrNull { it.first == selected }?.second
+        ?: "Unbekannt ($selected)"
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(4.dp))
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            options.forEachIndexed { idx, name ->
-                SegmentedButton(
-                    selected = selected == idx,
-                    onClick = { if (enabled) onChange(idx) },
-                    shape = SegmentedButtonDefaults.itemShape(idx, options.size),
-                ) { Text(name, style = MaterialTheme.typography.bodySmall) }
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { if (enabled) expanded = !expanded },
+        ) {
+            OutlinedTextField(
+                value = currentLabel,
+                onValueChange = {},
+                readOnly = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier
+                    .menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable, enabled)
+                    .fillMaxWidth(),
+                enabled = enabled,
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                options.forEach { (value, name) ->
+                    DropdownMenuItem(
+                        text = { Text(name) },
+                        onClick = {
+                            onChange(value)
+                            expanded = false
+                        },
+                        trailingIcon = if (value == selected) {
+                            { Text("✓", color = MaterialTheme.colorScheme.primary) }
+                        } else null,
+                    )
+                }
             }
         }
     }

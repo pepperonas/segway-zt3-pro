@@ -296,6 +296,7 @@ class Zt3ProVehicle(
         Triple(0x16, 0x5D.toByte(), 2),   // tail_light_mode (enum)
         Triple(0x16, 0x6E.toByte(), 2),   // acc_level (acceleration level enum)
         Triple(0x16, 0x70.toByte(), 2),   // kers_level (Energy Recovery enum)
+        Triple(0x16, 0xD5.toByte(), 2),   // cruise/throttle/brake-status (00=brake, 0C=cruise)
         // BMS deep telemetry
         Triple(0x07, 0x8F.toByte(), 2),   // BMS_SOC — actual battery
         Triple(0x07, 0x8C.toByte(), 2),   // BMS_VOLTAGE — pack voltage
@@ -307,12 +308,23 @@ class Zt3ProVehicle(
         Triple(0x07, 0xF9.toByte(), 2),   // BMS_TEMP — alt temp register
         Triple(0x07, 0xA0.toByte(), 26),  // BMS_CellVolts — 13S pack (verified: 53.35 V / 4.10 V/cell)
         Triple(0x07, 0x82.toByte(), 2),   // charge_threshold — Battery Max Charge % (R/W)
+        // BMS deep-detail (rarely-changing identifiers — polled lazily but
+        // still in every cycle since cycle is ~4 s already).
+        Triple(0x07, 0x02.toByte(), 14),  // BMS_BatterySN
+        Triple(0x07, 0x0A.toByte(), 4),   // BMS_ManufactureDateLT
+        Triple(0x07, 0x10.toByte(), 2),   // BMS_SERIES_CELLS
+        Triple(0x07, 0x11.toByte(), 2),   // BMS_RATED_VOLTAGE (×10 → V)
+        Triple(0x07, 0x13.toByte(), 2),   // BMS_Capacity (mAh)
+        Triple(0x07, 0x94.toByte(), 2),   // BMS_TimeFull (minutes to full)
         // MCU
         Triple(0x02, 0x86.toByte(), 2),   // MCU_SPEED — actual current speed
         Triple(0x02, 0x48.toByte(), 2),   // MCU_TEMP_A — motor controller temp A
         Triple(0x02, 0x49.toByte(), 2),   // MCU_TEMP_B — sensor B
         Triple(0x02, 0x40.toByte(), 2),   // MCU_TEMP_A_LASTMAX — historic max
         Triple(0x02, 0x3E.toByte(), 2),   // MCU_TEMP — overall MCU temp
+        Triple(0x02, 0x10.toByte(), 14),  // MCU_PN — part number
+        Triple(0x02, 0x83.toByte(), 2),   // MCU_MODE
+        Triple(0x02, 0x8F.toByte(), 2),   // MCU_VOLTS
     )
 
     override suspend fun refresh(): Result<Unit> = runCatching {
@@ -652,6 +664,26 @@ class Zt3ProVehicle(
             0x5D -> if (data.size >= 2) _state.update { it.copy(tailLightMode = leU16(data, 0)) }
             0x6E -> if (data.size >= 2) _state.update { it.copy(accelerationLevel = leU16(data, 0)) }
             0x70 -> if (data.size >= 2) _state.update { it.copy(kersLevel = leU16(data, 0)) }
+            // Cruise/Throttle/Brake state register. Documented values:
+            //   0x0000 brake held (ready to drive)
+            //   0x0001 throttle in autopark
+            //   0x0004 (status, undocumented)
+            //   0x0008 throttle "not allowed" (e.g. locked / walk)
+            //   0x000C cruise control engaged
+            // We project to a simple brakeApplied flag (raw value == 0) and
+            // cruiseActive (== 0x0C) so the gesture watcher and UI can stay
+            // straightforward; raw kept for diagnostics.
+            0xD5 -> if (data.size >= 2) {
+                val raw = leU16(data, 0)
+                _state.update {
+                    it.copy(
+                        cruiseStatusRaw = raw,
+                        brakeApplied = raw == 0x0000,
+                        cruiseActive = raw == 0x000C,
+                        isCruiseOn = raw == 0x000C,
+                    )
+                }
+            }
             // VCU_Mileage / VCU_SingleMileage — empirically (2026-04-28 logcat
             // capture) the meaningful value sits in the low u16: e.g.
             // odometer reg 0x62 = `[12 00 00 00]` → 18 km, trip reg 0x68 =
@@ -714,6 +746,41 @@ class Zt3ProVehicle(
             0x82 -> if (data.size >= 2) {
                 _state.update { it.copy(chargeThresholdPercent = leU16(data, 0).coerceIn(0, 100)) }
             }
+            // BMS deep-detail registers from the segMod x3regs.h reference.
+            // Trim non-printable trailers from the SN / part-number strings.
+            0x02 -> if (data.isNotEmpty()) {
+                val sn = String(data, Charsets.US_ASCII).trim { it.code <= 0x20 || it.code == 0xFF }
+                if (sn.isNotEmpty()) _state.update { it.copy(batterySerial = sn) }
+            }
+            // Manufacture date — 4 bytes; common Ninebot format is YY MM DD ??
+            // (one byte each, BCD or hex). We render a defensive yymmdd
+            // string so the UI can show *something* even if the format
+            // varies across firmware revisions.
+            0x0A -> if (data.size >= 3) {
+                val yy = data[0].toInt() and 0xFF
+                val mm = data[1].toInt() and 0xFF
+                val dd = data[2].toInt() and 0xFF
+                if (yy in 0..99 && mm in 1..12 && dd in 1..31) {
+                    _state.update {
+                        it.copy(batteryManufactureDate = "20%02d-%02d-%02d".format(yy, mm, dd))
+                    }
+                }
+            }
+            0x10 -> if (data.size >= 2) {
+                _state.update { it.copy(batterySeriesCells = leU16(data, 0).coerceIn(0, 32)) }
+            }
+            // Rated voltage × 10 (e.g. 480 = 48.0 V).
+            0x11 -> if (data.size >= 2) {
+                _state.update { it.copy(batteryRatedVoltage = leU16(data, 0) / 10f) }
+            }
+            // Designed capacity in mAh.
+            0x13 -> if (data.size >= 2) {
+                _state.update { it.copy(batteryDesignedCapacityMah = leU16(data, 0)) }
+            }
+            // Time-to-full estimate in minutes — only meaningful while charging.
+            0x94 -> if (data.size >= 2) {
+                _state.update { it.copy(batteryTimeToFullMinutes = leU16(data, 0)) }
+            }
         }
     }
 
@@ -745,6 +812,18 @@ class Zt3ProVehicle(
             0x3E -> if (data.size >= 2) {
                 val v = leU16Signed(data, 0) / 10f
                 if (v in -20f..150f) _state.update { it.copy(mcuTempC = v) }
+            }
+            // MCU_PN — part number (ASCII).
+            0x10 -> if (data.isNotEmpty()) {
+                val pn = String(data, Charsets.US_ASCII).trim { it.code <= 0x20 || it.code == 0xFF }
+                if (pn.isNotEmpty()) _state.update { it.copy(mcuPartNumber = pn) }
+            }
+            0x83 -> if (data.size >= 2) {
+                _state.update { it.copy(mcuMode = leU16(data, 0)) }
+            }
+            // MCU_VOLTS — pack voltage seen by MCU, format = u16 × 100 (V).
+            0x8F -> if (data.size >= 2) {
+                _state.update { it.copy(mcuVoltage = leU16(data, 0) / 100f) }
             }
         }
     }

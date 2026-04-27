@@ -55,4 +55,12 @@ data class SpeedProfileSettings(
      * 0x5A (VCU_DRIVE_MODE) at 250 ms to catch real double-taps.
      */
     val customButtonDoubleTapEnabled: Boolean = false,
+    /**
+     * If true, pulling the brake lever 3× within 3 s re-applies the [boot]
+     * profile (= locks to 22 km/h by default). Detected by polling VCU
+     * 0xD5 (cruise/throttle/brake-status register, value 0x0000 = brake)
+     * at 200 ms. Off by default. Independent of the custom-button watcher;
+     * both can be enabled simultaneously.
+     */
+    val brakeTripleTapEnabled: Boolean = false,
 )

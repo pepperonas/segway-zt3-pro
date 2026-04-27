@@ -26,6 +26,18 @@ object Changelog {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "0.2.1",
+            versionCode = 9,
+            date = "2026-04-28",
+            highlights = listOf(
+                "3× brake → lock to 22 km/h: pull either brake lever 3 times within 3 s and the boot profile is re-applied. Watcher polls VCU 0xD5 (cruise/throttle/brake-status, value 0x0000 = brake) every 200 ms while enabled. Toggle in Speed profiles, parallel to the existing custom-button double-tap.",
+                "Battery deep-detail: pack serial, manufacture date, series-cell count, rated voltage, designed capacity, and (while charging) time-to-full are now read from BMS 0x02 / 0x0A / 0x10 / 0x11 / 0x13 / 0x94 and shown in a new \"Pack identification\" section on the Battery-Detail screen.",
+                "MCU identification: part number, mode, and pack voltage from the MCU's perspective added to pollPlan (MCU 0x10 / 0x83 / 0x8F).",
+                "Cruise / throttle / brake status (VCU 0xD5) parsed properly: cruise-active and brake-applied flags now reflect real scooter state instead of being write-only.",
+                "About screen: license card switched to proprietary (was incorrectly labelled \"MIT\"); no-liability card; legal links (Impressum + Datenschutz on celox.io).",
+            ),
+        ),
+        Entry(
             version = "0.2.0",
             versionCode = 8,
             date = "2026-04-28",

@@ -248,6 +248,9 @@
     <string name="profiles_a11y_open_settings">Accessibility-Einstellungen öffnen</string>
     <string name="profiles_custom_button_double_tap">Custom-Button doppel-Tap = 22 km/h</string>
     <string name="profiles_custom_button_double_tap_hint">2× Walk-Knopf am Roller (≤ 1,5 s) → Boot-Profile (Lock). Pollt 0x5A alle 250 ms während aktiv.</string>
+    <string name="profiles_brake_triple_tap">3× Bremse = 22 km/h</string>
+    <string name="profiles_brake_triple_tap_hint">Bremshebel 3× innerhalb 3 s ziehen → Boot-Profile (Lock). Funktioniert mit beiden Hebeln (die VCU kombiniert beide zu einem Brems-Status-Input). Pollt 0xD5 alle 200 ms während aktiv.</string>
+    <string name="profiles_brake_triggered_snackbar">🔒 3× Bremse → %1$d km/h</string>
 
     <!-- Unlock dialog -->
     <string name="unlock_dialog_title">Entsperren %1$d km/h</string>
@@ -266,6 +269,14 @@
     <string name="battery_section_temperature">Pack-Temperatur</string>
     <string name="battery_section_cells">Zellen (%1$dS)</string>
     <string name="battery_section_firmware">Firmware</string>
+    <string name="battery_section_pack_id">Pack-Identifikation</string>
+    <string name="battery_label_serial">Akku-Seriennummer</string>
+    <string name="battery_label_manufacture_date">Herstellungsdatum</string>
+    <string name="battery_label_series_cells">Zellen (in Serie)</string>
+    <string name="battery_label_rated_voltage">Nennspannung</string>
+    <string name="battery_label_capacity">Designkapazität</string>
+    <string name="battery_label_time_to_full">Zeit bis voll</string>
+    <string name="battery_time_minutes">%1$d min</string>
     <string name="battery_label_battery">Akku</string>
     <string name="battery_label_health">Gesundheit</string>
     <string name="battery_label_cycles">Ladezyklen</string>

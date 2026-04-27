@@ -248,6 +248,9 @@
     <string name="profiles_a11y_open_settings">Open Accessibility settings</string>
     <string name="profiles_custom_button_double_tap">Custom-Button double-tap = 22 km/h</string>
     <string name="profiles_custom_button_double_tap_hint">2× walk button on the scooter (≤ 1.5 s) → boot profile (lock). Polls 0x5A every 250 ms while active.</string>
+    <string name="profiles_brake_triple_tap">3× brake = 22 km/h</string>
+    <string name="profiles_brake_triple_tap_hint">Pull the brake lever 3× within 3 s → boot profile (lock). Works with either lever (the VCU combines both into one brake-state input). Polls 0x5A every 200 ms while active.</string>
+    <string name="profiles_brake_triggered_snackbar">🔒 3× Brake → %1$d km/h</string>
 
     <!-- Unlock dialog -->
     <string name="unlock_dialog_title">Unlock %1$d km/h</string>
@@ -266,6 +269,14 @@
     <string name="battery_section_temperature">Pack temperature</string>
     <string name="battery_section_cells">Cells (%1$dS)</string>
     <string name="battery_section_firmware">Firmware</string>
+    <string name="battery_section_pack_id">Pack identification</string>
+    <string name="battery_label_serial">Battery serial</string>
+    <string name="battery_label_manufacture_date">Manufacture date</string>
+    <string name="battery_label_series_cells">Cells (series)</string>
+    <string name="battery_label_rated_voltage">Rated voltage</string>
+    <string name="battery_label_capacity">Designed capacity</string>
+    <string name="battery_label_time_to_full">Time to full</string>
+    <string name="battery_time_minutes">%1$d min</string>
     <string name="battery_label_battery">Battery</string>
     <string name="battery_label_health">State of Health</string>
     <string name="battery_label_cycles">Cycle count</string>

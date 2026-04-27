@@ -131,6 +131,55 @@ fun BatteryDetailScreen(
                 }
             }
 
+            // Pack identification — rarely-changing battery facts that
+            // identify this specific cell pack. From BMS 0x02 / 0x0A / 0x10
+            // / 0x11 / 0x13 per segMod x3regs.h.
+            val packIdKnown = state.batterySerial.isNotBlank() ||
+                state.batteryManufactureDate.isNotBlank() ||
+                state.batterySeriesCells > 0 ||
+                state.batteryDesignedCapacityMah > 0
+            if (packIdKnown) {
+                Section(stringResource(R.string.battery_section_pack_id)) {
+                    if (state.batterySerial.isNotBlank()) {
+                        InfoRow(stringResource(R.string.battery_label_serial), state.batterySerial)
+                    }
+                    if (state.batteryManufactureDate.isNotBlank()) {
+                        InfoRow(
+                            stringResource(R.string.battery_label_manufacture_date),
+                            state.batteryManufactureDate,
+                        )
+                    }
+                    if (state.batterySeriesCells > 0) {
+                        InfoRow(
+                            stringResource(R.string.battery_label_series_cells),
+                            "${state.batterySeriesCells}S",
+                        )
+                    }
+                    if (state.batteryRatedVoltage > 0f) {
+                        InfoRow(
+                            stringResource(R.string.battery_label_rated_voltage),
+                            "%.1f V".format(state.batteryRatedVoltage),
+                        )
+                    }
+                    if (state.batteryDesignedCapacityMah > 0) {
+                        InfoRow(
+                            stringResource(R.string.battery_label_capacity),
+                            "${state.batteryDesignedCapacityMah} mAh",
+                        )
+                    }
+                    // Only meaningful while charging (chargingState == 1).
+                    if (state.chargingState == 1 && state.batteryTimeToFullMinutes > 0) {
+                        InfoRow(
+                            stringResource(R.string.battery_label_time_to_full),
+                            stringResource(
+                                R.string.battery_time_minutes,
+                                state.batteryTimeToFullMinutes,
+                            ),
+                        )
+                    }
+                }
+            }
+
             Section(stringResource(R.string.battery_section_firmware)) {
                 if (state.firmwareBms.isNotBlank()) InfoRow("BMS", state.firmwareBms)
                 if (state.firmwareVcu.isNotBlank()) InfoRow("VCU", state.firmwareVcu)

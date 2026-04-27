@@ -80,6 +80,43 @@ async def _cmd_hunt(args: argparse.Namespace) -> int:
         return await commands.cmd_hunt(session, args.dst, lo, hi)
 
 
+async def _cmd_import_random(args: argparse.Namespace) -> int:
+    """Inject a known-good cryptoRandom (from the Android app) into
+    state.json. Bypasses fresh-pair (Stage 2) entirely on next connect.
+    """
+    import base64
+    import binascii
+    from .session import _load_state, _save_state, _save_random
+
+    raw = args.random.replace(" ", "").replace(":", "")
+    # Accept hex (32 chars) or base64 (24 chars).
+    try:
+        if len(raw) == 32 and all(c in "0123456789abcdefABCDEF" for c in raw):
+            random_bytes = bytes.fromhex(raw)
+        else:
+            random_bytes = base64.b64decode(raw)
+    except (ValueError, binascii.Error) as e:
+        print(f"could not decode random: {e}", file=sys.stderr)
+        return 1
+    if len(random_bytes) != 16:
+        print(f"random must be 16 bytes, got {len(random_bytes)}", file=sys.stderr)
+        return 1
+
+    mac = args.mac.upper() if args.mac else None
+    state = _load_state()
+    if mac is None:
+        # Use default if set, else error.
+        mac = state.get("default")
+        if mac is None:
+            print("no --mac given and no default in state.json — connect once first", file=sys.stderr)
+            return 1
+    _save_random(state, mac, args.name, random_bytes)
+    _save_state(state)
+    print(f"saved cryptoRandom for {mac}: {random_bytes.hex(' ')}")
+    print("next `zt3 connect` will resume (skip Stage 2).")
+    return 0
+
+
 async def _cmd_scan(args: argparse.Namespace) -> int:
     if args.all:
         # Diagnostic mode — show every nearby BLE device with its
@@ -133,6 +170,15 @@ def _build_parser() -> argparse.ArgumentParser:
     p_conn = sub.add_parser("connect", help="pair (first time) or resume")
     _add_mac(p_conn)
     p_conn.set_defaults(func=_cmd_connect)
+
+    p_imp = sub.add_parser(
+        "import-random",
+        help="paste a known-good cryptoRandom (16 bytes hex/base64) — skips Stage 2 next connect",
+    )
+    p_imp.add_argument("random", help="16-byte random as hex (32 chars) or base64")
+    p_imp.add_argument("--mac", help="scooter MAC (default: state.json default)")
+    p_imp.add_argument("--name", help="display name (e.g. ZT3-XXXX serial)")
+    p_imp.set_defaults(func=_cmd_import_random)
 
     p_scan = sub.add_parser("scan", help="discover ZT3-class scooters")
     p_scan.add_argument(

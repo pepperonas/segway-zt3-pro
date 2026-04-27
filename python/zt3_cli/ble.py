@@ -107,6 +107,11 @@ class BleSession:
     async def __aenter__(self) -> "BleSession":
         self._client = BleakClient(self.address)
         await self._client.connect()
+        try:
+            mtu = self._client.mtu_size
+            log.info("connected — MTU=%d (max write-no-resp ≈ %d bytes)", mtu, mtu - 3)
+        except Exception:
+            pass
         await self._client.start_notify(NUS_TX, self._on_notify)
         return self
 
@@ -120,6 +125,7 @@ class BleSession:
             self._client = None
 
     def _on_notify(self, _char, data: bytearray) -> None:
+        log.debug("RX %3d bytes  %s", len(data), bytes(data).hex(" "))
         try:
             self._queue.put_nowait(bytes(data))
         except asyncio.QueueFull:
@@ -134,6 +140,7 @@ class BleSession:
         """Write a frame to the RX characteristic (no-response)."""
         if self._client is None:
             raise RuntimeError("not connected")
+        log.debug("TX %3d bytes  %s", len(frame), frame.hex(" "))
         await self._client.write_gatt_char(NUS_RX, frame, response=False)
 
     async def recv(self, timeout: float = 1.0) -> Optional[bytes]:

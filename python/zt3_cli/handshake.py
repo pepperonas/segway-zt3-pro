@@ -49,65 +49,84 @@ async def _drain_into_crypto(ble: BleSession, crypto: NinebotCrypto, briefly_ms:
 async def _stage1_get_random(ble: BleSession, crypto: NinebotCrypto) -> bool:
     """Send getBleRandom until L flag (token+challenge captured)."""
     s1 = crypto.build_get_random_frame(frame.DST_HANDSHAKE)
-    for _ in range(6):
+    for attempt in range(6):
         if crypto.stage_received_token:
             break
-        # First TX: counter is 0, encrypt fresh.
-        # We pass the bytes but let crypto.encrypt do the work; counter
-        # advances inside encrypt.
+        log.debug("stage1 attempt %d (counter=%d)", attempt + 1, crypto.counter)
         wire = crypto.encrypt(bytes(s1))
         await ble.send(wire)
-
-        # Wait briefly for the response and feed it back through decrypt.
-        for _ in range(30):  # 30 × 20 ms = 600 ms
+        for _ in range(30):
             f = await ble.recv(timeout=0.02)
             if f is not None:
-                frame.parse(crypto, f)
+                decoded = frame.parse(crypto, f)
+                if decoded is not None:
+                    log.debug(
+                        "  parsed: src=%02X dst=%02X cmd=%02X arg=%02X payload=%s",
+                        decoded.src, decoded.dst, decoded.cmd, decoded.arg,
+                        decoded.payload.hex(" "),
+                    )
             if crypto.stage_received_token:
                 break
         if crypto.stage_received_token:
             break
         await asyncio.sleep(0.3)
+    if crypto.stage_received_token:
+        log.debug("stage1 OK — token=%s  challenge=%s",
+                  crypto.snapshot_token().hex(" "), crypto.snapshot_challenge().hex(" "))
     return crypto.stage_received_token
 
 
 async def _stage2_fresh(ble: BleSession, crypto: NinebotCrypto) -> bool:
-    """Send o1 until M flag (paired-key)."""
+    """Send o1 ONCE, wait up to 2.5 s for the scooter's ACK.
+
+    Retrying the o1 confused the firmware (scooter disconnected when it
+    saw a second o1 mid-state-transition), so unlike the Kotlin app —
+    which retries six times — we send exactly one and wait longer.
+    """
     pair_init = crypto.build_pair_init_frame(frame.DST_HANDSHAKE)
-    for _ in range(6):
+    log.debug("stage2 inner-frame  %s  (random=%s)",
+              pair_init.hex(" "), pair_init[7:23].hex(" "))
+    log.debug("stage2 send (counter=%d)", crypto.counter)
+    wire = crypto.encrypt(bytes(pair_init))
+    await ble.send(wire)
+    # Wait up to 6 s for the ACK. Real-world observation: the scooter
+    # takes 4-5 s to answer the first o1 on a fresh-pair attempt.
+    # Re-sending o1 confused the firmware (scooter disconnected when it
+    # saw a second o1 mid-state-transition), so we send exactly once
+    # and wait long enough.
+    for _ in range(300):  # 300 × 20 ms = 6 s
+        f = await ble.recv(timeout=0.02)
+        if f is not None:
+            decoded = frame.parse(crypto, f)
+            if decoded is not None:
+                log.debug(
+                    "  parsed: src=%02X dst=%02X cmd=%02X arg=%02X payload=%s",
+                    decoded.src, decoded.dst, decoded.cmd, decoded.arg,
+                    decoded.payload.hex(" "),
+                )
         if crypto.stage_paired_key:
             break
-        wire = crypto.encrypt(bytes(pair_init))
-        await ble.send(wire)
-        for _ in range(30):
-            f = await ble.recv(timeout=0.02)
-            if f is not None:
-                frame.parse(crypto, f)
-            if crypto.stage_paired_key:
-                break
-        if crypto.stage_paired_key:
-            break
-        await asyncio.sleep(0.3)
     return crypto.stage_paired_key
 
 
 async def _stage3_challenge_echo(ble: BleSession, crypto: NinebotCrypto) -> bool:
-    """Send D0(challenge) until O flag (fully paired)."""
+    """Send D0(challenge) ONCE, wait up to 2.5 s for the O flag."""
     challenge = crypto.snapshot_challenge()
-    for _ in range(4):
+    log.debug("stage3 send (counter=%d, challenge=%s)", crypto.counter, challenge.hex(" "))
+    wire = frame.challenge_response(crypto, frame.DST_HANDSHAKE, challenge)
+    await ble.send(wire)
+    for _ in range(125):  # 2.5 s
+        f = await ble.recv(timeout=0.02)
+        if f is not None:
+            decoded = frame.parse(crypto, f)
+            if decoded is not None:
+                log.debug(
+                    "  parsed: src=%02X dst=%02X cmd=%02X arg=%02X payload=%s",
+                    decoded.src, decoded.dst, decoded.cmd, decoded.arg,
+                    decoded.payload.hex(" "),
+                )
         if crypto.stage_fully_paired:
             break
-        wire = frame.challenge_response(crypto, frame.DST_HANDSHAKE, challenge)
-        await ble.send(wire)
-        for _ in range(30):
-            f = await ble.recv(timeout=0.02)
-            if f is not None:
-                frame.parse(crypto, f)
-            if crypto.stage_fully_paired:
-                break
-        if crypto.stage_fully_paired:
-            break
-        await asyncio.sleep(0.3)
     return crypto.stage_fully_paired
 
 

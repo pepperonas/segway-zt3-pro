@@ -217,7 +217,11 @@ class NinebotCrypto:
             self._derive_key(self._scooter_name, bytes(self.token))
             self.stage_received_token = True
 
-        # Stage 2 (M flag): cmd=0x5C arg=0x01 paired-key confirmation.
+        # Stage 2 (M flag): cmd=0x5C paired-key confirmation. SHU's docs
+        # spec arg=0x01, but field-tested ZT3 firmware (build seen
+        # 2026-04-27) sends arg=0x00 with empty payload as the Stage-2
+        # ACK. Either is treated as "M reached" so the handshake can
+        # progress to Stage 3.
         if (
             effective_counter > 0
             and len(out) >= 7
@@ -225,7 +229,7 @@ class NinebotCrypto:
             and out[1] == 0xA5
             and out[4] == 0x3E
             and out[5] == 0x5C
-            and out[6] == 0x01
+            and out[6] in (0x00, 0x01)
         ):
             self._derive_key(bytes(self.app_random), bytes(self.token))
             self.stage_paired_key = True

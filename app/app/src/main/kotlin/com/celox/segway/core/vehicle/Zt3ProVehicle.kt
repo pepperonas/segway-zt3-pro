@@ -60,6 +60,18 @@ class Zt3ProVehicle(
 
     @Volatile private var handshakeSent = false
 
+    /**
+     * Guard against stale poll-readbacks during the scooter's transient
+     * settling phase after a bitfield write. Empirically: enabling Alarm
+     * (`vcu_bool` bit 15) makes the firmware briefly clear the indicator-
+     * sound bit (bit 11) for ~1 s before settling back. Without this guard,
+     * our periodic poll reads that intermediate value and the UI flickers
+     * the indicator-sound switch off-then-on. With the guard, we ignore any
+     * polled value that contradicts the user's intent for up to 3 s.
+     */
+    private data class BitfieldGuard(val expectedRaw: Int, val expiresAt: Long)
+    private val bitfieldGuards = java.util.concurrent.ConcurrentHashMap<Byte, BitfieldGuard>()
+
     init {
         // NB: do NOT pre-load a persisted cryptoToken into the cipher here.
         // The scooter rotates the token on every cmd=0x5B handshake, so the
@@ -201,6 +213,10 @@ class Zt3ProVehicle(
         val newRaw = if (cmd.on) current or (1 shl cmd.bit) else current and (1 shl cmd.bit).inv()
         val payload = byteArrayOf((newRaw and 0xFF).toByte(), ((newRaw ushr 8) and 0xFF).toByte())
         require(gatt.send(codec.writeRegister(0x16, cmd.offset, payload))) { "BLE write failed" }
+        // Hold a guard for 3 s so the next polls of this register, if they
+        // return an intermediate / settling value (e.g. alarm-enable briefly
+        // clearing the indicator-sound bit), don't overwrite our intent.
+        bitfieldGuards[cmd.offset] = BitfieldGuard(newRaw, System.currentTimeMillis() + 3_000L)
         // Optimistic state update so the toggle reflects the user action.
         _state.update {
             when (cmd.offset.toInt() and 0xFF) {
@@ -208,6 +224,33 @@ class Zt3ProVehicle(
                 0x1E -> it.copy(vcuBool2Raw = newRaw)
                 0x1F -> it.copy(vcuBool3Raw = newRaw)
                 else -> it
+            }
+        }
+    }
+
+    /**
+     * Filtered apply for bitfield register polls. Drops values that
+     * contradict an active [BitfieldGuard]; lets matching values through
+     * (and clears the guard since the scooter has now settled).
+     */
+    private fun applyBitfieldPoll(reg: Byte, polled: Int, apply: (Int) -> Unit) {
+        val guard = bitfieldGuards[reg]
+        val now = System.currentTimeMillis()
+        when {
+            guard == null || now >= guard.expiresAt -> {
+                bitfieldGuards.remove(reg)
+                apply(polled)
+            }
+            polled == guard.expectedRaw -> {
+                bitfieldGuards.remove(reg)
+                apply(polled)
+            }
+            else -> {
+                bleLog?.note(
+                    "Bitfield",
+                    "guarded reg 0x%02X: ignored polled 0x%04X (expected 0x%04X)"
+                        .format(reg.toInt() and 0xFF, polled, guard.expectedRaw)
+                )
             }
         }
     }
@@ -590,10 +633,19 @@ class Zt3ProVehicle(
             }
             0x58 -> if (data.size >= 2) _state.update { it.copy(errorCode = leU16(data, 0)) }
             0x59 -> if (data.size >= 2) _state.update { it.copy(warnCode = leU16(data, 0)) }
-            // Settings (R/W). All uint16-LE per zt3.json.
-            0x1D -> if (data.size >= 2) _state.update { it.copy(vcuBoolRaw = leU16(data, 0)) }
-            0x1E -> if (data.size >= 2) _state.update { it.copy(vcuBool2Raw = leU16(data, 0)) }
-            0x1F -> if (data.size >= 2) _state.update { it.copy(vcuBool3Raw = leU16(data, 0)) }
+            // Settings (R/W). All uint16-LE per zt3.json. Bitfield polls are
+            // gated by [applyBitfieldPoll] so a transient settling value
+            // (e.g. ~1 s after enabling Alarm) cannot overwrite the user's
+            // optimistic state.
+            0x1D -> if (data.size >= 2) applyBitfieldPoll(0x1D.toByte(), leU16(data, 0)) { v ->
+                _state.update { it.copy(vcuBoolRaw = v) }
+            }
+            0x1E -> if (data.size >= 2) applyBitfieldPoll(0x1E.toByte(), leU16(data, 0)) { v ->
+                _state.update { it.copy(vcuBool2Raw = v) }
+            }
+            0x1F -> if (data.size >= 2) applyBitfieldPoll(0x1F.toByte(), leU16(data, 0)) { v ->
+                _state.update { it.copy(vcuBool3Raw = v) }
+            }
             0x42 -> if (data.size >= 2) _state.update { it.copy(startSpeedKmh = leU16(data, 0).coerceIn(0, 5)) }
             0x49 -> if (data.size >= 2) _state.update { it.copy(autoOffMinutes = leU16(data, 0).coerceAtMost(60)) }
             0x4A -> if (data.size >= 2) _state.update { it.copy(customKeyMode = leU16(data, 0)) }

@@ -134,7 +134,14 @@
     <string name="about_disclaimer">⚠ Dies ist eine community-gebaute Reimplementierung der Segway Mobility App, ohne Verbindung zu Segway-Ninebot. Nutzung auf eigene Gefahr; das Tunen deines Rollers macht Garantie und Straßenzulassung ungültig. Nur für Privatgelände.</string>
     <string name="about_version">Version %1$s (%2$d)</string>
     <string name="about_copyright">© %1$d</string>
-    <string name="about_credits">Open Source unter MIT-Lizenz. Aufbauend auf dem reverse-engineerten Ninebot-2nd-gen-NinebotCrypto-Protokoll. Crypto-Primitive aus dem ScooterHacking-Utility-(SHU)-Decompile abgeleitet; Settings-Register-Map aus SHUs Runtime-Bootstrap extrahiert.</string>
+    <string name="about_credits">Aufbauend auf dem reverse-engineerten Ninebot-2nd-gen-NinebotCrypto-Protokoll. Crypto-Primitive aus dem ScooterHacking-Utility-(SHU)-Decompile abgeleitet; Settings-Register-Map aus SHUs Runtime-Bootstrap extrahiert.</string>
+    <string name="about_license_title">Lizenz</string>
+    <string name="about_license_body">Proprietär — alle Rechte vorbehalten. © Martin Pfeffer. Kein Open Source. Reverse-Engineering, Weiterverbreitung oder kommerzielle Nutzung nur mit ausdrücklicher schriftlicher Genehmigung.</string>
+    <string name="about_liability_title">Keine Haftung</string>
+    <string name="about_liability_body">Nutzung auf eigene Gefahr. Das Tunen eines zugelassenen Rollers führt zum Verlust von Garantie, Versicherungsschutz und Straßenzulassung. Das Fahren eines entsperrten Rollers im öffentlichen Straßenverkehr ist in den meisten Rechtsräumen verboten und kann Bußgelder, Führerscheinentzug, Strafanzeigen oder erweiterte Haftung im Schadensfall nach sich ziehen. Nur auf Privatgelände nutzen, dessen Betreiber dir die Nutzung erlaubt hat. Der Autor übernimmt keinerlei Haftung für Schäden, Verletzungen, den Verlust der Zulassung oder rechtliche Konsequenzen.</string>
+    <string name="about_legal_section">Rechtliches</string>
+    <string name="about_legal_impressum">Impressum</string>
+    <string name="about_legal_privacy">Datenschutz</string>
 
     <!-- Mine screen -->
     <string name="mine_speed_profiles_title">Speed-Profile</string>

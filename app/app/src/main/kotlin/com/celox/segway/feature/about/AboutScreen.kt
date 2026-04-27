@@ -14,9 +14,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Copyright
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PrivacyTip
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -126,13 +130,121 @@ fun AboutScreen(onBack: () -> Unit) {
             }
 
             Spacer(Modifier.height(24.dp))
-            Text(
-                stringResource(R.string.about_disclaimer),
-                style = MaterialTheme.typography.bodyMedium,
+
+            // License — proprietary, all rights reserved
+            InfoCard(
+                icon = Icons.Outlined.Copyright,
+                title = stringResource(R.string.about_license_title),
+                body = stringResource(R.string.about_license_body),
             )
+
+            Spacer(Modifier.height(16.dp))
+
+            // No liability disclaimer (red error-container so it stands out)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                ),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Outlined.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(end = 12.dp),
+                        )
+                        Text(
+                            stringResource(R.string.about_liability_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(R.string.about_liability_body),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Legal links — Impressum + Privacy Policy on celox.io
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        stringResource(R.string.about_legal_section),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    LinkRow(
+                        icon = Icons.Outlined.Article,
+                        label = stringResource(R.string.about_legal_impressum),
+                        onClick = { openUrl("https://celox.io/impressum/") },
+                    )
+                    LinkRow(
+                        icon = Icons.Outlined.PrivacyTip,
+                        label = stringResource(R.string.about_legal_privacy),
+                        onClick = { openUrl("https://celox.io/datenschutz/") },
+                    )
+                }
+            }
+
             Spacer(Modifier.height(24.dp))
             Text(
+                stringResource(R.string.about_disclaimer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
                 stringResource(R.string.about_credits),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun InfoCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    body: String,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(end = 12.dp),
+                )
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                body,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

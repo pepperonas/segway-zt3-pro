@@ -134,7 +134,14 @@
     <string name="about_disclaimer">⚠ This is a community-built reimplementation of the Segway Mobility App, not affiliated with Segway-Ninebot. Use at your own risk; tuning your scooter voids warranty and street-legal status. For private property only.</string>
     <string name="about_version">Version %1$s (%2$d)</string>
     <string name="about_copyright">© %1$d</string>
-    <string name="about_credits">Open source under MIT. Built on top of the reverse-engineered Ninebot 2nd-gen NinebotCrypto protocol. Crypto primitives derived from the ScooterHacking Utility (SHU) decompile; settings register map extracted from SHU\'s runtime bootstrap.</string>
+    <string name="about_credits">Built on top of the reverse-engineered Ninebot 2nd-gen NinebotCrypto protocol. Crypto primitives derived from the ScooterHacking Utility (SHU) decompile; settings register map extracted from SHU\'s runtime bootstrap.</string>
+    <string name="about_license_title">License</string>
+    <string name="about_license_body">Proprietary — all rights reserved. © Martin Pfeffer. Not open source. Reverse-engineering, redistribution, or commercial use requires explicit written permission.</string>
+    <string name="about_liability_title">No liability</string>
+    <string name="about_liability_body">Use at your own risk. Tuning a registered scooter voids warranty, insurance, and road-legal status. Operating an unlocked scooter on public roads is illegal in most jurisdictions and may incur fines, license suspension, criminal charges, or extended liability in case of accidents. Use only on private property where the operator has authorised it. The author accepts no liability for damages, injuries, loss of registration, or legal consequences.</string>
+    <string name="about_legal_section">Legal</string>
+    <string name="about_legal_impressum">Impressum</string>
+    <string name="about_legal_privacy">Privacy policy</string>
 
     <!-- Mine screen -->
     <string name="mine_speed_profiles_title">Speed profiles</string>

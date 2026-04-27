@@ -67,8 +67,8 @@ Tracks which XiaoDash-exposed settings/telemetry are implemented in our app, wit
 | Boost Mode | 🔧 | VCU 0x1D | bit 10 |
 | Indicator Sound (Turn signal) | 🔧 | VCU 0x1D | bit 11 |
 | App Function Tone | 🔧 | VCU 0x1E | bit 0 |
-| Hold Descent Control | ❓ | unknown | possibly = ramp_parking? |
-| Motor Brake | ❓ | unknown | likely overlaps with kers_level |
+| Hold Descent Control | ⛔ same as Park On Slope | VCU 0x1D bit 5 (`ramp_parking`) | confirmed by user 2026-04-28 — XiaoDash labels the same toggle two ways |
+| Motor Brake | ⛔ same as Energy Recovery | VCU 0x70 (`kers_level`) | confirmed by user 2026-04-28 — KERS regen *is* the motor-brake strength |
 | Sport Mode (toggle, enable mode) | 🔧 | VCU 0x1E | bit 8 (`enable_sports`) |
 | Drive Mode (toggle, enable mode) | 🔧 | VCU 0x1E | bit 7 (`enable_drive`) |
 | Walk Mode (toggle, enable mode) | 🔧 | VCU 0x1D | bit 4 (`enable_walk`) |

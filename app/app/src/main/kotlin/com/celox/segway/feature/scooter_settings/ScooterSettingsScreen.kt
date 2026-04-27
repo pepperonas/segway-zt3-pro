@@ -98,7 +98,7 @@ fun ScooterSettingsScreen(
                     onToggle = { v -> vm.setBitfieldBit(0x1D, VcuBitfield.IMPERIAL_UNITS, v) }
                 )
                 BitfieldSwitch(
-                    label = "Park on Slope (Hill-Hold)",
+                    label = "Park on Slope (Hill-Hold / Hold Descent)",
                     raw = state.vcuBoolRaw, bit = VcuBitfield.RAMP_PARKING,
                     enabled = isReady,
                     onToggle = { v -> vm.setBitfieldBit(0x1D, VcuBitfield.RAMP_PARKING, v) }
@@ -224,11 +224,16 @@ fun ScooterSettingsScreen(
                     onChange = { idx -> vm.writeVcuU16(0x6E, idx) }
                 )
                 EnumPicker(
-                    label = "Energierückgewinnung (KERS)",
+                    label = "Motorbremse / KERS",
                     options = listOf("Aus", "Niedrig", "Mittel", "Hoch"),
                     selected = state.kersLevel,
                     enabled = isReady,
                     onChange = { idx -> vm.writeVcuU16(0x70, idx) }
+                )
+                Text(
+                    "Bestimmt wie stark der Motor beim Gas-Loslassen bremst (Energierückgewinnung).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 

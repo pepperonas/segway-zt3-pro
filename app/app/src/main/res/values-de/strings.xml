@@ -248,6 +248,8 @@
     <string name="profiles_a11y_open_settings">Accessibility-Einstellungen öffnen</string>
     <string name="profiles_custom_button_double_tap">Custom-Button doppel-Tap = 22 km/h</string>
     <string name="profiles_custom_button_double_tap_hint">2× Walk-Knopf am Roller (≤ 1,5 s) → Boot-Profile (Lock). Pollt 0x5A alle 250 ms während aktiv.</string>
+    <string name="profiles_blinker_right_triple_tap">3× Blinker rechts = 22 km/h</string>
+    <string name="profiles_blinker_right_triple_tap_hint">Rechts-Blinker 3× innerhalb 3 s aktivieren → Boot-Profile (Lock). Watcher beobachtet Bit 1 von VCU 0xFF (via Reg-Hunt identifiziert). Pro erkannter Aktivierung erscheint Snackbar „Blinker N/3".</string>
 
     <!-- Unlock dialog -->
     <string name="unlock_dialog_title">Entsperren %1$d km/h</string>

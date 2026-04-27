@@ -51,6 +51,16 @@ class VehicleViewModel @Inject constructor(
                 _snackbar.tryEmit("🔒 Doppel-Tap Walk-Knopf → ${profiles.value.boot.speedKmh} km/h")
             }
         }
+        viewModelScope.launch {
+            profileManager.blinkerRightTapEvents.collect {
+                _snackbar.tryEmit("🔒 3× Blinker rechts → ${profiles.value.boot.speedKmh} km/h")
+            }
+        }
+        viewModelScope.launch {
+            profileManager.blinkerRightProgressEvents.collect { count ->
+                _snackbar.tryEmit("Blinker $count/3")
+            }
+        }
     }
 
     fun toggleLock() = vehicle.value?.let { v ->

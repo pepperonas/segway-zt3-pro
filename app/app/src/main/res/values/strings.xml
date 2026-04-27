@@ -248,6 +248,8 @@
     <string name="profiles_a11y_open_settings">Open Accessibility settings</string>
     <string name="profiles_custom_button_double_tap">Custom-Button double-tap = 22 km/h</string>
     <string name="profiles_custom_button_double_tap_hint">2× walk button on the scooter (≤ 1.5 s) → boot profile (lock). Polls 0x5A every 250 ms while active.</string>
+    <string name="profiles_blinker_right_triple_tap">3× right blinker = 22 km/h</string>
+    <string name="profiles_blinker_right_triple_tap_hint">Activate the right turn signal 3× within 3 s → boot profile (lock). Watches bit 1 of VCU 0xFF (identified via Reg-Hunt). A snackbar "Blinker N/3" appears for every detected activation.</string>
 
     <!-- Unlock dialog -->
     <string name="unlock_dialog_title">Unlock %1$d km/h</string>

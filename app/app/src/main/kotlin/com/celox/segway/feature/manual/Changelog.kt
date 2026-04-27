@@ -26,6 +26,16 @@ object Changelog {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "0.2.3",
+            versionCode = 11,
+            date = "2026-04-28",
+            highlights = listOf(
+                "3× right blinker → lock to 22 km/h: activate the right turn signal three times within 3 s while connected and the boot profile is re-applied. Identifying the register was done via the Diagnostics Reg-Hunt tool — turning the right blinker on flipped exactly bit 1 of VCU 0xFF, the signature of a state register. Watcher polls 0xFF every 200 ms and edge-detects bit-1 transitions 0→1.",
+                "Per-activation feedback: snackbar \"Blinker N/3\" on every detected event so you can verify the gesture is registering.",
+                "VehicleState surfaces blinkerLeftOn / blinkerRightOn / indicatorStatusRaw — left-blinker bit (assumed bit 0) is mirror-from-convention, not yet field-verified.",
+            ),
+        ),
+        Entry(
             version = "0.2.2",
             versionCode = 10,
             date = "2026-04-28",

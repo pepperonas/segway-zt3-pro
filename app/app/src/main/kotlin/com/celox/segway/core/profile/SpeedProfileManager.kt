@@ -76,6 +76,13 @@ class SpeedProfileManager @Inject constructor(
     private val _customButtonTapEvents = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 4)
     val customButtonTapEvents: SharedFlow<Unit> = _customButtonTapEvents.asSharedFlow()
 
+    private val _blinkerRightTapEvents = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 4)
+    val blinkerRightTapEvents: SharedFlow<Unit> = _blinkerRightTapEvents.asSharedFlow()
+
+    /** Per-press feedback so the user can verify each detected blinker activation. */
+    private val _blinkerRightProgressEvents = MutableSharedFlow<Int>(replay = 0, extraBufferCapacity = 4)
+    val blinkerRightProgressEvents: SharedFlow<Int> = _blinkerRightProgressEvents.asSharedFlow()
+
     init {
         // Custom-button double-tap watcher — fast-polls reg 0x5A
         // (VCU_DRIVE_MODE) at 200 ms so we can resolve real double-taps.
@@ -100,6 +107,26 @@ class SpeedProfileManager @Inject constructor(
                         // Wait until the vehicle is ready, then run.
                         vehicle.state.first { it.isReady }
                         runCustomButtonTapWatcher(vehicle)
+                    }
+                }
+        }
+
+        // Right-blinker triple-tap watcher — polls VCU 0xFF (indicator
+        // bitfield, bit 1 = right blinker per Reg-Hunt diff) every 200 ms,
+        // edge-detects bit-1 transitions 0→1, three within 3 s = boot lock.
+        scope.launch {
+            var watcherJob: Job? = null
+            kotlinx.coroutines.flow.combine(
+                activeHolder.activeVehicle,
+                repo.flow.map { it.blinkerRightTripleTapEnabled }.distinctUntilChanged(),
+            ) { v, enabled -> v to enabled }
+                .collect { (vehicle, enabled) ->
+                    watcherJob?.cancel()
+                    watcherJob = null
+                    if (vehicle == null || !enabled) return@collect
+                    watcherJob = scope.launch {
+                        vehicle.state.first { it.isReady }
+                        runBlinkerRightTripleTapWatcher(vehicle)
                     }
                 }
         }
@@ -264,6 +291,53 @@ class SpeedProfileManager @Inject constructor(
             }
         } finally {
             bleLog.note("BtnTap", "watcher stopped")
+        }
+    }
+
+    /**
+     * Fast-poll loop on VCU 0xFF (indicator bitfield) to detect three
+     * right-blinker activations within DOUBLE_TAP_WINDOW_MS. Same edge-
+     * detection pattern as the custom-button watcher: rising-edge of
+     * bit 1 = "right blinker turned on" event.
+     *
+     * Identified register via Reg-Hunt diff on 2026-04-28: enabling the
+     * right blinker flipped exactly bit 1 of 0xFF from 0→1.
+     *
+     * Most ZT3 blinkers are toggle-style (one click on, one click off)
+     * so a "tap" here means: turn on, turn off, turn on, turn off, turn
+     * on. Three on-presses → trigger.
+     */
+    private suspend fun runBlinkerRightTripleTapWatcher(vehicle: com.celox.segway.core.vehicle.Vehicle) {
+        bleLog.note("BlinkerR", "watcher started — fast-polling VCU 0xFF every 200 ms")
+        val taps = ArrayDeque<Long>()
+        var lastOn = vehicle.state.value.blinkerRightOn
+        try {
+            while (currentScopeIsActive() && repo.flow.first().blinkerRightTripleTapEnabled) {
+                if (vehicle.state.value.isConnected && vehicle.state.value.isReady) {
+                    vehicle.execute(VehicleCommand.ReadRegister(0xFF, 2, 0x16))
+                }
+                delay(POLL_INTERVAL_MS)
+                val current = vehicle.state.value.blinkerRightOn
+                if (current && !lastOn) {
+                    val now = System.currentTimeMillis()
+                    taps.addLast(now)
+                    while (taps.isNotEmpty() && now - taps.first() > DOUBLE_TAP_WINDOW_MS) {
+                        taps.removeFirst()
+                    }
+                    bleLog.note("BlinkerR", "right-blinker on (recent=${taps.size})")
+                    _blinkerRightProgressEvents.tryEmit(taps.size)
+                    if (taps.size >= 3) {
+                        bleLog.note("BlinkerR", "triple-tap → re-lock to boot")
+                        val settings = repo.flow.first()
+                        applyProfile(settings.boot)
+                        _blinkerRightTapEvents.tryEmit(Unit)
+                        taps.clear()
+                    }
+                }
+                lastOn = current
+            }
+        } finally {
+            bleLog.note("BlinkerR", "watcher stopped")
         }
     }
 

@@ -75,4 +75,8 @@ class ProfilesViewModel @Inject constructor(
     fun setCustomButtonDoubleTap(enabled: Boolean) = viewModelScope.launch {
         repo.update { it.copy(customButtonDoubleTapEnabled = enabled) }
     }
+
+    fun setBlinkerRightTripleTap(enabled: Boolean) = viewModelScope.launch {
+        repo.update { it.copy(blinkerRightTripleTapEnabled = enabled) }
+    }
 }

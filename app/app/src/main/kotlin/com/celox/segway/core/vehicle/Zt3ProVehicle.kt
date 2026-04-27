@@ -296,6 +296,7 @@ class Zt3ProVehicle(
         Triple(0x16, 0x5D.toByte(), 2),   // tail_light_mode (enum)
         Triple(0x16, 0x6E.toByte(), 2),   // acc_level (acceleration level enum)
         Triple(0x16, 0x70.toByte(), 2),   // kers_level (Energy Recovery enum)
+        Triple(0x16, 0xFF.toByte(), 2),   // indicator/blinker bitfield (bit 0 = left, bit 1 = right; identified via Reg-Hunt)
         // BMS deep telemetry
         Triple(0x07, 0x8F.toByte(), 2),   // BMS_SOC — actual battery
         Triple(0x07, 0x8C.toByte(), 2),   // BMS_VOLTAGE — pack voltage
@@ -663,6 +664,21 @@ class Zt3ProVehicle(
             0x5D -> if (data.size >= 2) _state.update { it.copy(tailLightMode = leU16(data, 0)) }
             0x6E -> if (data.size >= 2) _state.update { it.copy(accelerationLevel = leU16(data, 0)) }
             0x70 -> if (data.size >= 2) _state.update { it.copy(kersLevel = leU16(data, 0)) }
+            // Indicator / blinker state register. Bit 0 = left, Bit 1 =
+            // right (right-blinker bit verified via Reg-Hunt 2026-04-28
+            // when DIFF showed exactly bit 1 flipping 0→1; left-bit is the
+            // assumed mirror, untested). Other bits in this register may
+            // carry unrelated state — we don't touch them.
+            0xFF -> if (data.size >= 2) {
+                val raw = leU16(data, 0)
+                _state.update {
+                    it.copy(
+                        indicatorStatusRaw = raw,
+                        blinkerLeftOn = (raw and 0b1) != 0,
+                        blinkerRightOn = (raw and 0b10) != 0,
+                    )
+                }
+            }
             // VCU_Mileage / VCU_SingleMileage — empirically (2026-04-28 logcat
             // capture) the meaningful value sits in the low u16: e.g.
             // odometer reg 0x62 = `[12 00 00 00]` → 18 km, trip reg 0x68 =

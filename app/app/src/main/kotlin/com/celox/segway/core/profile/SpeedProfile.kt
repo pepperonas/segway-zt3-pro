@@ -55,4 +55,17 @@ data class SpeedProfileSettings(
      * 0x5A (VCU_DRIVE_MODE) at 250 ms to catch real double-taps.
      */
     val customButtonDoubleTapEnabled: Boolean = false,
+    /**
+     * If true, triggering the right-turn blinker 3× within 3 s re-applies the
+     * [boot] profile (= locks to 22 km/h by default). Detected by polling
+     * VCU 0xFF (indicator-status register, bit 1 = right blinker) at 200 ms
+     * and edge-detecting bit-1 transitions 0→1.
+     *
+     * The register was identified via the Diagnostics Reg-Hunt tool —
+     * activating the right blinker during the second sweep flipped exactly
+     * one bit (bit 1 of 0xFF), which is the signature of a state register.
+     * Off by default. Independent of the custom-button watcher; both can be
+     * enabled simultaneously.
+     */
+    val blinkerRightTripleTapEnabled: Boolean = false,
 )

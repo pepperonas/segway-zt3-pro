@@ -85,7 +85,57 @@ data class VehicleState(
      * cell longevity.
      */
     val chargeThresholdPercent: Int = 0,
+    /**
+     * Raw u16 values of the three VCU bitfield registers (`vcu_bool` /
+     * `vcu_bool_2` / `vcu_bool_3` at offsets 0x1D / 0x1E / 0x1F). UI extracts
+     * individual toggle bits via [VcuBitfield] helpers; we store the raw
+     * value so a "flip one bit" write is a read-modify-write of the whole
+     * register.
+     */
+    val vcuBoolRaw: Int = 0,
+    val vcuBool2Raw: Int = 0,
+    val vcuBool3Raw: Int = 0,
+    /** Numeric VCU settings (uint16-LE). All of these are R/W. */
+    val startSpeedKmh: Int = 0,                // 0x42
+    val autoOffMinutes: Int = 0,               // 0x49
+    val customKeyMode: Int = 0,                // 0x4A — enum (Custom Button Action)
+    val tailLightMode: Int = 0,                // 0x5D — enum
+    val accelerationLevel: Int = 0,            // 0x6E — enum (Low/Med/High)
+    val kersLevel: Int = 0,                    // 0x70 — enum (Off/Low/Med/High)
 )
+
+/**
+ * Bit positions for the three VCU bitfield registers. Sourced from SHU's
+ * runtime-loaded `zt3.json` (see `reverse-engineering/protocol/zt3-settings-registers.md`).
+ */
+object VcuBitfield {
+    /** vcu_bool (VCU 0x1D) bit positions. */
+    const val TRACTION_CONTROL = 0
+    const val IMPERIAL_UNITS = 3
+    const val ENABLE_WALK = 4
+    const val RAMP_PARKING = 5      // Park on Slope / Hill-Hold
+    const val BOOST_FUNCTION = 10
+    const val TURN_SIGNAL_SOUNDS = 11  // Indicator Sound
+    const val ALARM = 15
+
+    /** vcu_bool_2 (VCU 0x1E) bit positions. */
+    const val APP_FUNCTION_TONE = 0
+    const val ENABLE_DRIVE = 7
+    const val ENABLE_SPORTS = 8
+
+    /** vcu_bool_3 (VCU 0x1F) bit positions. */
+    const val AUTO_HEADLIGHT = 0
+    const val CHARGING_BREATHING_LIGHT = 1
+    const val UNDERGLOW_LIGHTS = 2
+    const val CHARGE_NOW = 7
+    const val POWER_OFF_FOLDING = 8
+    const val FOLDING_DISABLE_ALARM = 9
+    const val FRONT_POSITION_LAMP = 11
+
+    fun bit(raw: Int, position: Int): Boolean = ((raw ushr position) and 1) == 1
+    fun setBit(raw: Int, position: Int, value: Boolean): Int =
+        if (value) raw or (1 shl position) else raw and (1 shl position).inv()
+}
 
 /** ZT3 has 4 modes shown on the dashboard: Walk, E, D, S. */
 enum class RideMode { Walk, Eco, Drive, Sport }
@@ -106,4 +156,15 @@ sealed interface VehicleCommand {
     data object ReadBlackBox : VehicleCommand
     /** Read the firmware version registers (VCU/MCU/BLE). */
     data object ReadFirmware : VehicleCommand
+
+    /** Write a uint16-LE value to a VCU register. */
+    data class WriteVcuU16(val offset: Byte, val value: Int) : VehicleCommand
+    /** Write a uint16-LE value to a BMS register. */
+    data class WriteBmsU16(val offset: Byte, val value: Int) : VehicleCommand
+    /**
+     * Flip a single bit in a VCU bitfield register. Implementation does
+     * read-modify-write atomically against the live cipher counter — the
+     * other bits of that register are preserved.
+     */
+    data class WriteVcuBitfieldBit(val offset: Byte, val bit: Int, val on: Boolean) : VehicleCommand
 }

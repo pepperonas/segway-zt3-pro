@@ -172,9 +172,45 @@ class Zt3ProVehicle(
     override suspend fun execute(command: VehicleCommand): Result<Unit> = runCatching {
         if (!handshakeSent) sendHandshake()
         bleLog?.note("Cmd", command.toString())
+        if (command is VehicleCommand.WriteVcuBitfieldBit) {
+            executeBitfieldFlip(command)
+            return@runCatching
+        }
         val frame = encodeCrypto(command) ?: error("Cannot encode $command")
         require(gatt.send(frame)) { "BLE write failed" }
     }.onFailure { Timber.w(it, "execute($command) failed") }
+
+    /**
+     * Bitfield write = read current value (from cached state, fresh poll
+     * keeps it within ~1s of reality), flip the target bit, write back the
+     * full uint16-LE. Updates _state optimistically so the UI flips
+     * immediately without waiting for the next poll.
+     *
+     * NOT atomic on the wire — if two flips race, the later wins. Acceptable
+     * for user-driven settings (humans can't toggle two switches at exactly
+     * the same instant).
+     */
+    private suspend fun executeBitfieldFlip(cmd: VehicleCommand.WriteVcuBitfieldBit) {
+        val s = _state.value
+        val current = when (cmd.offset.toInt() and 0xFF) {
+            0x1D -> s.vcuBoolRaw
+            0x1E -> s.vcuBool2Raw
+            0x1F -> s.vcuBool3Raw
+            else -> error("Unknown bitfield offset 0x%02X".format(cmd.offset))
+        }
+        val newRaw = if (cmd.on) current or (1 shl cmd.bit) else current and (1 shl cmd.bit).inv()
+        val payload = byteArrayOf((newRaw and 0xFF).toByte(), ((newRaw ushr 8) and 0xFF).toByte())
+        require(gatt.send(codec.writeRegister(0x16, cmd.offset, payload))) { "BLE write failed" }
+        // Optimistic state update so the toggle reflects the user action.
+        _state.update {
+            when (cmd.offset.toInt() and 0xFF) {
+                0x1D -> it.copy(vcuBoolRaw = newRaw)
+                0x1E -> it.copy(vcuBool2Raw = newRaw)
+                0x1F -> it.copy(vcuBool3Raw = newRaw)
+                else -> it
+            }
+        }
+    }
 
     /**
      * Status-poll pattern lifted 1:1 from SHU's `CRYPTO_DUMP` capture (dst=0x16):
@@ -206,6 +242,17 @@ class Zt3ProVehicle(
         Triple(0x16, 0x6B.toByte(), 2),   // VCU_BodyTemp — °C × 10
         Triple(0x16, 0x58.toByte(), 2),   // VCU_ErrorCode
         Triple(0x16, 0x59.toByte(), 2),   // VCU_WarnCode
+        // VCU settings (R/W) — sourced from SHU bootstrap zt3.json. Polled
+        // so the Settings screen has fresh values when opened.
+        Triple(0x16, 0x1D.toByte(), 2),   // vcu_bool — bitfield (traction, imperial, walk, ramp_parking, boost, indicator sound, alarm)
+        Triple(0x16, 0x1E.toByte(), 2),   // vcu_bool_2 — bitfield (app_function_tone, enable_drive, enable_sports)
+        Triple(0x16, 0x1F.toByte(), 2),   // vcu_bool_3 — bitfield (auto_headlight, breathing, underglow, charge_now, fold powerOff/disable_alarm, front_position_lamp)
+        Triple(0x16, 0x42.toByte(), 2),   // start_speed
+        Triple(0x16, 0x49.toByte(), 2),   // auto_off_time (minutes)
+        Triple(0x16, 0x4A.toByte(), 2),   // custom_key (Custom Button Action enum)
+        Triple(0x16, 0x5D.toByte(), 2),   // tail_light_mode (enum)
+        Triple(0x16, 0x6E.toByte(), 2),   // acc_level (acceleration level enum)
+        Triple(0x16, 0x70.toByte(), 2),   // kers_level (Energy Recovery enum)
         // BMS deep telemetry
         Triple(0x07, 0x8F.toByte(), 2),   // BMS_SOC — actual battery
         Triple(0x07, 0x8C.toByte(), 2),   // BMS_VOLTAGE — pack voltage
@@ -421,6 +468,18 @@ class Zt3ProVehicle(
             codec.readRegister(0x16, 0xF0.toByte(), 64)
         VehicleCommand.ReadFirmware ->
             codec.readRegister(0x16, 0x1A, 16)
+
+        // Generic numeric writes (uint16-LE). Used by the Settings screen
+        // for sliders + enums whose register addresses come from
+        // zt3-settings-registers.md.
+        is VehicleCommand.WriteVcuU16 ->
+            codec.writeRegister(0x16, cmd.offset, byteArrayOf((cmd.value and 0xFF).toByte(), ((cmd.value ushr 8) and 0xFF).toByte()))
+        is VehicleCommand.WriteBmsU16 ->
+            codec.writeRegister(0x07, cmd.offset, byteArrayOf((cmd.value and 0xFF).toByte(), ((cmd.value ushr 8) and 0xFF).toByte()))
+
+        // Bitfield bit-flip is NOT a single encode — it's read-modify-write
+        // and is intercepted in execute() before this function is called.
+        is VehicleCommand.WriteVcuBitfieldBit -> null
     }
 
     private fun handleNotify(parsed: FrameCodecClassic.Decoded) {
@@ -531,6 +590,16 @@ class Zt3ProVehicle(
             }
             0x58 -> if (data.size >= 2) _state.update { it.copy(errorCode = leU16(data, 0)) }
             0x59 -> if (data.size >= 2) _state.update { it.copy(warnCode = leU16(data, 0)) }
+            // Settings (R/W). All uint16-LE per zt3.json.
+            0x1D -> if (data.size >= 2) _state.update { it.copy(vcuBoolRaw = leU16(data, 0)) }
+            0x1E -> if (data.size >= 2) _state.update { it.copy(vcuBool2Raw = leU16(data, 0)) }
+            0x1F -> if (data.size >= 2) _state.update { it.copy(vcuBool3Raw = leU16(data, 0)) }
+            0x42 -> if (data.size >= 2) _state.update { it.copy(startSpeedKmh = leU16(data, 0).coerceIn(0, 5)) }
+            0x49 -> if (data.size >= 2) _state.update { it.copy(autoOffMinutes = leU16(data, 0).coerceAtMost(60)) }
+            0x4A -> if (data.size >= 2) _state.update { it.copy(customKeyMode = leU16(data, 0)) }
+            0x5D -> if (data.size >= 2) _state.update { it.copy(tailLightMode = leU16(data, 0)) }
+            0x6E -> if (data.size >= 2) _state.update { it.copy(accelerationLevel = leU16(data, 0)) }
+            0x70 -> if (data.size >= 2) _state.update { it.copy(kersLevel = leU16(data, 0)) }
             // VCU_Mileage / VCU_SingleMileage — empirically (2026-04-28 logcat
             // capture) the meaningful value sits in the low u16: e.g.
             // odometer reg 0x62 = `[12 00 00 00]` → 18 km, trip reg 0x68 =

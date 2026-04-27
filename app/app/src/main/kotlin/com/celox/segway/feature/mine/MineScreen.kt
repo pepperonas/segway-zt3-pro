@@ -14,6 +14,7 @@ import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Scaffold
@@ -33,6 +34,7 @@ fun MineScreen(
     onDiagnosticsClick: () -> Unit,
     onAirLockClick: () -> Unit,
     onProfilesClick: () -> Unit,
+    onScooterSettingsClick: () -> Unit = {},
 ) {
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_mine)) }) }
@@ -45,6 +47,12 @@ fun MineScreen(
                 supportingContent = { Text("Boot, quick actions, unlock") },
                 leadingContent = { Icon(Icons.Outlined.Speed, null) },
                 modifier = Modifier.clickable { onProfilesClick() }
+            )
+            ListItem(
+                headlineContent = { Text("Roller-Einstellungen") },
+                supportingContent = { Text("Lichter, Modi, KERS, Akku-Limit, …") },
+                leadingContent = { Icon(Icons.Outlined.Tune, null) },
+                modifier = Modifier.clickable { onScooterSettingsClick() }
             )
             ListItem(
                 headlineContent = { Text("Garage") },

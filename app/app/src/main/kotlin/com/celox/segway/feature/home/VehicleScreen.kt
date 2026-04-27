@@ -1,6 +1,7 @@
 package com.celox.segway.feature.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -132,6 +133,19 @@ fun VehicleScreen(
                 autoRevertAt = autoRevertAt,
                 bootKmh = profiles.boot.speedKmh,
                 unlockKmh = profiles.unlock.speedKmh,
+                onLockIconTap = {
+                    // Mirror the big Lock/Unlock button logic so the icon is
+                    // a one-tap shortcut: re-lock instantly if currently
+                    // unlocked; otherwise unlock (with PIN dialog if required).
+                    if (isUnlockActive) {
+                        viewModel.reLock()
+                    } else if (!viewModel.unlockRequiresPin()) {
+                        coroutineScope.launch { viewModel.confirmUnlock(null) }
+                    } else {
+                        unlockShowError = false
+                        unlockDialogVisible = true
+                    }
+                },
             )
 
             if (profiles.accessibilityTriggerEnabled) {
@@ -352,6 +366,7 @@ private fun LockStatusBanner(
     autoRevertAt: Long?,
     bootKmh: Int,
     unlockKmh: Int,
+    onLockIconTap: () -> Unit = {},
 ) {
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(isUnlocked, autoRevertAt) {
@@ -399,12 +414,13 @@ private fun LockStatusBanner(
                     Box(
                         modifier = Modifier
                             .size(44.dp)
-                            .background(color = onGradient.copy(alpha = 0.15f), shape = CircleShape),
+                            .background(color = onGradient.copy(alpha = 0.15f), shape = CircleShape)
+                            .clickable(onClick = onLockIconTap),
                         contentAlignment = Alignment.Center
                     ) {
                         androidx.compose.material3.Icon(
                             if (isUnlocked) Icons.Outlined.LockOpen else Icons.Outlined.Lock,
-                            null,
+                            contentDescription = if (isUnlocked) "Sperren" else "Entsperren",
                             tint = onGradient,
                             modifier = Modifier.size(22.dp)
                         )

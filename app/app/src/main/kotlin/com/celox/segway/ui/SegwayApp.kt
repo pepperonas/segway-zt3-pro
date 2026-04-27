@@ -2,7 +2,7 @@ package com.celox.segway.ui
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Dashboard
+import androidx.compose.material.icons.outlined.ElectricScooter
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Timeline
 import androidx.compose.material3.Icon
@@ -121,7 +121,7 @@ fun SegwayApp() {
 private fun BottomNav(currentRoute: String?, onSelect: (String) -> Unit) {
     NavigationBar {
         listOf(
-            BottomItem(Route.Vehicle, R.string.nav_vehicle, Icons.Outlined.Dashboard),
+            BottomItem(Route.Vehicle, R.string.nav_vehicle, Icons.Outlined.ElectricScooter),
             BottomItem(Route.Track, R.string.nav_track, Icons.Outlined.Timeline),
             BottomItem(Route.Mine, R.string.nav_mine, Icons.Outlined.Person),
         ).forEach { item ->

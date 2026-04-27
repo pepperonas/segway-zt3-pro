@@ -43,38 +43,38 @@ fun MineScreen(
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
         ) {
             ListItem(
-                headlineContent = { Text("Speed profiles") },
-                supportingContent = { Text("Boot, quick actions, unlock") },
+                headlineContent = { Text(stringResource(R.string.mine_speed_profiles_title)) },
+                supportingContent = { Text(stringResource(R.string.mine_speed_profiles_subtitle)) },
                 leadingContent = { Icon(Icons.Outlined.Speed, null) },
                 modifier = Modifier.clickable { onProfilesClick() }
             )
             ListItem(
-                headlineContent = { Text("Roller-Einstellungen") },
-                supportingContent = { Text("Lichter, Modi, KERS, Akku-Limit, …") },
+                headlineContent = { Text(stringResource(R.string.mine_scooter_settings_title)) },
+                supportingContent = { Text(stringResource(R.string.mine_scooter_settings_subtitle)) },
                 leadingContent = { Icon(Icons.Outlined.Tune, null) },
                 modifier = Modifier.clickable { onScooterSettingsClick() }
             )
             ListItem(
-                headlineContent = { Text("Garage") },
-                supportingContent = { Text("Manage paired scooters") },
+                headlineContent = { Text(stringResource(R.string.mine_garage_title)) },
+                supportingContent = { Text(stringResource(R.string.mine_garage_subtitle)) },
                 leadingContent = { Icon(Icons.Outlined.ElectricMoped, null) },
                 modifier = Modifier.clickable { onGarageClick() }
             )
             ListItem(
-                headlineContent = { Text("Firmware") },
-                supportingContent = { Text("Flash VCU/MCU, change region") },
+                headlineContent = { Text(stringResource(R.string.mine_firmware_title)) },
+                supportingContent = { Text(stringResource(R.string.mine_firmware_subtitle)) },
                 leadingContent = { Icon(Icons.Outlined.SystemUpdate, null) },
                 modifier = Modifier.clickable { onFirmwareClick() }
             )
             ListItem(
-                headlineContent = { Text("AirLock") },
-                supportingContent = { Text("Auto-unlock by proximity") },
+                headlineContent = { Text(stringResource(R.string.mine_airlock_title)) },
+                supportingContent = { Text(stringResource(R.string.mine_airlock_subtitle)) },
                 leadingContent = { Icon(Icons.Outlined.LockOpen, null) },
                 modifier = Modifier.clickable { onAirLockClick() }
             )
             ListItem(
-                headlineContent = { Text("Diagnostics") },
-                supportingContent = { Text("Live BLE log + crash records") },
+                headlineContent = { Text(stringResource(R.string.mine_diagnostics_title)) },
+                supportingContent = { Text(stringResource(R.string.mine_diagnostics_subtitle)) },
                 leadingContent = { Icon(Icons.Outlined.BugReport, null) },
                 modifier = Modifier.clickable { onDiagnosticsClick() }
             )

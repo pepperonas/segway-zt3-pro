@@ -78,10 +78,12 @@ fun ProfilesScreen(
                 )
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Auto-apply on connect", fontWeight = FontWeight.Medium)
                         Text(
-                            "If on: the boot value is sent ~1.5 s after each connect. " +
-                                "Leave OFF if you're unsure how the scooter reacts to the command.",
+                            stringResource(R.string.profiles_auto_apply_on_connect),
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            stringResource(R.string.profiles_auto_apply_on_connect_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -153,19 +155,19 @@ fun ProfilesScreen(
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(
-                                "Permission missing",
+                                stringResource(R.string.profiles_a11y_permission_missing_title),
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "Tap below to open Android's Accessibility settings, then enable \"Segway Mobility\" → Volume-Down trigger.",
+                                stringResource(R.string.profiles_a11y_permission_missing_body),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )
                             Spacer(Modifier.height(8.dp))
                             OutlinedButton(onClick = { AccessibilityHelper.openSettings(ctx) }) {
-                                Text("Open Accessibility settings")
+                                Text(stringResource(R.string.profiles_a11y_open_settings))
                             }
                         }
                     }
@@ -173,7 +175,14 @@ fun ProfilesScreen(
 
                 Spacer(Modifier.height(12.dp))
 
-                Text("${stringResource(R.string.profiles_auto_revert)}: ${settings.autoRevertMinutes} min", fontWeight = FontWeight.Medium)
+                Text(
+                    stringResource(
+                        R.string.profiles_auto_revert_value,
+                        stringResource(R.string.profiles_auto_revert),
+                        settings.autoRevertMinutes,
+                    ),
+                    fontWeight = FontWeight.Medium,
+                )
                 Slider(
                     value = settings.autoRevertMinutes.toFloat(),
                     onValueChange = { vm.updateAutoRevert(it.toInt()) },
@@ -181,7 +190,7 @@ fun ProfilesScreen(
                     steps = 11
                 )
                 Text(
-                    "0 = stays unlocked until you reduce manually",
+                    stringResource(R.string.profiles_auto_revert_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -190,9 +199,12 @@ fun ProfilesScreen(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Custom-Button doppel-Tap = 22 km/h", fontWeight = FontWeight.Medium)
                         Text(
-                            "2× Walk-Knopf am Roller (≤ 1,5 s) → Boot-Profile (Lock). Pollt 0x5A alle 250 ms während aktiv.",
+                            stringResource(R.string.profiles_custom_button_double_tap),
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            stringResource(R.string.profiles_custom_button_double_tap_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

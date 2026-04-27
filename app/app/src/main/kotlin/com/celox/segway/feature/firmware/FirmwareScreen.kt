@@ -39,10 +39,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.celox.segway.R
 import com.celox.segway.core.ota.FirmwareUpdater
 import com.celox.segway.core.repo.FirmwareRelease
 import com.celox.segway.core.repo.FirmwareTarget
@@ -60,7 +62,7 @@ fun FirmwareScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Firmware") },
+                title = { Text(stringResource(R.string.firmware_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, null) }
                 },
@@ -85,7 +87,7 @@ fun FirmwareScreen(
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(msg, color = MaterialTheme.colorScheme.onErrorContainer)
                         Text(
-                            "Tip: enable VPN outside the EU, then refresh.",
+                            stringResource(R.string.firmware_error_tip),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
@@ -99,7 +101,7 @@ fun FirmwareScreen(
                     containerColor = MaterialTheme.colorScheme.tertiaryContainer
                 )) {
                     Text(
-                        "No vehicle connected. Pair first to enable flashing.",
+                        stringResource(R.string.firmware_no_vehicle),
                         modifier = Modifier.padding(16.dp),
                         color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
@@ -119,7 +121,7 @@ fun FirmwareScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Outlined.Public, null); Spacer(Modifier.size(8.dp))
-                Text("Change region → US (40 km/h)")
+                Text(stringResource(R.string.firmware_change_region_button))
             }
 
             Spacer(Modifier.height(16.dp))
@@ -128,7 +130,7 @@ fun FirmwareScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.size(8.dp))
-                    Text("Loading releases…")
+                    Text(stringResource(R.string.firmware_loading_releases))
                 }
             }
 
@@ -137,13 +139,13 @@ fun FirmwareScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (ui.vcuReleases.isNotEmpty()) {
-                    item { SectionHeader(Icons.Outlined.Build, "VCU firmware") }
+                    item { SectionHeader(Icons.Outlined.Build, stringResource(R.string.firmware_section_vcu)) }
                     items(ui.vcuReleases, key = { it.id }) { rel ->
                         ReleaseRow(rel) { pendingRelease = rel }
                     }
                 }
                 if (ui.mcuReleases.isNotEmpty()) {
-                    item { SectionHeader(Icons.Outlined.Memory, "MCU firmware") }
+                    item { SectionHeader(Icons.Outlined.Memory, stringResource(R.string.firmware_section_mcu)) }
                     items(ui.mcuReleases, key = { it.id }) { rel ->
                         ReleaseRow(rel) { pendingRelease = rel }
                     }
@@ -155,23 +157,27 @@ fun FirmwareScreen(
     pendingRelease?.let { rel ->
         AlertDialog(
             onDismissRequest = { pendingRelease = null },
-            title = { Text("Flash ${rel.target.name} ${rel.version}?") },
+            title = { Text(stringResource(R.string.firmware_flash_dialog_title, rel.target.name, rel.version)) },
             text = {
                 Column {
-                    Text(rel.releaseNotes ?: "No release notes provided.")
+                    Text(rel.releaseNotes ?: stringResource(R.string.firmware_flash_dialog_no_notes))
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Do not power off the scooter during flashing. Battery should be > 50%.",
+                        stringResource(R.string.firmware_flash_dialog_warning),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             },
             confirmButton = {
-                TextButton(onClick = { vm.flash(rel); pendingRelease = null }) { Text("Flash") }
+                TextButton(onClick = { vm.flash(rel); pendingRelease = null }) {
+                    Text(stringResource(R.string.firmware_flash_button))
+                }
             },
             dismissButton = {
-                TextButton(onClick = { pendingRelease = null }) { Text("Cancel") }
+                TextButton(onClick = { pendingRelease = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             }
         )
     }
@@ -179,21 +185,22 @@ fun FirmwareScreen(
     if (confirmRegionChange) {
         AlertDialog(
             onDismissRequest = { confirmRegionChange = false },
-            title = { Text("Change region to US?") },
+            title = { Text(stringResource(R.string.firmware_region_dialog_title)) },
             text = {
                 Text(
-                    "This will rewrite the scooter's serial number to start with 'U' (40 km/h limit). " +
-                            "This is irreversible without an ST-Link memory restore. Make sure VCU/MCU are flashed first.",
+                    stringResource(R.string.firmware_region_dialog_body),
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
             confirmButton = {
                 TextButton(onClick = { vm.changeRegionToUS(); confirmRegionChange = false }) {
-                    Text("Confirm")
+                    Text(stringResource(R.string.action_confirm))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmRegionChange = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmRegionChange = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             }
         )
     }
@@ -212,15 +219,21 @@ private fun FlashStatusCard(ui: FirmwareViewModel.UiState) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             val label = when {
-                progress != null && progress < 1f -> "Downloading… %.0f %%".format(progress * 100)
-                state is FirmwareUpdater.State.Starting -> "Starting flash…"
+                progress != null && progress < 1f ->
+                    stringResource(R.string.firmware_status_downloading, progress * 100)
+                state is FirmwareUpdater.State.Starting ->
+                    stringResource(R.string.firmware_status_starting)
                 state is FirmwareUpdater.State.Uploading ->
-                    "Uploading chunk ${state.sent}/${state.total}"
-                state is FirmwareUpdater.State.Finalising -> "Finalising…"
-                state is FirmwareUpdater.State.Rebooting -> "Rebooting scooter…"
-                state is FirmwareUpdater.State.Done -> "✓ Flash complete"
-                state is FirmwareUpdater.State.Failed -> "✗ ${state.reason}"
-                else -> "…"
+                    stringResource(R.string.firmware_status_uploading, state.sent, state.total)
+                state is FirmwareUpdater.State.Finalising ->
+                    stringResource(R.string.firmware_status_finalising)
+                state is FirmwareUpdater.State.Rebooting ->
+                    stringResource(R.string.firmware_status_rebooting)
+                state is FirmwareUpdater.State.Done ->
+                    stringResource(R.string.firmware_status_done)
+                state is FirmwareUpdater.State.Failed ->
+                    stringResource(R.string.firmware_status_failed, state.reason)
+                else -> stringResource(R.string.firmware_status_idle)
             }
             Text(label, style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
@@ -267,14 +280,25 @@ private fun ReleaseRow(release: FirmwareRelease, onClick: () -> Unit) {
                     release.displayName ?: release.version,
                     fontWeight = FontWeight.SemiBold
                 )
+                val subtitle = release.sizeBytes?.let {
+                    stringResource(
+                        R.string.firmware_release_subtitle_with_size,
+                        release.target.name,
+                        release.version,
+                        it / 1024,
+                    )
+                } ?: stringResource(
+                    R.string.firmware_release_subtitle,
+                    release.target.name,
+                    release.version,
+                )
                 Text(
-                    "${release.target.name} • ${release.version}" +
-                            (release.sizeBytes?.let { " • ${it / 1024} kB" } ?: ""),
+                    subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Button(onClick = onClick) { Text("Flash") }
+            Button(onClick = onClick) { Text(stringResource(R.string.firmware_flash_button)) }
         }
     }
 }

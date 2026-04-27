@@ -157,7 +157,7 @@ fun VehicleScreen(
             Spacer(Modifier.height(24.dp))
 
             // Mode-Switch — registers verified per ZT3 BLE register reference doc.
-            SectionLabel("Modus")
+            SectionLabel(stringResource(R.string.vehicle_section_mode))
             Spacer(Modifier.height(8.dp))
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 RideMode.entries.forEachIndexed { idx, mode ->
@@ -178,7 +178,7 @@ fun VehicleScreen(
             if (state.mode == null) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Lese Modus vom Roller…",
+                    stringResource(R.string.vehicle_reading_mode),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -191,13 +191,18 @@ fun VehicleScreen(
                 selected = state.isLightsOn,
                 onClick = { viewModel.toggleLights() },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text(if (state.isLightsOn) "Licht aus" else "Licht an") },
+                label = {
+                    Text(
+                        if (state.isLightsOn) stringResource(R.string.vehicle_lights_on)
+                        else stringResource(R.string.vehicle_lights_off)
+                    )
+                },
                 leadingIcon = { androidx.compose.material3.Icon(Icons.Outlined.Lightbulb, null) },
             )
 
             Spacer(Modifier.height(20.dp))
 
-            SectionLabel("Quick-Profile")
+            SectionLabel(stringResource(R.string.vehicle_section_quick_profiles))
             Spacer(Modifier.height(8.dp))
 
             // Quick speed-profile actions
@@ -223,7 +228,7 @@ fun VehicleScreen(
                     androidx.compose.material3.Icon(Icons.Outlined.Lock, null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        "Sperren — ${profiles.boot.speedKmh} km/h",
+                        stringResource(R.string.vehicle_lock_button, profiles.boot.speedKmh),
                         fontWeight = FontWeight.SemiBold,
                         style = MaterialTheme.typography.titleMedium
                     )
@@ -248,7 +253,7 @@ fun VehicleScreen(
                     androidx.compose.material3.Icon(Icons.Outlined.RocketLaunch, null, modifier = Modifier.size(22.dp))
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        "Entsperren — ${profiles.unlock.speedKmh} km/h",
+                        stringResource(R.string.vehicle_unlock_button, profiles.unlock.speedKmh),
                         fontWeight = FontWeight.SemiBold,
                         style = MaterialTheme.typography.titleMedium
                     )
@@ -257,7 +262,7 @@ fun VehicleScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            SectionLabel("Live-Daten")
+            SectionLabel(stringResource(R.string.vehicle_section_live))
             Spacer(Modifier.height(8.dp))
 
             // Stat grid (2x2)
@@ -294,13 +299,13 @@ fun VehicleScreen(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatTile(
                     icon = Icons.Outlined.RocketLaunch,
-                    label = "Reichweite",
+                    label = stringResource(R.string.vehicle_range),
                     value = if (state.rangeRemainingKm > 0f) "%.1f km".format(state.rangeRemainingKm) else "—",
                     modifier = Modifier.weight(1f)
                 )
                 StatTile(
                     icon = Icons.Outlined.Speed,
-                    label = "Gesamt",
+                    label = stringResource(R.string.vehicle_total),
                     value = "%.0f km".format(state.odometerKm),
                     modifier = Modifier.weight(1f)
                 )
@@ -420,7 +425,8 @@ private fun LockStatusBanner(
                     ) {
                         androidx.compose.material3.Icon(
                             if (isUnlocked) Icons.Outlined.LockOpen else Icons.Outlined.Lock,
-                            contentDescription = if (isUnlocked) "Sperren" else "Entsperren",
+                            contentDescription = if (isUnlocked) stringResource(R.string.vehicle_lock)
+                                                 else stringResource(R.string.vehicle_unlock),
                             tint = onGradient,
                             modifier = Modifier.size(22.dp)
                         )
@@ -428,14 +434,16 @@ private fun LockStatusBanner(
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            if (isUnlocked) "UNLOCKED" else "LOCKED",
+                            if (isUnlocked) stringResource(R.string.vehicle_lock_state_unlocked)
+                            else stringResource(R.string.vehicle_lock_state_locked),
                             color = onGradient,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 2.sp,
                             style = MaterialTheme.typography.labelLarge,
                         )
                         Text(
-                            if (isUnlocked) "Sport-Modus aktiv" else "Sicherheits-Limit aktiv",
+                            if (isUnlocked) stringResource(R.string.vehicle_lock_subtitle_unlocked)
+                            else stringResource(R.string.vehicle_lock_subtitle_locked),
                             color = onGradient.copy(alpha = 0.8f),
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -450,7 +458,7 @@ private fun LockStatusBanner(
                                 .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
                             Text(
-                                "↻ $countdownText",
+                                stringResource(R.string.vehicle_lock_countdown, countdownText),
                                 color = onGradient,
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Medium
@@ -478,9 +486,12 @@ private fun LockStatusBanner(
                 Spacer(Modifier.height(2.dp))
                 Text(
                     when {
-                        isUnlocked && countdownText != null -> "Auto-Revert in $countdownText"
-                        isUnlocked -> "3× Vol-Down oder Lock-Button zum Sperren"
-                        else -> "3× Vol-Up oder Unlock-Button für $unlockKmh km/h"
+                        isUnlocked && countdownText != null ->
+                            stringResource(R.string.vehicle_lock_hint_auto_revert, countdownText)
+                        isUnlocked ->
+                            stringResource(R.string.vehicle_lock_hint_unlocked)
+                        else ->
+                            stringResource(R.string.vehicle_lock_hint_locked, unlockKmh)
                     },
                     color = onGradient.copy(alpha = 0.65f),
                     style = MaterialTheme.typography.bodySmall
@@ -536,19 +547,22 @@ private fun AccessibilityServiceBanner() {
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Stealth-Unlock inaktiv",
+                    stringResource(R.string.vehicle_a11y_inactive_title),
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     style = MaterialTheme.typography.titleSmall
                 )
                 Text(
-                    "Vol-Down-3× funktioniert erst, wenn der Accessibility-Service in Android-Einstellungen erlaubt ist.",
+                    stringResource(R.string.vehicle_a11y_inactive_body),
                     color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
             Spacer(Modifier.width(8.dp))
             androidx.compose.material3.TextButton(onClick = { AccessibilityHelper.openSettings(ctx) }) {
-                Text("Aktivieren", color = MaterialTheme.colorScheme.onErrorContainer)
+                Text(
+                    stringResource(R.string.vehicle_a11y_enable),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
             }
         }
     }
@@ -569,7 +583,9 @@ private fun QuickProfilesRow(
             FilterChip(
                 selected = isActive,
                 onClick = { onApply(profile) },
-                label = { Text("${profile.label}\n${profile.speedKmh} km/h") },
+                label = {
+                    Text(stringResource(R.string.vehicle_quick_profile_chip, profile.label, profile.speedKmh))
+                },
                 leadingIcon = {
                     androidx.compose.material3.Icon(
                         when (profile.speedKmh) {
@@ -705,11 +721,12 @@ private fun BatteryDetailsCard(
     val bmsKnown = cells.isNotEmpty() || state.batteryVoltage > 0f
     val cellSpread = if (cells.size >= 2) (cells.max() - cells.min()) else 0
     val chargingLabel = when (state.chargingState) {
-        0 -> "Idle"
-        1 -> "Lädt"
-        2 -> "Voll"
-        else -> "Status ${state.chargingState}"
+        0 -> stringResource(R.string.vehicle_battery_charge_idle)
+        1 -> stringResource(R.string.vehicle_battery_charge_charging)
+        2 -> stringResource(R.string.vehicle_battery_charge_full)
+        else -> stringResource(R.string.vehicle_battery_charge_status_other, state.chargingState)
     }
+    val dash = stringResource(R.string.value_unknown_dash)
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
@@ -717,22 +734,53 @@ private fun BatteryDetailsCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Akku — Detail", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                Text(
+                    stringResource(R.string.vehicle_battery_card_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f),
+                )
                 Text("→", style = MaterialTheme.typography.titleSmall)
             }
             Spacer(Modifier.height(8.dp))
-            InfoRow("Spannung", if (state.batteryVoltage > 0f) "%.2f V".format(state.batteryVoltage) else "—")
-            InfoRow("Strom", if (bmsKnown) "%+.2f A".format(state.batteryCurrentA) else "—")
+            InfoRow(
+                stringResource(R.string.vehicle_battery_voltage),
+                if (state.batteryVoltage > 0f) "%.2f V".format(state.batteryVoltage) else dash,
+            )
+            InfoRow(
+                stringResource(R.string.vehicle_battery_current),
+                if (bmsKnown) "%+.2f A".format(state.batteryCurrentA) else dash,
+            )
             if (bmsKnown) {
-                InfoRow("Leistung", "%+.0f W".format(state.batteryVoltage * state.batteryCurrentA))
+                InfoRow(
+                    stringResource(R.string.vehicle_battery_power),
+                    "%+.0f W".format(state.batteryVoltage * state.batteryCurrentA),
+                )
             }
-            InfoRow("Akku-Temp", if (state.batteryTempC != 0f) "%.1f °C".format(state.batteryTempC) else "—")
-            InfoRow("Lade-Status", if (bmsKnown) chargingLabel else "—")
-            InfoRow("Gesundheit", if (bmsKnown) "${state.batteryHealthPercent} %" else "—")
-            InfoRow("Zyklen", if (bmsKnown) state.batteryCycleCount.toString() else "—")
+            InfoRow(
+                stringResource(R.string.vehicle_battery_temp),
+                if (state.batteryTempC != 0f) "%.1f °C".format(state.batteryTempC) else dash,
+            )
+            InfoRow(
+                stringResource(R.string.vehicle_battery_charging_state),
+                if (bmsKnown) chargingLabel else dash,
+            )
+            InfoRow(
+                stringResource(R.string.vehicle_battery_health),
+                if (bmsKnown) "${state.batteryHealthPercent} %" else dash,
+            )
+            InfoRow(
+                stringResource(R.string.vehicle_battery_cycles),
+                if (bmsKnown) state.batteryCycleCount.toString() else dash,
+            )
             if (cells.isNotEmpty()) {
-                InfoRow("Zellen", "${cells.size} × ⌀ %d mV".format(cells.average().toInt()))
-                InfoRow("Spreizung", "$cellSpread mV")
+                InfoRow(
+                    stringResource(R.string.vehicle_battery_cells),
+                    stringResource(R.string.vehicle_battery_cells_template, cells.size, cells.average().toInt()),
+                )
+                InfoRow(
+                    stringResource(R.string.vehicle_battery_spread),
+                    stringResource(R.string.vehicle_battery_spread_template, cellSpread),
+                )
             }
         }
     }
@@ -740,33 +788,39 @@ private fun BatteryDetailsCard(
 
 @Composable
 private fun DiagnosticsTelemetryCard(state: com.celox.segway.core.vehicle.VehicleState) {
+    val dash = stringResource(R.string.value_unknown_dash)
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Motor & Fahrt", style = MaterialTheme.typography.titleSmall)
+            Text(
+                stringResource(R.string.vehicle_motor_card_title),
+                style = MaterialTheme.typography.titleSmall,
+            )
             Spacer(Modifier.height(8.dp))
             InfoRow(
-                "Motor-Temp A",
-                if (state.motorTempAC != 0f) "%.1f °C".format(state.motorTempAC) else "—"
+                stringResource(R.string.vehicle_motor_temp_a),
+                if (state.motorTempAC != 0f) "%.1f °C".format(state.motorTempAC) else dash
             )
             InfoRow(
-                "Motor-Temp B",
-                if (state.motorTempBC != 0f) "%.1f °C".format(state.motorTempBC) else "—"
+                stringResource(R.string.vehicle_motor_temp_b),
+                if (state.motorTempBC != 0f) "%.1f °C".format(state.motorTempBC) else dash
             )
             InfoRow(
-                "Motor-Temp Peak",
-                if (state.motorTempMaxC != 0f) "%.1f °C".format(state.motorTempMaxC) else "—"
+                stringResource(R.string.vehicle_motor_temp_peak),
+                if (state.motorTempMaxC != 0f) "%.1f °C".format(state.motorTempMaxC) else dash
             )
             InfoRow(
-                "MCU-Temp",
-                if (state.mcuTempC != 0f) "%.1f °C".format(state.mcuTempC) else "—"
+                stringResource(R.string.vehicle_mcu_temp),
+                if (state.mcuTempC != 0f) "%.1f °C".format(state.mcuTempC) else dash
             )
-            InfoRow("Trip-Zeit", formatDuration(state.tripDurationSeconds))
-            InfoRow("Total-Laufzeit", formatDuration(state.totalRuntimeSeconds))
-            if (state.errorCode != 0) InfoRow("Fehlercode", "0x%04X".format(state.errorCode))
-            if (state.warnCode != 0) InfoRow("Warncode", "0x%04X".format(state.warnCode))
+            InfoRow(stringResource(R.string.vehicle_trip_time), formatDuration(state.tripDurationSeconds))
+            InfoRow(stringResource(R.string.vehicle_total_runtime), formatDuration(state.totalRuntimeSeconds))
+            if (state.errorCode != 0)
+                InfoRow(stringResource(R.string.vehicle_error_code), "0x%04X".format(state.errorCode))
+            if (state.warnCode != 0)
+                InfoRow(stringResource(R.string.vehicle_warn_code), "0x%04X".format(state.warnCode))
         }
     }
 }

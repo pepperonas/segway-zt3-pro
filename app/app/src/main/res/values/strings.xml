@@ -17,6 +17,9 @@
     <string name="pair_success">Paired</string>
     <string name="pair_failed">Pairing failed</string>
     <string name="pair_press_power">Press the power button on your scooter to wake it up</string>
+    <string name="pair_pairing_address">Pairing %1$s</string>
+    <string name="pair_device_meta">%1$s  •  %2$d dBm</string>
+    <string name="pair_device_meta_with_model">%1$s  •  %2$d dBm  •  model 0x%3$04X</string>
 
     <!-- Vehicle -->
     <string name="vehicle_no_paired">No vehicle paired</string>
@@ -45,6 +48,63 @@
     <string name="vehicle_region">Region</string>
     <string name="vehicle_disconnect">Disconnect</string>
 
+    <!-- Vehicle screen sections / labels -->
+    <string name="vehicle_section_mode">Mode</string>
+    <string name="vehicle_section_quick_profiles">Quick profiles</string>
+    <string name="vehicle_section_live">Live data</string>
+    <string name="vehicle_lights_on">Lights on</string>
+    <string name="vehicle_lights_off">Lights off</string>
+    <string name="vehicle_reading_mode">Reading mode from scooter…</string>
+    <string name="vehicle_lock_button">Lock — %1$d km/h</string>
+    <string name="vehicle_unlock_button">Unlock — %1$d km/h</string>
+    <string name="vehicle_range">Range</string>
+    <string name="vehicle_total">Total</string>
+    <string name="vehicle_quick_profile_chip">%1$s\n%2$d km/h</string>
+
+    <!-- Lock status banner -->
+    <string name="vehicle_lock_state_unlocked">UNLOCKED</string>
+    <string name="vehicle_lock_state_locked">LOCKED</string>
+    <string name="vehicle_lock_subtitle_unlocked">Sport mode active</string>
+    <string name="vehicle_lock_subtitle_locked">Safety limit active</string>
+    <string name="vehicle_lock_hint_auto_revert">Auto-revert in %1$s</string>
+    <string name="vehicle_lock_hint_locked">3× Vol-Up or Unlock-Button for %1$d km/h</string>
+    <string name="vehicle_lock_hint_unlocked">3× Vol-Down or Lock-Button to lock</string>
+    <string name="vehicle_lock_countdown">↻ %1$s</string>
+
+    <!-- Accessibility banner (Vehicle screen) -->
+    <string name="vehicle_a11y_inactive_title">Stealth-Unlock inactive</string>
+    <string name="vehicle_a11y_inactive_body">Vol-Down-3× only works once the Accessibility service is enabled in Android settings.</string>
+    <string name="vehicle_a11y_enable">Enable</string>
+
+    <!-- Battery card on Vehicle screen -->
+    <string name="vehicle_battery_card_title">Battery — Detail</string>
+    <string name="vehicle_battery_voltage">Voltage</string>
+    <string name="vehicle_battery_current">Current</string>
+    <string name="vehicle_battery_power">Power</string>
+    <string name="vehicle_battery_temp">Battery temp</string>
+    <string name="vehicle_battery_charging_state">Charge status</string>
+    <string name="vehicle_battery_health">Health</string>
+    <string name="vehicle_battery_cycles">Cycles</string>
+    <string name="vehicle_battery_cells">Cells</string>
+    <string name="vehicle_battery_cells_template">%1$d × ⌀ %2$d mV</string>
+    <string name="vehicle_battery_spread">Spread</string>
+    <string name="vehicle_battery_spread_template">%1$d mV</string>
+    <string name="vehicle_battery_charge_idle">Idle</string>
+    <string name="vehicle_battery_charge_charging">Charging</string>
+    <string name="vehicle_battery_charge_full">Full</string>
+    <string name="vehicle_battery_charge_status_other">Status %1$d</string>
+
+    <!-- Motor & ride telemetry card -->
+    <string name="vehicle_motor_card_title">Motor &amp; ride</string>
+    <string name="vehicle_motor_temp_a">Motor temp A</string>
+    <string name="vehicle_motor_temp_b">Motor temp B</string>
+    <string name="vehicle_motor_temp_peak">Motor temp peak</string>
+    <string name="vehicle_mcu_temp">MCU temp</string>
+    <string name="vehicle_trip_time">Trip time</string>
+    <string name="vehicle_total_runtime">Total runtime</string>
+    <string name="vehicle_error_code">Error code</string>
+    <string name="vehicle_warn_code">Warning code</string>
+
     <!-- Track -->
     <string name="track_title">Tracks</string>
     <string name="track_start">Start</string>
@@ -54,6 +114,8 @@
     <string name="track_avg_speed">Avg speed</string>
     <string name="track_max_speed">Max speed</string>
     <string name="track_duration">Duration</string>
+    <string name="track_notification_channel">Track recording</string>
+    <string name="track_notification_recording">Recording…</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
@@ -70,6 +132,23 @@
 
     <!-- About -->
     <string name="about_disclaimer">⚠ This is a community-built reimplementation of the Segway Mobility App, not affiliated with Segway-Ninebot. Use at your own risk; tuning your scooter voids warranty and street-legal status. For private property only.</string>
+    <string name="about_version">Version %1$s (%2$d)</string>
+    <string name="about_copyright">© %1$d</string>
+    <string name="about_credits">Open source under MIT. Built on top of the reverse-engineered Ninebot 2nd-gen NinebotCrypto protocol. Crypto primitives derived from the ScooterHacking Utility (SHU) decompile; settings register map extracted from SHU\'s runtime bootstrap.</string>
+
+    <!-- Mine screen -->
+    <string name="mine_speed_profiles_title">Speed profiles</string>
+    <string name="mine_speed_profiles_subtitle">Boot, quick actions, unlock</string>
+    <string name="mine_scooter_settings_title">Scooter settings</string>
+    <string name="mine_scooter_settings_subtitle">Lights, modes, KERS, charge limit, …</string>
+    <string name="mine_garage_title">Garage</string>
+    <string name="mine_garage_subtitle">Manage paired scooters</string>
+    <string name="mine_firmware_title">Firmware</string>
+    <string name="mine_firmware_subtitle">Flash VCU/MCU, change region</string>
+    <string name="mine_airlock_title">AirLock</string>
+    <string name="mine_airlock_subtitle">Auto-unlock by proximity</string>
+    <string name="mine_diagnostics_title">Diagnostics</string>
+    <string name="mine_diagnostics_subtitle">Live BLE log + crash records</string>
 
     <!-- Errors / generic -->
     <string name="error_bluetooth_off">Bluetooth is off</string>
@@ -78,6 +157,11 @@
     <string name="action_retry">Retry</string>
     <string name="action_grant">Grant</string>
     <string name="action_enable">Enable</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_confirm">Confirm</string>
+    <string name="value_unknown_dash">—</string>
 
     <!-- Speed profiles -->
     <string name="profiles_title">Speed profiles</string>
@@ -89,11 +173,180 @@
     <string name="profiles_accessibility">Vol-Down-3× stealth trigger</string>
     <string name="profiles_accessibility_hint">Lets the unlock fire even when the screen is off. Requires Accessibility permission.</string>
     <string name="profiles_auto_revert">Auto-revert after</string>
+    <string name="profiles_auto_revert_value">%1$s: %2$d min</string>
+    <string name="profiles_auto_revert_hint">0 = stays unlocked until you reduce manually</string>
+    <string name="profiles_auto_apply_on_connect">Auto-apply on connect</string>
+    <string name="profiles_auto_apply_on_connect_hint">If on: the boot value is sent ~1.5 s after each connect. Leave OFF if you\'re unsure how the scooter reacts to the command.</string>
+    <string name="profiles_a11y_permission_missing_title">Permission missing</string>
+    <string name="profiles_a11y_permission_missing_body">Tap below to open Android\'s Accessibility settings, then enable \"Segway Mobility\" → Volume-Down trigger.</string>
+    <string name="profiles_a11y_open_settings">Open Accessibility settings</string>
+    <string name="profiles_custom_button_double_tap">Custom-Button double-tap = 22 km/h</string>
+    <string name="profiles_custom_button_double_tap_hint">2× walk button on the scooter (≤ 1.5 s) → boot profile (lock). Polls 0x5A every 250 ms while active.</string>
+
+    <!-- Unlock dialog -->
     <string name="unlock_dialog_title">Unlock %1$d km/h</string>
     <string name="unlock_dialog_pin_label">Enter PIN</string>
+    <string name="unlock_dialog_pin_field">PIN</string>
+    <string name="unlock_dialog_body">Switching to the unlock profile. Make sure you\'re on private property.</string>
     <string name="unlock_apply">Apply</string>
     <string name="unlock_failed">Wrong PIN</string>
     <string name="quick_action_applied">Applied %1$s (%2$d km/h)</string>
+
+    <!-- Battery detail screen -->
+    <string name="battery_detail_title">Battery details</string>
+    <string name="battery_section_soc">State of Charge</string>
+    <string name="battery_section_live_power">Live power</string>
+    <string name="battery_section_range">Range estimation</string>
+    <string name="battery_section_temperature">Pack temperature</string>
+    <string name="battery_section_cells">Cells (%1$dS)</string>
+    <string name="battery_section_firmware">Firmware</string>
+    <string name="battery_label_battery">Battery</string>
+    <string name="battery_label_health">State of Health</string>
+    <string name="battery_label_cycles">Cycle count</string>
+    <string name="battery_label_max_charge_limit">Max charge limit</string>
+    <string name="battery_label_voltage">Voltage</string>
+    <string name="battery_label_current">Current</string>
+    <string name="battery_label_power">Power</string>
+    <string name="battery_label_mode">Mode</string>
+    <string name="battery_label_remaining">Remaining (live)</string>
+    <string name="battery_label_range_full">Range @ full battery (extrapolated)</string>
+    <string name="battery_label_temp">Battery temp</string>
+    <string name="battery_label_min">Min</string>
+    <string name="battery_label_max">Max</string>
+    <string name="battery_label_diff">Diff</string>
+    <string name="battery_cell_label">Cell %1$02d</string>
+    <string name="battery_mode_charging">Charging</string>
+    <string name="battery_mode_full">Fully charged</string>
+    <string name="battery_mode_discharging">Discharging</string>
+    <string name="battery_mode_idle">Idle</string>
+
+    <!-- Garage -->
+    <string name="garage_title">Garage</string>
+    <string name="garage_add_scooter">Add scooter</string>
+    <string name="garage_empty_title">No scooters paired yet</string>
+    <string name="garage_empty_body">Tap the + button to scan and pair your ZT3 Pro.</string>
+    <string name="garage_rename_title">Rename</string>
+    <string name="garage_rename_field">Display name</string>
+    <string name="garage_unpair_title">Unpair %1$s?</string>
+    <string name="garage_unpair_body">This deletes the stored pairing tokens; you\'ll need a fresh handshake to reconnect.</string>
+    <string name="garage_unpair_confirm">Unpair</string>
+
+    <!-- Firmware -->
+    <string name="firmware_title">Firmware</string>
+    <string name="firmware_error_tip">Tip: enable VPN outside the EU, then refresh.</string>
+    <string name="firmware_no_vehicle">No vehicle connected. Pair first to enable flashing.</string>
+    <string name="firmware_change_region_button">Change region → US (40 km/h)</string>
+    <string name="firmware_loading_releases">Loading releases…</string>
+    <string name="firmware_section_vcu">VCU firmware</string>
+    <string name="firmware_section_mcu">MCU firmware</string>
+    <string name="firmware_flash_button">Flash</string>
+    <string name="firmware_flash_dialog_title">Flash %1$s %2$s?</string>
+    <string name="firmware_flash_dialog_no_notes">No release notes provided.</string>
+    <string name="firmware_flash_dialog_warning">Do not power off the scooter during flashing. Battery should be > 50%.</string>
+    <string name="firmware_region_dialog_title">Change region to US?</string>
+    <string name="firmware_region_dialog_body">This will rewrite the scooter\'s serial number to start with \'U\' (40 km/h limit). This is irreversible without an ST-Link memory restore. Make sure VCU/MCU are flashed first.</string>
+    <string name="firmware_status_downloading">Downloading… %1$.0f %%</string>
+    <string name="firmware_status_starting">Starting flash…</string>
+    <string name="firmware_status_uploading">Uploading chunk %1$d/%2$d</string>
+    <string name="firmware_status_finalising">Finalising…</string>
+    <string name="firmware_status_rebooting">Rebooting scooter…</string>
+    <string name="firmware_status_done">✓ Flash complete</string>
+    <string name="firmware_status_failed">✗ %1$s</string>
+    <string name="firmware_status_idle">…</string>
+    <string name="firmware_release_subtitle">%1$s • %2$s</string>
+    <string name="firmware_release_subtitle_with_size">%1$s • %2$s • %3$d kB</string>
+
+    <!-- Diagnostics -->
+    <string name="diag_title">Diagnostics</string>
+    <string name="diag_share_subject">Segway-Reborn BLE log</string>
+    <string name="diag_share_chooser">Share log</string>
+    <string name="diag_action_status">Status</string>
+    <string name="diag_action_fw">FW</string>
+    <string name="diag_action_blackbox">Black-Box</string>
+    <string name="diag_action_sweep">Sweep</string>
+    <string name="diag_action_button_hunt">Btn-Hunt</string>
+    <string name="diag_action_set_speed">→ %1$d km/h</string>
+    <string name="diag_action_lock">Lock</string>
+    <string name="diag_action_unlock">Unlock</string>
+    <string name="diag_hunt_phase_1">📸 Sweep A running — do NOT press</string>
+    <string name="diag_hunt_phase_2">▶ PRESS BUTTON NOW AND HOLD</string>
+    <string name="diag_hunt_phase_3">📸 Sweep B running — keep holding the button</string>
+    <string name="diag_hunt_phase_4">✓ Done — see DIFF lines below</string>
+    <string name="diag_blackbox_title">Black-Box (last 64 bytes from 0xF0)</string>
+    <string name="diag_blackbox_last_error">Last error code: 0x%1$02X</string>
+    <string name="diag_log_empty">Empty log. Connect a vehicle to populate.</string>
+    <string name="diag_toast_sweep_started">Sweep started — please wait ~30 s</string>
+    <string name="diag_toast_sweep_done">✓ Sweep finished</string>
+
+    <!-- AirLock -->
+    <string name="airlock_title">AirLock</string>
+    <string name="airlock_intro">AirLock unlocks your scooter automatically when you walk close enough. The threshold below sets how close you need to be.</string>
+    <string name="airlock_enable">Enable AirLock</string>
+    <string name="airlock_threshold_label">Sensitivity (RSSI threshold): %1$d dBm</string>
+    <string name="airlock_threshold_legend">  -90 dBm = far (≈ 10 m)   |   -40 dBm = touching</string>
+
+    <!-- Scooter settings (writes to scooter) -->
+    <string name="scooter_settings_title">Scooter settings</string>
+    <string name="scooter_settings_offline_warning">Scooter not connected — values are from the last cache.</string>
+    <string name="scooter_settings_section_general">General</string>
+    <string name="scooter_settings_section_modes">Unlock modes</string>
+    <string name="scooter_settings_section_lights">Lights</string>
+    <string name="scooter_settings_section_folding">Folding</string>
+    <string name="scooter_settings_section_riding">Ride behaviour</string>
+    <string name="scooter_settings_section_battery">Battery</string>
+    <string name="scooter_settings_section_custom_button">Custom button</string>
+
+    <!-- Scooter settings — toggle labels -->
+    <string name="scooter_settings_traction_control">Traction control</string>
+    <string name="scooter_settings_imperial_units">Imperial units (mph)</string>
+    <string name="scooter_settings_park_on_slope">Park on slope (Hill-Hold / Hold Descent)</string>
+    <string name="scooter_settings_boost_mode">Boost mode</string>
+    <string name="scooter_settings_indicator_sound">Indicator sound</string>
+    <string name="scooter_settings_app_function_tone">App function tone</string>
+    <string name="scooter_settings_alarm">Alarm</string>
+    <string name="scooter_settings_walk_mode">Walk mode</string>
+    <string name="scooter_settings_drive_mode">Drive mode</string>
+    <string name="scooter_settings_sports_mode">Sports mode</string>
+    <string name="scooter_settings_auto_headlight">Auto headlight (light sensor)</string>
+    <string name="scooter_settings_front_position_lamp">Front position lamp</string>
+    <string name="scooter_settings_underglow_lights">Underglow lights</string>
+    <string name="scooter_settings_breathing_taillight">Breathing charging taillight</string>
+    <string name="scooter_settings_taillight_mode">Taillight mode</string>
+    <string name="scooter_settings_taillight_brighter">Brighter when braking</string>
+    <string name="scooter_settings_taillight_blinking">Blinking when braking</string>
+    <string name="scooter_settings_power_off_folding">Power off on folding</string>
+    <string name="scooter_settings_disable_alarm_folding">Disable alarm on folding</string>
+    <string name="scooter_settings_start_speed">Start speed</string>
+    <string name="scooter_settings_auto_shutdown">Auto shutdown after</string>
+    <string name="scooter_settings_acceleration">Acceleration</string>
+    <string name="scooter_settings_acceleration_eco">Energy saving</string>
+    <string name="scooter_settings_acceleration_standard">Standard</string>
+    <string name="scooter_settings_acceleration_max">Maximum speed</string>
+    <string name="scooter_settings_kers">KERS / regenerative braking</string>
+    <string name="scooter_settings_kers_off">Off</string>
+    <string name="scooter_settings_kers_weak">Weak</string>
+    <string name="scooter_settings_kers_standard">Standard</string>
+    <string name="scooter_settings_kers_hint">Sets how strongly the motor brakes when you let off the throttle (energy recuperation).</string>
+    <string name="scooter_settings_max_charge_limit">Max charge limit</string>
+    <string name="scooter_settings_charge_limit_hint">A lower limit is gentler on the cells but costs range.</string>
+    <string name="scooter_settings_custom_button_intro">Action when tapping the custom button (walk button) on the handlebar.</string>
+    <string name="scooter_settings_custom_button_action">Action</string>
+    <string name="scooter_settings_custom_button_off">Disabled</string>
+    <string name="scooter_settings_custom_button_park_toggle">Toggle park mode</string>
+    <string name="scooter_settings_custom_button_hill_hold_toggle">Toggle auto hill-hold</string>
+    <string name="scooter_settings_custom_button_walk_toggle">Toggle walk mode</string>
+    <string name="scooter_settings_custom_button_kers_cycle">Cycle KERS level</string>
+    <string name="scooter_settings_custom_button_hazards">Hazard lights</string>
+    <string name="scooter_settings_custom_button_doubletap_hint">Note: while the app\'s "Double-tap = 22 km/h" lock is active, the scooter forces this action to "Toggle walk mode" so the watcher can detect taps. Choose another action only if you turn the double-tap feature off in Speed profiles.</string>
+    <string name="scooter_settings_unknown_value">Unknown (%1$d)</string>
+
+    <!-- Slider unit suffixes -->
+    <string name="unit_kmh">km/h</string>
+    <string name="unit_mph">mph</string>
+    <string name="unit_min">min</string>
+    <string name="unit_percent">%</string>
+    <string name="unit_value_with_suffix">%1$d %2$s</string>
+    <string name="unit_kmh_label">km/h</string>
 
     <!-- Accessibility -->
     <string name="accessibility_description">Listens for the Volume-Down-3x stealth gesture. Does not read screen content.</string>

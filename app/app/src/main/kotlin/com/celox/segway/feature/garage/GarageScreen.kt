@@ -38,10 +38,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.celox.segway.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,7 +59,7 @@ fun GarageScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Garage") },
+                title = { Text(stringResource(R.string.garage_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, null) }
                 }
@@ -67,7 +69,7 @@ fun GarageScreen(
             ExtendedFloatingActionButton(
                 onClick = onPairClick,
                 icon = { Icon(Icons.Outlined.ElectricMoped, null) },
-                text = { Text("Add scooter") }
+                text = { Text(stringResource(R.string.garage_add_scooter)) }
             )
         }
     ) { padding ->
@@ -94,22 +96,24 @@ fun GarageScreen(
         var name by remember { mutableStateOf(entry.displayName) }
         AlertDialog(
             onDismissRequest = { renameTarget = null },
-            title = { Text("Rename") },
+            title = { Text(stringResource(R.string.garage_rename_title)) },
             text = {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Display name") },
+                    label = { Text(stringResource(R.string.garage_rename_field)) },
                     singleLine = true,
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     vm.rename(entry.mac, name); renameTarget = null
-                }) { Text("Save") }
+                }) { Text(stringResource(R.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { renameTarget = null }) { Text("Cancel") }
+                TextButton(onClick = { renameTarget = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             }
         )
     }
@@ -117,13 +121,17 @@ fun GarageScreen(
     deleteTarget?.let { entry ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text("Unpair ${entry.displayName}?") },
-            text = { Text("This deletes the stored pairing tokens; you'll need a fresh handshake to reconnect.") },
+            title = { Text(stringResource(R.string.garage_unpair_title, entry.displayName)) },
+            text = { Text(stringResource(R.string.garage_unpair_body)) },
             confirmButton = {
-                TextButton(onClick = { vm.unpair(entry.mac); deleteTarget = null }) { Text("Unpair") }
+                TextButton(onClick = { vm.unpair(entry.mac); deleteTarget = null }) {
+                    Text(stringResource(R.string.garage_unpair_confirm))
+                }
             },
             dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("Cancel") }
+                TextButton(onClick = { deleteTarget = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             }
         )
     }
@@ -140,10 +148,10 @@ private fun EmptyState(onPairClick: () -> Unit, modifier: Modifier = Modifier) {
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.size(16.dp))
-            Text("No scooters paired yet", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.garage_empty_title), style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.size(8.dp))
             Text(
-                "Tap the + button to scan and pair your ZT3 Pro.",
+                stringResource(R.string.garage_empty_body),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

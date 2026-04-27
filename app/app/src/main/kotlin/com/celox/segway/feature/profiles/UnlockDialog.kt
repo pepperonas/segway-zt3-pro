@@ -16,9 +16,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.celox.segway.R
 
 @Composable
 fun UnlockDialog(
@@ -31,11 +33,11 @@ fun UnlockDialog(
     var pin by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Unlock $targetSpeedKmh km/h") },
+        title = { Text(stringResource(R.string.unlock_dialog_title, targetSpeedKmh)) },
         text = {
             Column {
                 Text(
-                    "Switching to the unlock profile. Make sure you're on private property.",
+                    stringResource(R.string.unlock_dialog_body),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 if (pinRequired) {
@@ -43,24 +45,29 @@ fun UnlockDialog(
                     OutlinedTextField(
                         value = pin,
                         onValueChange = { pin = it.filter { c -> c.isDigit() }.take(8) },
-                        label = { Text("PIN") },
+                        label = { Text(stringResource(R.string.unlock_dialog_pin_field)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                         visualTransformation = PasswordVisualTransformation(),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         isError = showError,
-                        supportingText = if (showError) { { Text("Wrong PIN", color = MaterialTheme.colorScheme.error) } } else null
+                        supportingText = if (showError) { {
+                            Text(
+                                stringResource(R.string.unlock_failed),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        } } else null
                     )
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(if (pinRequired) pin else null) }) {
-                Text("Apply")
+                Text(stringResource(R.string.action_apply))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }

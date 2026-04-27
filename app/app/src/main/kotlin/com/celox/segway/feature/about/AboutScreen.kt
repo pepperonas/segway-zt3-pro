@@ -70,7 +70,11 @@ fun AboutScreen(onBack: () -> Unit) {
                 style = MaterialTheme.typography.headlineSmall,
             )
             Text(
-                "Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                stringResource(
+                    R.string.about_version,
+                    BuildConfig.VERSION_NAME,
+                    BuildConfig.VERSION_CODE,
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -99,7 +103,7 @@ fun AboutScreen(onBack: () -> Unit) {
                                 fontWeight = FontWeight.SemiBold,
                             )
                             Text(
-                                "© $year",
+                                stringResource(R.string.about_copyright, year),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -128,10 +132,7 @@ fun AboutScreen(onBack: () -> Unit) {
             )
             Spacer(Modifier.height(24.dp))
             Text(
-                "Open source under MIT. Built on top of the reverse-engineered " +
-                    "Ninebot 2nd-gen NinebotCrypto protocol. Crypto primitives derived " +
-                    "from the ScooterHacking Utility (SHU) decompile; settings register " +
-                    "map extracted from SHU's runtime bootstrap.",
+                stringResource(R.string.about_credits),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

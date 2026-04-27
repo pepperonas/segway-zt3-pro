@@ -108,7 +108,11 @@ class TrackRecordingService : Service() {
     private fun ensureChannel() {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Track recording", NotificationManager.IMPORTANCE_LOW)
+            NotificationChannel(
+                CHANNEL_ID,
+                getString(R.string.track_notification_channel),
+                NotificationManager.IMPORTANCE_LOW,
+            )
         )
     }
 
@@ -119,7 +123,7 @@ class TrackRecordingService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.track_title))
-            .setContentText("Recording…")
+            .setContentText(getString(R.string.track_notification_recording))
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setContentIntent(pi)
             .setOngoing(true)

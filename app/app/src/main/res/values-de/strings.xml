@@ -1,0 +1,353 @@
+<resources>
+    <string name="app_name">zt3-fxx</string>
+    <string name="app_short_name">zt3-fxx</string>
+
+    <!-- Bottom nav -->
+    <string name="nav_vehicle">Roller</string>
+    <string name="nav_track">Touren</string>
+    <string name="nav_mine">Mein</string>
+
+    <!-- Pair flow -->
+    <string name="pair_title">Roller koppeln</string>
+    <string name="pair_no_devices">Noch keine Geräte — zum Scannen ziehen</string>
+    <string name="pair_scanning">Suche…</string>
+    <string name="pair_connect">Verbinden</string>
+    <string name="pair_connecting">Verbinde…</string>
+    <string name="pair_handshake">Sicherer Handshake (ECDH)…</string>
+    <string name="pair_success">Gekoppelt</string>
+    <string name="pair_failed">Kopplung fehlgeschlagen</string>
+    <string name="pair_press_power">Drücke den Power-Knopf am Roller, um ihn aufzuwecken</string>
+    <string name="pair_pairing_address">Koppelt %1$s</string>
+    <string name="pair_device_meta">%1$s  •  %2$d dBm</string>
+    <string name="pair_device_meta_with_model">%1$s  •  %2$d dBm  •  Modell 0x%3$04X</string>
+
+    <!-- Vehicle -->
+    <string name="vehicle_no_paired">Kein Roller gekoppelt</string>
+    <string name="vehicle_pair_now">Jetzt koppeln</string>
+    <string name="vehicle_offline_title">Roller offline</string>
+    <string name="vehicle_offline_subtitle">Drücke den Power-Knopf am Roller, um ihn aufzuwecken</string>
+    <string name="vehicle_handshaking">Verbindung wird gesichert…</string>
+    <string name="vehicle_retry">Erneut versuchen</string>
+    <string name="vehicle_lock">Sperren</string>
+    <string name="vehicle_unlock">Entsperren</string>
+    <string name="vehicle_lights">Licht</string>
+    <string name="vehicle_cruise">Cruise</string>
+    <string name="vehicle_mode_walk">Schieben</string>
+    <string name="vehicle_mode_eco">Eco</string>
+    <string name="vehicle_mode_drive">Drive</string>
+    <string name="vehicle_mode_sport">Sport</string>
+    <string name="vehicle_battery">Akku</string>
+    <string name="vehicle_speed">Tempo</string>
+    <string name="vehicle_temperature">Temp</string>
+    <string name="vehicle_odometer">Gesamt km</string>
+    <string name="vehicle_trip">Fahrt</string>
+    <string name="vehicle_firmware_vcu">VCU FW</string>
+    <string name="vehicle_firmware_mcu">MCU FW</string>
+    <string name="vehicle_firmware_ble">BLE FW</string>
+    <string name="vehicle_serial">Seriennummer</string>
+    <string name="vehicle_region">Region</string>
+    <string name="vehicle_disconnect">Trennen</string>
+
+    <!-- Vehicle screen sections / labels -->
+    <string name="vehicle_section_mode">Modus</string>
+    <string name="vehicle_section_quick_profiles">Quick-Profile</string>
+    <string name="vehicle_section_live">Live-Daten</string>
+    <string name="vehicle_lights_on">Licht aus</string>
+    <string name="vehicle_lights_off">Licht an</string>
+    <string name="vehicle_reading_mode">Lese Modus vom Roller…</string>
+    <string name="vehicle_lock_button">Sperren — %1$d km/h</string>
+    <string name="vehicle_unlock_button">Entsperren — %1$d km/h</string>
+    <string name="vehicle_range">Reichweite</string>
+    <string name="vehicle_total">Gesamt</string>
+    <string name="vehicle_quick_profile_chip">%1$s\n%2$d km/h</string>
+
+    <!-- Lock status banner -->
+    <string name="vehicle_lock_state_unlocked">UNLOCKED</string>
+    <string name="vehicle_lock_state_locked">LOCKED</string>
+    <string name="vehicle_lock_subtitle_unlocked">Sport-Modus aktiv</string>
+    <string name="vehicle_lock_subtitle_locked">Sicherheits-Limit aktiv</string>
+    <string name="vehicle_lock_hint_auto_revert">Auto-Revert in %1$s</string>
+    <string name="vehicle_lock_hint_locked">3× Vol-Up oder Unlock-Button für %1$d km/h</string>
+    <string name="vehicle_lock_hint_unlocked">3× Vol-Down oder Lock-Button zum Sperren</string>
+    <string name="vehicle_lock_countdown">↻ %1$s</string>
+
+    <!-- Accessibility banner (Vehicle screen) -->
+    <string name="vehicle_a11y_inactive_title">Stealth-Unlock inaktiv</string>
+    <string name="vehicle_a11y_inactive_body">Vol-Down-3× funktioniert erst, wenn der Accessibility-Service in Android-Einstellungen erlaubt ist.</string>
+    <string name="vehicle_a11y_enable">Aktivieren</string>
+
+    <!-- Battery card on Vehicle screen -->
+    <string name="vehicle_battery_card_title">Akku — Detail</string>
+    <string name="vehicle_battery_voltage">Spannung</string>
+    <string name="vehicle_battery_current">Strom</string>
+    <string name="vehicle_battery_power">Leistung</string>
+    <string name="vehicle_battery_temp">Akku-Temp</string>
+    <string name="vehicle_battery_charging_state">Lade-Status</string>
+    <string name="vehicle_battery_health">Gesundheit</string>
+    <string name="vehicle_battery_cycles">Zyklen</string>
+    <string name="vehicle_battery_cells">Zellen</string>
+    <string name="vehicle_battery_cells_template">%1$d × ⌀ %2$d mV</string>
+    <string name="vehicle_battery_spread">Spreizung</string>
+    <string name="vehicle_battery_spread_template">%1$d mV</string>
+    <string name="vehicle_battery_charge_idle">Leerlauf</string>
+    <string name="vehicle_battery_charge_charging">Lädt</string>
+    <string name="vehicle_battery_charge_full">Voll</string>
+    <string name="vehicle_battery_charge_status_other">Status %1$d</string>
+
+    <!-- Motor & ride telemetry card -->
+    <string name="vehicle_motor_card_title">Motor &amp; Fahrt</string>
+    <string name="vehicle_motor_temp_a">Motor-Temp A</string>
+    <string name="vehicle_motor_temp_b">Motor-Temp B</string>
+    <string name="vehicle_motor_temp_peak">Motor-Temp Peak</string>
+    <string name="vehicle_mcu_temp">MCU-Temp</string>
+    <string name="vehicle_trip_time">Trip-Zeit</string>
+    <string name="vehicle_total_runtime">Total-Laufzeit</string>
+    <string name="vehicle_error_code">Fehlercode</string>
+    <string name="vehicle_warn_code">Warncode</string>
+
+    <!-- Track -->
+    <string name="track_title">Touren</string>
+    <string name="track_start">Start</string>
+    <string name="track_stop">Stopp</string>
+    <string name="track_empty">Noch keine Touren aufgezeichnet</string>
+    <string name="track_distance">Strecke</string>
+    <string name="track_avg_speed">Ø-Tempo</string>
+    <string name="track_max_speed">Max-Tempo</string>
+    <string name="track_duration">Dauer</string>
+    <string name="track_notification_channel">Tour-Aufzeichnung</string>
+    <string name="track_notification_recording">Zeichnet auf…</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_units">Einheiten</string>
+    <string name="settings_units_metric">Metrisch (km/h)</string>
+    <string name="settings_units_imperial">Imperial (mph)</string>
+    <string name="settings_theme">Design</string>
+    <string name="settings_theme_system">System folgen</string>
+    <string name="settings_theme_light">Hell</string>
+    <string name="settings_theme_dark">Dunkel</string>
+    <string name="settings_dynamic_color">Dynamische Farben (Android 12+)</string>
+    <string name="settings_keep_screen_on">Bildschirm anlassen wenn verbunden</string>
+    <string name="settings_about">Über</string>
+
+    <!-- About -->
+    <string name="about_disclaimer">⚠ Dies ist eine community-gebaute Reimplementierung der Segway Mobility App, ohne Verbindung zu Segway-Ninebot. Nutzung auf eigene Gefahr; das Tunen deines Rollers macht Garantie und Straßenzulassung ungültig. Nur für Privatgelände.</string>
+    <string name="about_version">Version %1$s (%2$d)</string>
+    <string name="about_copyright">© %1$d</string>
+    <string name="about_credits">Open Source unter MIT-Lizenz. Aufbauend auf dem reverse-engineerten Ninebot-2nd-gen-NinebotCrypto-Protokoll. Crypto-Primitive aus dem ScooterHacking-Utility-(SHU)-Decompile abgeleitet; Settings-Register-Map aus SHUs Runtime-Bootstrap extrahiert.</string>
+
+    <!-- Mine screen -->
+    <string name="mine_speed_profiles_title">Speed-Profile</string>
+    <string name="mine_speed_profiles_subtitle">Boot, Quick-Actions, Unlock</string>
+    <string name="mine_scooter_settings_title">Roller-Einstellungen</string>
+    <string name="mine_scooter_settings_subtitle">Lichter, Modi, KERS, Akku-Limit, …</string>
+    <string name="mine_garage_title">Garage</string>
+    <string name="mine_garage_subtitle">Gekoppelte Roller verwalten</string>
+    <string name="mine_firmware_title">Firmware</string>
+    <string name="mine_firmware_subtitle">VCU/MCU flashen, Region wechseln</string>
+    <string name="mine_airlock_title">AirLock</string>
+    <string name="mine_airlock_subtitle">Auto-Entsperren bei Annäherung</string>
+    <string name="mine_diagnostics_title">Diagnose</string>
+    <string name="mine_diagnostics_subtitle">Live-BLE-Log + Crash-Aufzeichnungen</string>
+
+    <!-- Errors / generic -->
+    <string name="error_bluetooth_off">Bluetooth ist aus</string>
+    <string name="error_permissions">Fehlende Berechtigungen</string>
+    <string name="error_generic">Etwas ist schiefgelaufen</string>
+    <string name="action_retry">Erneut versuchen</string>
+    <string name="action_grant">Erlauben</string>
+    <string name="action_enable">Aktivieren</string>
+    <string name="action_apply">Anwenden</string>
+    <string name="action_cancel">Abbrechen</string>
+    <string name="action_save">Speichern</string>
+    <string name="action_confirm">Bestätigen</string>
+    <string name="value_unknown_dash">—</string>
+
+    <!-- Speed profiles -->
+    <string name="profiles_title">Speed-Profile</string>
+    <string name="profiles_boot">Boot-Standard</string>
+    <string name="profiles_quick">Quick-Actions</string>
+    <string name="profiles_unlock">Unlock-Profil</string>
+    <string name="profiles_pin">PIN</string>
+    <string name="profiles_pin_hint">Leer = keine PIN (empfohlen für Stealth-Nutzung)</string>
+    <string name="profiles_accessibility">Vol-Down-3× Stealth-Trigger</string>
+    <string name="profiles_accessibility_hint">Lässt das Unlock auch bei ausgeschaltetem Bildschirm auslösen. Benötigt Accessibility-Berechtigung.</string>
+    <string name="profiles_auto_revert">Auto-Revert nach</string>
+    <string name="profiles_auto_revert_value">%1$s: %2$d min</string>
+    <string name="profiles_auto_revert_hint">0 = bleibt entsperrt, bis du manuell drosselst</string>
+    <string name="profiles_auto_apply_on_connect">Beim Verbinden automatisch anwenden</string>
+    <string name="profiles_auto_apply_on_connect_hint">Wenn an: der Boot-Wert wird ~1,5 s nach jeder Verbindung gesendet. AUS lassen, wenn unklar ist, wie der Roller auf den Befehl reagiert.</string>
+    <string name="profiles_a11y_permission_missing_title">Berechtigung fehlt</string>
+    <string name="profiles_a11y_permission_missing_body">Tippe unten, um Androids Accessibility-Einstellungen zu öffnen, dann \"Segway Mobility\" → Volume-Down-Trigger aktivieren.</string>
+    <string name="profiles_a11y_open_settings">Accessibility-Einstellungen öffnen</string>
+    <string name="profiles_custom_button_double_tap">Custom-Button doppel-Tap = 22 km/h</string>
+    <string name="profiles_custom_button_double_tap_hint">2× Walk-Knopf am Roller (≤ 1,5 s) → Boot-Profile (Lock). Pollt 0x5A alle 250 ms während aktiv.</string>
+
+    <!-- Unlock dialog -->
+    <string name="unlock_dialog_title">Entsperren %1$d km/h</string>
+    <string name="unlock_dialog_pin_label">PIN eingeben</string>
+    <string name="unlock_dialog_pin_field">PIN</string>
+    <string name="unlock_dialog_body">Wechsel zum Unlock-Profil. Stelle sicher, dass du auf Privatgelände bist.</string>
+    <string name="unlock_apply">Anwenden</string>
+    <string name="unlock_failed">Falsche PIN</string>
+    <string name="quick_action_applied">%1$s angewendet (%2$d km/h)</string>
+
+    <!-- Battery detail screen -->
+    <string name="battery_detail_title">Akku-Details</string>
+    <string name="battery_section_soc">Ladezustand</string>
+    <string name="battery_section_live_power">Live-Leistung</string>
+    <string name="battery_section_range">Reichweiten-Schätzung</string>
+    <string name="battery_section_temperature">Pack-Temperatur</string>
+    <string name="battery_section_cells">Zellen (%1$dS)</string>
+    <string name="battery_section_firmware">Firmware</string>
+    <string name="battery_label_battery">Akku</string>
+    <string name="battery_label_health">Gesundheit</string>
+    <string name="battery_label_cycles">Ladezyklen</string>
+    <string name="battery_label_max_charge_limit">Max. Ladegrenze</string>
+    <string name="battery_label_voltage">Spannung</string>
+    <string name="battery_label_current">Strom</string>
+    <string name="battery_label_power">Leistung</string>
+    <string name="battery_label_mode">Modus</string>
+    <string name="battery_label_remaining">Restreichweite (live)</string>
+    <string name="battery_label_range_full">Reichweite bei vollem Akku (extrapoliert)</string>
+    <string name="battery_label_temp">Akku-Temp</string>
+    <string name="battery_label_min">Min</string>
+    <string name="battery_label_max">Max</string>
+    <string name="battery_label_diff">Differenz</string>
+    <string name="battery_cell_label">Zelle %1$02d</string>
+    <string name="battery_mode_charging">Lädt</string>
+    <string name="battery_mode_full">Voll geladen</string>
+    <string name="battery_mode_discharging">Entlädt</string>
+    <string name="battery_mode_idle">Leerlauf</string>
+
+    <!-- Garage -->
+    <string name="garage_title">Garage</string>
+    <string name="garage_add_scooter">Roller hinzufügen</string>
+    <string name="garage_empty_title">Noch keine Roller gekoppelt</string>
+    <string name="garage_empty_body">Tippe auf den +-Knopf, um deinen ZT3 Pro zu scannen und zu koppeln.</string>
+    <string name="garage_rename_title">Umbenennen</string>
+    <string name="garage_rename_field">Anzeigename</string>
+    <string name="garage_unpair_title">%1$s entkoppeln?</string>
+    <string name="garage_unpair_body">Damit werden die gespeicherten Pairing-Tokens gelöscht; für eine erneute Verbindung ist ein frischer Handshake nötig.</string>
+    <string name="garage_unpair_confirm">Entkoppeln</string>
+
+    <!-- Firmware -->
+    <string name="firmware_title">Firmware</string>
+    <string name="firmware_error_tip">Tipp: außerhalb der EU VPN aktivieren, dann neu laden.</string>
+    <string name="firmware_no_vehicle">Kein Roller verbunden. Erst koppeln, um Flashen zu aktivieren.</string>
+    <string name="firmware_change_region_button">Region wechseln → US (40 km/h)</string>
+    <string name="firmware_loading_releases">Lade Releases…</string>
+    <string name="firmware_section_vcu">VCU-Firmware</string>
+    <string name="firmware_section_mcu">MCU-Firmware</string>
+    <string name="firmware_flash_button">Flashen</string>
+    <string name="firmware_flash_dialog_title">%1$s %2$s flashen?</string>
+    <string name="firmware_flash_dialog_no_notes">Keine Release-Notes vorhanden.</string>
+    <string name="firmware_flash_dialog_warning">Roller während des Flashens nicht ausschalten. Akku sollte > 50 % sein.</string>
+    <string name="firmware_region_dialog_title">Region auf US wechseln?</string>
+    <string name="firmware_region_dialog_body">Damit wird die Seriennummer des Rollers überschrieben, sodass sie mit \'U\' beginnt (40 km/h Limit). Das ist ohne ST-Link-Memory-Restore unumkehrbar. Stelle sicher, dass VCU/MCU vorher geflasht sind.</string>
+    <string name="firmware_status_downloading">Lade herunter… %1$.0f %%</string>
+    <string name="firmware_status_starting">Starte Flash…</string>
+    <string name="firmware_status_uploading">Lade Chunk %1$d/%2$d hoch</string>
+    <string name="firmware_status_finalising">Finalisiere…</string>
+    <string name="firmware_status_rebooting">Roller startet neu…</string>
+    <string name="firmware_status_done">✓ Flash abgeschlossen</string>
+    <string name="firmware_status_failed">✗ %1$s</string>
+    <string name="firmware_status_idle">…</string>
+    <string name="firmware_release_subtitle">%1$s • %2$s</string>
+    <string name="firmware_release_subtitle_with_size">%1$s • %2$s • %3$d kB</string>
+
+    <!-- Diagnostics -->
+    <string name="diag_title">Diagnose</string>
+    <string name="diag_share_subject">Segway-Reborn BLE-Log</string>
+    <string name="diag_share_chooser">Log teilen</string>
+    <string name="diag_action_status">Status</string>
+    <string name="diag_action_fw">FW</string>
+    <string name="diag_action_blackbox">Black-Box</string>
+    <string name="diag_action_sweep">Sweep</string>
+    <string name="diag_action_button_hunt">Btn-Hunt</string>
+    <string name="diag_action_set_speed">→ %1$d km/h</string>
+    <string name="diag_action_lock">Lock</string>
+    <string name="diag_action_unlock">Unlock</string>
+    <string name="diag_hunt_phase_1">📸 Sweep A läuft — NICHT drücken</string>
+    <string name="diag_hunt_phase_2">▶ JETZT BUTTON DRÜCKEN UND HALTEN</string>
+    <string name="diag_hunt_phase_3">📸 Sweep B läuft — Button noch halten</string>
+    <string name="diag_hunt_phase_4">✓ Fertig — siehe DIFF-Zeilen unten</string>
+    <string name="diag_blackbox_title">Black-Box (letzte 64 Bytes von 0xF0)</string>
+    <string name="diag_blackbox_last_error">Letzter Fehler-Code: 0x%1$02X</string>
+    <string name="diag_log_empty">Leerer Log. Roller verbinden, um zu füllen.</string>
+    <string name="diag_toast_sweep_started">Sweep startet — bitte ~30 s warten</string>
+    <string name="diag_toast_sweep_done">✓ Sweep fertig</string>
+
+    <!-- AirLock -->
+    <string name="airlock_title">AirLock</string>
+    <string name="airlock_intro">AirLock entsperrt deinen Roller automatisch, wenn du nah genug heran kommst. Der Schwellwert unten legt fest, wie nah du sein musst.</string>
+    <string name="airlock_enable">AirLock aktivieren</string>
+    <string name="airlock_threshold_label">Empfindlichkeit (RSSI-Schwelle): %1$d dBm</string>
+    <string name="airlock_threshold_legend">  -90 dBm = weit (≈ 10 m)   |   -40 dBm = direkt am Roller</string>
+
+    <!-- Scooter settings (writes to scooter) -->
+    <string name="scooter_settings_title">Roller-Einstellungen</string>
+    <string name="scooter_settings_offline_warning">Roller nicht verbunden — Werte sind aus dem letzten Cache.</string>
+    <string name="scooter_settings_section_general">Allgemein</string>
+    <string name="scooter_settings_section_modes">Modi freischalten</string>
+    <string name="scooter_settings_section_lights">Beleuchtung</string>
+    <string name="scooter_settings_section_folding">Klappen / Folding</string>
+    <string name="scooter_settings_section_riding">Fahrverhalten</string>
+    <string name="scooter_settings_section_battery">Akku</string>
+    <string name="scooter_settings_section_custom_button">Custom-Button</string>
+
+    <!-- Scooter settings — toggle labels -->
+    <string name="scooter_settings_traction_control">Traction Control</string>
+    <string name="scooter_settings_imperial_units">Imperial Units (mph)</string>
+    <string name="scooter_settings_park_on_slope">Parkbremse am Hang (Hill-Hold / Hold Descent)</string>
+    <string name="scooter_settings_boost_mode">Boost-Mode</string>
+    <string name="scooter_settings_indicator_sound">Blinkergeräusch</string>
+    <string name="scooter_settings_app_function_tone">App-Hinweistöne</string>
+    <string name="scooter_settings_alarm">Alarm</string>
+    <string name="scooter_settings_walk_mode">Schiebemodus</string>
+    <string name="scooter_settings_drive_mode">Drive-Modus</string>
+    <string name="scooter_settings_sports_mode">Sport-Modus</string>
+    <string name="scooter_settings_auto_headlight">Auto-Scheinwerfer (Lichtsensor)</string>
+    <string name="scooter_settings_front_position_lamp">Front-Standlicht</string>
+    <string name="scooter_settings_underglow_lights">Underglow-Lichter</string>
+    <string name="scooter_settings_breathing_taillight">Atmendes Lade-Rücklicht</string>
+    <string name="scooter_settings_taillight_mode">Rücklicht-Modus</string>
+    <string name="scooter_settings_taillight_brighter">Heller beim Bremsen</string>
+    <string name="scooter_settings_taillight_blinking">Blinkend beim Bremsen</string>
+    <string name="scooter_settings_power_off_folding">Ausschalten beim Klappen</string>
+    <string name="scooter_settings_disable_alarm_folding">Alarm beim Klappen deaktivieren</string>
+    <string name="scooter_settings_start_speed">Anlauf-Geschwindigkeit</string>
+    <string name="scooter_settings_auto_shutdown">Auto-Abschaltung nach</string>
+    <string name="scooter_settings_acceleration">Beschleunigung</string>
+    <string name="scooter_settings_acceleration_eco">Energiesparmodus</string>
+    <string name="scooter_settings_acceleration_standard">Standard</string>
+    <string name="scooter_settings_acceleration_max">Maximale Geschwindigkeit</string>
+    <string name="scooter_settings_kers">Motorbremse / KERS</string>
+    <string name="scooter_settings_kers_off">Aus</string>
+    <string name="scooter_settings_kers_weak">Schwach</string>
+    <string name="scooter_settings_kers_standard">Standard</string>
+    <string name="scooter_settings_kers_hint">Bestimmt wie stark der Motor beim Gas-Loslassen bremst (Energierückgewinnung).</string>
+    <string name="scooter_settings_max_charge_limit">Maximale Ladegrenze</string>
+    <string name="scooter_settings_charge_limit_hint">Niedrigere Grenze schont die Zellen, kostet Reichweite.</string>
+    <string name="scooter_settings_custom_button_intro">Aktion beim Tap auf den Custom-Button (Walk-Knopf) am Lenker.</string>
+    <string name="scooter_settings_custom_button_action">Aktion</string>
+    <string name="scooter_settings_custom_button_off">Deaktiviert</string>
+    <string name="scooter_settings_custom_button_park_toggle">Park-Mode umschalten</string>
+    <string name="scooter_settings_custom_button_hill_hold_toggle">Auto-Hill-Hold umschalten</string>
+    <string name="scooter_settings_custom_button_walk_toggle">Walk-Mode umschalten</string>
+    <string name="scooter_settings_custom_button_kers_cycle">KERS-Stufe wechseln</string>
+    <string name="scooter_settings_custom_button_hazards">Warnblinker</string>
+    <string name="scooter_settings_custom_button_doubletap_hint">Hinweis: solange die App-Funktion „Doppel-Tap = 22 km/h" aktiv ist, erzwingt sie für diese Aktion „Walk-Mode umschalten", damit der Tap-Watcher die Tastendrücke erkennen kann. Eine andere Aktion wählen geht nur wenn der Doppel-Tap unter Speed-Profile abgeschaltet wird.</string>
+    <string name="scooter_settings_unknown_value">Unbekannt (%1$d)</string>
+
+    <!-- Slider unit suffixes -->
+    <string name="unit_kmh">km/h</string>
+    <string name="unit_mph">mph</string>
+    <string name="unit_min">min</string>
+    <string name="unit_percent">%</string>
+    <string name="unit_value_with_suffix">%1$d %2$s</string>
+    <string name="unit_kmh_label">km/h</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_description">Hört auf die Volume-Down-3x Stealth-Geste. Liest keinen Bildschirminhalt.</string>
+</resources>

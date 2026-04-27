@@ -27,7 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.celox.segway.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,7 +41,7 @@ fun AirLockScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("AirLock") },
+                title = { Text(stringResource(R.string.airlock_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, null) }
                 }
@@ -60,7 +62,7 @@ fun AirLockScreen(onBack: () -> Unit) {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        "AirLock unlocks your scooter automatically when you walk close enough. The threshold below sets how close you need to be.",
+                        stringResource(R.string.airlock_intro),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -71,7 +73,7 @@ fun AirLockScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
-                Text("Enable AirLock", modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.airlock_enable), modifier = Modifier.weight(1f))
                 Switch(
                     checked = enabled,
                     onCheckedChange = {
@@ -84,7 +86,7 @@ fun AirLockScreen(onBack: () -> Unit) {
 
             Spacer(Modifier.height(16.dp))
 
-            Text("Sensitivity (RSSI threshold): ${threshold.toInt()} dBm")
+            Text(stringResource(R.string.airlock_threshold_label, threshold.toInt()))
             Slider(
                 value = threshold,
                 onValueChange = { threshold = it },
@@ -95,7 +97,7 @@ fun AirLockScreen(onBack: () -> Unit) {
                 }
             )
             Text(
-                "  -90 dBm = far (≈ 10 m)   |   -40 dBm = touching",
+                stringResource(R.string.airlock_threshold_legend),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

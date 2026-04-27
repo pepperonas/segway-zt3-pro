@@ -38,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,6 +47,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.celox.segway.R
 import com.celox.segway.core.util.BleLog
 import com.celox.segway.core.vehicle.VehicleCommand
 import com.celox.segway.core.vehicle.VehicleState
@@ -93,6 +95,10 @@ class DiagnosticsViewModel @Inject constructor(
     fun registerSweep() {
         val v = activeHolder.activeVehicle.value ?: return
         viewModelScope.launch {
+            // TODO i18n: ViewModel emits raw strings — these match
+            // R.string.diag_toast_sweep_started / diag_toast_sweep_done in
+            // strings.xml but cannot use stringResource() here without a
+            // Context. Refactor to emit string-resource IDs if locales drift.
             toasts.emit("Sweep startet — bitte ~30 s warten")
             for (dst in listOf(0x16.toByte(), 0x02.toByte(), 0x07.toByte(), 0x23.toByte())) {
                 log.note("SCAN", "=== sweep dst=0x${"%02X".format(dst)} regs 0x00..0xFF len=2 ===")
@@ -237,7 +243,7 @@ fun DiagnosticsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Diagnostics") },
+                title = { Text(stringResource(R.string.diag_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, null) }
                 },
@@ -245,14 +251,16 @@ fun DiagnosticsScreen(
                     IconButton(onClick = { vm.log.clear() }) {
                         Icon(Icons.Outlined.ClearAll, null)
                     }
+                    val shareSubject = stringResource(R.string.diag_share_subject)
+                    val shareChooser = stringResource(R.string.diag_share_chooser)
                     IconButton(onClick = {
                         val text = vm.log.exportText()
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_TEXT, text)
-                            putExtra(Intent.EXTRA_SUBJECT, "Segway-Reborn BLE log")
+                            putExtra(Intent.EXTRA_SUBJECT, shareSubject)
                         }
-                        ctx.startActivity(Intent.createChooser(intent, "Share log"))
+                        ctx.startActivity(Intent.createChooser(intent, shareChooser))
                     }) {
                         Icon(Icons.Outlined.Share, null)
                     }
@@ -304,31 +312,31 @@ private fun ActionsBar(
             onClick = onStatus,
             enabled = isConnected,
             leadingIcon = { Icon(Icons.Outlined.Refresh, null) },
-            label = { Text("Status") }
+            label = { Text(stringResource(R.string.diag_action_status)) }
         )
         AssistChip(
             onClick = onFirmware,
             enabled = isConnected,
             leadingIcon = { Icon(Icons.Outlined.Refresh, null) },
-            label = { Text("FW") }
+            label = { Text(stringResource(R.string.diag_action_fw)) }
         )
         AssistChip(
             onClick = onBlackBox,
             enabled = isConnected,
             leadingIcon = { Icon(Icons.Outlined.History, null) },
-            label = { Text("Black-Box") }
+            label = { Text(stringResource(R.string.diag_action_blackbox)) }
         )
         AssistChip(
             onClick = onSweep,
             enabled = isConnected,
             leadingIcon = { Icon(Icons.Outlined.Refresh, null) },
-            label = { Text("Sweep") }
+            label = { Text(stringResource(R.string.diag_action_sweep)) }
         )
         AssistChip(
             onClick = onButtonHunt,
             enabled = isConnected,
             leadingIcon = { Icon(Icons.Outlined.Search, null) },
-            label = { Text("Btn-Hunt") }
+            label = { Text(stringResource(R.string.diag_action_button_hunt)) }
         )
     }
 }
@@ -337,10 +345,10 @@ private fun ActionsBar(
 private fun ButtonHuntBanner(phase: Int) {
     if (phase == 0) return
     val (text, color) = when (phase) {
-        1 -> "📸 Sweep A läuft — NICHT drücken" to MaterialTheme.colorScheme.tertiary
-        2 -> "▶ JETZT BUTTON DRÜCKEN UND HALTEN" to MaterialTheme.colorScheme.error
-        3 -> "📸 Sweep B läuft — Button noch halten" to MaterialTheme.colorScheme.error
-        4 -> "✓ Fertig — siehe DIFF-Zeilen unten" to MaterialTheme.colorScheme.primary
+        1 -> stringResource(R.string.diag_hunt_phase_1) to MaterialTheme.colorScheme.tertiary
+        2 -> stringResource(R.string.diag_hunt_phase_2) to MaterialTheme.colorScheme.error
+        3 -> stringResource(R.string.diag_hunt_phase_3) to MaterialTheme.colorScheme.error
+        4 -> stringResource(R.string.diag_hunt_phase_4) to MaterialTheme.colorScheme.primary
         else -> return
     }
     androidx.compose.material3.Card(
@@ -371,19 +379,19 @@ private fun FieldTestBar(
     ) {
         AssistChip(
             onClick = { onSpeed(22) }, enabled = isConnected,
-            label = { Text("→ 22 km/h") }
+            label = { Text(stringResource(R.string.diag_action_set_speed, 22)) }
         )
         AssistChip(
             onClick = { onSpeed(40) }, enabled = isConnected,
-            label = { Text("→ 40 km/h") }
+            label = { Text(stringResource(R.string.diag_action_set_speed, 40)) }
         )
         AssistChip(
             onClick = onLock, enabled = isConnected,
-            label = { Text("Lock") }
+            label = { Text(stringResource(R.string.diag_action_lock)) }
         )
         AssistChip(
             onClick = onUnlock, enabled = isConnected,
-            label = { Text("Unlock") }
+            label = { Text(stringResource(R.string.diag_action_unlock)) }
         )
     }
 }
@@ -399,7 +407,7 @@ private fun BlackBoxCard(state: VehicleState, df: SimpleDateFormat) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                "Black-Box (last 64 bytes from 0xF0)",
+                stringResource(R.string.diag_blackbox_title),
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onTertiaryContainer
             )
@@ -414,7 +422,7 @@ private fun BlackBoxCard(state: VehicleState, df: SimpleDateFormat) {
                 if (code != 0) {
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Last error code: 0x%02X".format(code),
+                        stringResource(R.string.diag_blackbox_last_error, code),
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.error
@@ -435,7 +443,7 @@ private fun FrameLogList(
     if (entries.isEmpty()) {
         Box(modifier = modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
             Text(
-                "Empty log. Connect a vehicle to populate.",
+                stringResource(R.string.diag_log_empty),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }

@@ -166,7 +166,7 @@ fun PairScreen(
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                             )
                             Text(
-                                "Pairing ${ui.pairedAddress}",
+                                stringResource(R.string.pair_pairing_address, ui.pairedAddress!!),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                             )
@@ -219,8 +219,11 @@ private fun DeviceCard(device: DiscoveredScooter, onPair: () -> Unit) {
             androidx.compose.foundation.layout.Spacer(modifier = Modifier.size(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(device.name ?: device.address, fontWeight = FontWeight.SemiBold)
+                val meta = device.beacon?.let {
+                    stringResource(R.string.pair_device_meta_with_model, device.address, device.rssi, it.modelId)
+                } ?: stringResource(R.string.pair_device_meta, device.address, device.rssi)
                 Text(
-                    "${device.address}  •  ${device.rssi} dBm" + (device.beacon?.let { "  •  model 0x%04X".format(it.modelId) } ?: ""),
+                    meta,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

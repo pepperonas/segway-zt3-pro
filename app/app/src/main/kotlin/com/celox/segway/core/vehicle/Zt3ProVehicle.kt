@@ -736,6 +736,16 @@ class Zt3ProVehicle(
                 val v = leU16Signed(data, 0) / 10f
                 if (v in -20f..150f) _state.update { it.copy(motorTempBC = v) }
             }
+            // MCU_TEMP_A_LASTMAX — historic peak of sensor A.
+            0x40 -> if (data.size >= 2) {
+                val v = leU16Signed(data, 0) / 10f
+                if (v in -20f..150f) _state.update { it.copy(motorTempMaxC = v) }
+            }
+            // MCU_TEMP — overall controller temperature, °C × 10.
+            0x3E -> if (data.size >= 2) {
+                val v = leU16Signed(data, 0) / 10f
+                if (v in -20f..150f) _state.update { it.copy(mcuTempC = v) }
+            }
         }
     }
 

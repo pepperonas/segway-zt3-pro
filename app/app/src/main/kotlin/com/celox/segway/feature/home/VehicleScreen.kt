@@ -739,6 +739,14 @@ private fun DiagnosticsTelemetryCard(state: com.celox.segway.core.vehicle.Vehicl
                 "Motor-Temp B",
                 if (state.motorTempBC != 0f) "%.1f °C".format(state.motorTempBC) else "—"
             )
+            InfoRow(
+                "Motor-Temp Peak",
+                if (state.motorTempMaxC != 0f) "%.1f °C".format(state.motorTempMaxC) else "—"
+            )
+            InfoRow(
+                "MCU-Temp",
+                if (state.mcuTempC != 0f) "%.1f °C".format(state.mcuTempC) else "—"
+            )
             InfoRow("Trip-Zeit", formatDuration(state.tripDurationSeconds))
             InfoRow("Total-Laufzeit", formatDuration(state.totalRuntimeSeconds))
             if (state.errorCode != 0) InfoRow("Fehlercode", "0x%04X".format(state.errorCode))

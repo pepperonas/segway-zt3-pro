@@ -72,7 +72,12 @@ fun MineScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_mine)) }) }
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_mine)) }) },
+        // Parent SegwayApp Scaffold already accounts for the bottom-nav
+        // inset via its own padding(padding) on the NavHost. Without the
+        // override here, this inner Scaffold would re-add the system-nav
+        // inset and clip the last list rows behind the bottom nav.
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())

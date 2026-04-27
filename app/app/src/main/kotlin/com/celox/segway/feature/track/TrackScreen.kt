@@ -80,7 +80,10 @@ fun TrackScreen(vm: TrackViewModel = hiltViewModel()) {
                 },
                 elevation = FloatingActionButtonDefaults.elevation(4.dp)
             )
-        }
+        },
+        // Parent SegwayApp Scaffold already pads for the bottom nav; don't
+        // double-add the system-nav inset.
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Map

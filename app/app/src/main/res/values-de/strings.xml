@@ -249,7 +249,7 @@
     <string name="profiles_custom_button_double_tap">Custom-Button doppel-Tap = 22 km/h</string>
     <string name="profiles_custom_button_double_tap_hint">2× Walk-Knopf am Roller (≤ 1,5 s) → Boot-Profile (Lock). Pollt 0x5A alle 250 ms während aktiv.</string>
     <string name="profiles_brake_triple_tap">3× Bremse = 22 km/h</string>
-    <string name="profiles_brake_triple_tap_hint">Bremshebel 3× innerhalb 3 s ziehen → Boot-Profile (Lock). Funktioniert mit beiden Hebeln (die VCU kombiniert beide zu einem Brems-Status-Input). Pollt 0xD5 alle 200 ms während aktiv.</string>
+    <string name="profiles_brake_triple_tap_hint">Bremshebel 3× innerhalb 3 s ziehen → Boot-Profile (Lock). Funktioniert mit beiden Hebeln. Das Brems-Status-Register (VCU 0xD5) wechselt nur während aktiver Fahrt — Testen im Stand löst nichts aus. Pro erkanntem Brems-Druck erscheint ein Snackbar „Bremse N/3" zur Verifikation.</string>
     <string name="profiles_brake_triggered_snackbar">🔒 3× Bremse → %1$d km/h</string>
 
     <!-- Unlock dialog -->

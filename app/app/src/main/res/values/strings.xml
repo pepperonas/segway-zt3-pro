@@ -249,7 +249,7 @@
     <string name="profiles_custom_button_double_tap">Custom-Button double-tap = 22 km/h</string>
     <string name="profiles_custom_button_double_tap_hint">2× walk button on the scooter (≤ 1.5 s) → boot profile (lock). Polls 0x5A every 250 ms while active.</string>
     <string name="profiles_brake_triple_tap">3× brake = 22 km/h</string>
-    <string name="profiles_brake_triple_tap_hint">Pull the brake lever 3× within 3 s → boot profile (lock). Works with either lever (the VCU combines both into one brake-state input). Polls 0x5A every 200 ms while active.</string>
+    <string name="profiles_brake_triple_tap_hint">Pull the brake lever 3× within 3 s → boot profile (lock). Works with either lever. The brake-status register (VCU 0xD5) only oscillates during actual riding — testing it while standing still won\'t fire. A snackbar "Bremse N/3" appears for every detected pull so you can verify the gesture is registering.</string>
     <string name="profiles_brake_triggered_snackbar">🔒 3× Brake → %1$d km/h</string>
 
     <!-- Unlock dialog -->

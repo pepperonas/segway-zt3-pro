@@ -17,6 +17,14 @@ Native, open-source rebuild of the official Segway-Ninebot **Segway Mobility** c
 
 ---
 
+## Contributing — Changelog policy
+
+User-visible changes (any release that bumps `versionName` in `app/build.gradle.kts`) MUST add an entry to **[`feature/manual/Changelog.kt`](app/src/main/kotlin/com/celox/segway/feature/manual/Changelog.kt)** at the top of `Changelog.entries`. The same in-app screen (Mine → Manual → Changelog) renders that list verbatim, so users see exactly what shipped.
+
+Bullet point granularity: one line per user-perceptible change. Don't bullet refactors / pure-internal cleanups. If a release is only bug fixes, you can skip the new entry — but if any single fix changes a UI string, a default behaviour, or an exposed setting, write it down. The version + versionCode in the entry must match `build.gradle.kts`. Entries stay in English (the audience is power-users / developers); translatable section titles are in `strings.xml`.
+
+---
+
 ## ✅ Was funktioniert (Field-tested 2026-04-28)
 
 - **Speed-Limit setzen** (22 / 40 km/h Lock-Mode + custom kmh) — `dst=0x16, reg=0x48, payload=[0x14, kmh]`, byte-perfekt gegen SHU verifiziert (FIELD-TEST-LOG Session 5)

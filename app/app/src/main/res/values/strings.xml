@@ -151,6 +151,60 @@
     <string name="mine_diagnostics_subtitle">Live BLE log + crash records</string>
     <string name="mine_feedback_title">Feedback / report bug</string>
     <string name="mine_feedback_subtitle">Send us a feature request or bug report</string>
+    <string name="mine_manual_title">Manual</string>
+    <string name="mine_manual_subtitle">FAQ, battery hints, changelog</string>
+
+    <!-- Manual / Help -->
+    <string name="manual_title">Manual</string>
+    <string name="manual_disclaimer_title">⚠ No liability for damage or legal issues</string>
+    <string name="manual_disclaimer_body">This app is a community-built reverse-engineering project. Tuning a street-legal scooter (StVZO/COC etc.) voids warranty, insurance and street-legality. Driving an unlocked scooter on public roads is a traffic offence and may result in fines, license suspension, criminal charges, or higher liability if you crash. <b>Use the unlock features only on private property where the operator has authorised them.</b> The author accepts no liability for damages, injuries, loss of registration, or legal consequences arising from use of this app.</string>
+
+    <string name="manual_section_faq">FAQ</string>
+    <string name="manual_faq_q_repair">Why do I have to re-pair sometimes?</string>
+    <string name="manual_faq_a_repair">Pairing data (cryptoRandom) is stored per-MAC in your phone. If you tap "Forget" in Garage, install a new build with a different applicationId, or clear the app\'s data, the resume key is gone — the scooter then asks for a fresh pair (one-time press of the power button).</string>
+
+    <string name="manual_faq_q_screenoff">BLE drops when the screen turns off — what can I do?</string>
+    <string name="manual_faq_a_screenoff">The app keeps a foreground service running so Android doesn\'t kill the BLE process when the screen goes off. On most phones that\'s enough. Some manufacturers (Samsung, Xiaomi, Huawei, OPPO, Vivo, OnePlus) ship aggressive battery optimisation defaults that ignore this — you have to manually allow the app to run in background. See "Battery / background restrictions" below.</string>
+
+    <string name="manual_faq_q_profiles_vs_settings">Speed profiles vs Roller-Einstellungen?</string>
+    <string name="manual_faq_a_profiles_vs_settings">"Speed profiles" is the app\'s own lock state machine — Boot (22 km/h) on connect, Unlock (40 km/h) on Vol-Up-3×, auto-revert after N minutes. "Roller-Einstellungen" writes the scooter\'s own internal config (KERS level, taillight mode, alarm on/off, etc.) which persists in the scooter and survives app reinstalls.</string>
+
+    <string name="manual_faq_q_voldown">How does Vol-Down 3× work even with the screen off?</string>
+    <string name="manual_faq_a_voldown">A foreground MediaSession captures volume-button events even with the screen off. Three Vol-Down presses within 2 s trigger the lock; three Vol-Up presses trigger the unlock. The scooter\'s actual volume is unchanged. Requires the "Vol-Down-3× stealth trigger" toggle in Speed profiles.</string>
+
+    <string name="manual_faq_q_walkforce">Why is my Custom Button forced to Walk Mode?</string>
+    <string name="manual_faq_a_walkforce">The "Double-tap = 22 km/h" feature watches drive-mode-register transitions to detect taps. Only the Walk Mode action makes the button generate those transitions. While the watcher is on, the scooter\'s custom_key register is rewritten to Walk Mode on every reconnect. Disable double-tap in Speed profiles if you want a different action there.</string>
+
+    <string name="manual_faq_q_missing_settings">Why are some XiaoDash settings missing here (Volume etc.)?</string>
+    <string name="manual_faq_a_missing_settings">Settings whose register address is documented in SHU\'s bootstrap zt3.json are exposed (about 22). A handful (Volume, battery deep-detail like Manufacture Date / Throughput, Dashboard Settings) are not in that file — XiaoDash extracts them at runtime via obfuscated code. Adding them needs a live BLE-frame capture (HCI snoop or Frida hook). See FEATURE-PARITY.md in the repo.</string>
+
+    <string name="manual_faq_q_legal">Is this app legal?</string>
+    <string name="manual_faq_a_legal">Reverse-engineering for interoperability is allowed in many jurisdictions. <b>Driving</b> an unlocked scooter on public roads, however, is illegal in most places. Use only on private property. See the disclaimer above.</string>
+
+    <!-- Battery hint -->
+    <string name="manual_section_battery">Battery / background restrictions</string>
+    <string name="manual_battery_intro">Android tries to save battery by killing background apps. The scooter app needs to keep BLE alive even when you\'re riding with the screen off. If your phone manufacturer ships restrictive defaults, the foreground-service notification on its own won\'t help — you must whitelist the app in the system settings.</string>
+    <string name="manual_battery_open_settings">Open battery settings for this app</string>
+    <string name="manual_battery_dontkillmyapp">For your specific manufacturer + Android version, see dontkillmyapp.com — comprehensive list of all the hidden settings.</string>
+
+    <string name="manual_oem_pixel_title">Google Pixel / Stock Android</string>
+    <string name="manual_oem_pixel_body">Settings → Apps → zt3-fxx → Battery → "Unrestricted". Pixel is the least aggressive of the bunch, this is usually enough.</string>
+    <string name="manual_oem_samsung_title">Samsung (One UI)</string>
+    <string name="manual_oem_samsung_body">Settings → Apps → zt3-fxx → Battery → "Unrestricted". Then: Settings → Battery and device care → Battery → Background usage limits → make sure zt3-fxx is NOT in "Sleeping apps" / "Deep sleeping apps". On One UI 4+ the auto-deep-sleep heuristic re-adds apps if you don\'t use them daily — re-check after a few days.</string>
+    <string name="manual_oem_xiaomi_title">Xiaomi / Redmi / POCO (MIUI / HyperOS)</string>
+    <string name="manual_oem_xiaomi_body">Settings → Apps → Manage apps → zt3-fxx → Battery saver → "No restrictions". Also: Security app → Permissions → Autostart → enable for zt3-fxx. MIUI is one of the most aggressive — both toggles are needed.</string>
+    <string name="manual_oem_huawei_title">Huawei (EMUI / HarmonyOS)</string>
+    <string name="manual_oem_huawei_body">Phone Manager → Protected apps → enable for zt3-fxx. Also: Settings → Apps → zt3-fxx → Battery → "Manual" management → enable Auto-launch + Secondary launch + Run in background.</string>
+    <string name="manual_oem_oneplus_title">OnePlus (OxygenOS) / OPPO / Realme (ColorOS)</string>
+    <string name="manual_oem_oneplus_body">Settings → Apps → zt3-fxx → Battery → "Don\'t optimize". On OxygenOS 12+: Settings → Battery → Background app management → zt3-fxx → "Allow background activity". ColorOS additionally has "Power consumption protection" — turn it off for this app.</string>
+    <string name="manual_oem_vivo_title">Vivo (FunTouch OS / OriginOS)</string>
+    <string name="manual_oem_vivo_body">Settings → Battery → Background power consumption manager → zt3-fxx → "Allow". Also: Settings → More settings → Permission management → Autostart → enable.</string>
+    <string name="manual_oem_honor_title">Honor (MagicOS, post-Huawei)</string>
+    <string name="manual_oem_honor_body">Phone Manager → App launch → zt3-fxx → "Manage manually" → enable all three (Auto-launch, Secondary launch, Run in background). Same restrictive heuristic as old Huawei EMUI.</string>
+
+    <!-- Changelog -->
+    <string name="manual_section_changelog">Changelog</string>
+    <string name="manual_changelog_intro">Major changes ship in versioned releases. Bug-fix-only iterations are not listed here.</string>
     <string name="feedback_email_subject">[zt3-fxx] Feedback / bug report</string>
     <string name="feedback_email_body_template">App version: %1$s (%2$d)\nDevice: %3$s\nAndroid: %4$s\n\n— please describe the issue or feature request below —\n\n</string>
     <string name="feedback_no_email_app">No email app found. Please write to support@celox.io.</string>

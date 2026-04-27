@@ -151,6 +151,60 @@
     <string name="mine_diagnostics_subtitle">Live-BLE-Log + Crash-Aufzeichnungen</string>
     <string name="mine_feedback_title">Feedback / Bug melden</string>
     <string name="mine_feedback_subtitle">Feature-Wunsch oder Fehler senden</string>
+    <string name="mine_manual_title">Anleitung</string>
+    <string name="mine_manual_subtitle">FAQ, Akku-Hinweise, Changelog</string>
+
+    <!-- Manual / Help -->
+    <string name="manual_title">Anleitung</string>
+    <string name="manual_disclaimer_title">⚠ Keine Haftung für Schäden oder Rechtsverletzungen</string>
+    <string name="manual_disclaimer_body">Diese App ist ein Community-Reverse-Engineering-Projekt. Tuning eines straßenzugelassenen Rollers (StVZO/COC etc.) führt zum Verlust von Garantie, Versicherungsschutz und Betriebserlaubnis. Das Fahren eines entsperrten Rollers im öffentlichen Straßenverkehr ist eine Ordnungswidrigkeit (in vielen Fällen Straftat) und kann Bußgelder, Führerscheinentzug, Strafanzeigen oder erweiterte Haftung im Schadensfall nach sich ziehen. <b>Nutze die Unlock-Funktionen ausschließlich auf Privatgelände, dessen Betreiber dir die Nutzung erlaubt hat.</b> Der Autor übernimmt keinerlei Haftung für Schäden, Verletzungen, den Verlust der Zulassung oder rechtliche Konsequenzen aus der Nutzung dieser App.</string>
+
+    <string name="manual_section_faq">FAQ</string>
+    <string name="manual_faq_q_repair">Warum muss ich manchmal neu pairen?</string>
+    <string name="manual_faq_a_repair">Pairing-Daten (cryptoRandom) liegen pro MAC im Phone. Wenn du in der Garage „Vergessen" tippst, einen neuen Build mit anderer ApplicationId installierst oder die App-Daten löschst, ist der Resume-Schlüssel weg — der Roller will dann ein frisches Pairing (einmaliger Druck auf den Power-Button).</string>
+
+    <string name="manual_faq_q_screenoff">BLE bricht ab wenn der Bildschirm aus geht — was tun?</string>
+    <string name="manual_faq_a_screenoff">Die App hält einen Foreground-Service am Laufen, damit Android den BLE-Prozess nicht beendet wenn der Bildschirm aus geht. Auf den meisten Handys reicht das. Manche Hersteller (Samsung, Xiaomi, Huawei, OPPO, Vivo, OnePlus) haben aggressive Akku-Spar-Defaults, die das ignorieren — dann musst du die App manuell in den System-Einstellungen freigeben. Siehe „Akku / Hintergrund-Beschränkungen" weiter unten.</string>
+
+    <string name="manual_faq_q_profiles_vs_settings">Speed-Profile vs Roller-Einstellungen?</string>
+    <string name="manual_faq_a_profiles_vs_settings">„Speed-Profile" ist die App-eigene Lock-State-Machine — Boot (22 km/h) bei Connect, Unlock (40 km/h) per Vol-Up-3×, Auto-Revert nach N Minuten. „Roller-Einstellungen" schreibt direkt die rollerinternen Einstellungen (KERS-Stufe, Rücklicht-Modus, Alarm an/aus, …), die persistent im Roller bleiben — auch nach App-Neuinstallation.</string>
+
+    <string name="manual_faq_q_voldown">Wie funktioniert Vol-Down 3× auch bei ausgeschaltetem Bildschirm?</string>
+    <string name="manual_faq_a_voldown">Eine Foreground-MediaSession fängt die Lautstärketasten auch bei ausgeschaltetem Display ab. Drei Vol-Down innerhalb von 2 s lösen den Lock aus, drei Vol-Up den Unlock. Die echte Phone-Lautstärke ändert sich nicht. Setzt den Toggle „Vol-Down-3× Stealth-Trigger" in den Speed-Profilen voraus.</string>
+
+    <string name="manual_faq_q_walkforce">Warum wird mein Custom-Button auf Walk-Mode erzwungen?</string>
+    <string name="manual_faq_a_walkforce">Die Funktion „Doppel-Tap = 22 km/h" beobachtet Drive-Mode-Register-Wechsel um Taps zu erkennen. Nur die Walk-Mode-Aktion erzeugt diese Wechsel. Solange der Watcher aktiv ist, wird das custom_key-Register des Rollers bei jedem Reconnect auf Walk-Mode zurückgesetzt. Schalte Doppel-Tap in den Speed-Profilen ab, wenn du eine andere Aktion willst.</string>
+
+    <string name="manual_faq_q_missing_settings">Warum fehlen einige XiaoDash-Settings hier (Volume etc.)?</string>
+    <string name="manual_faq_a_missing_settings">Einstellungen, deren Register-Adresse in SHU\'s bootstrap zt3.json dokumentiert ist, werden ausgewiesen (rund 22). Eine Handvoll (Volume, Akku-Detail wie Manufacture Date / Throughput, Dashboard-Settings) stehen nicht in dieser Datei — XiaoDash extrahiert sie zur Laufzeit aus obfuskiertem Code. Hinzufügen erfordert ein Live-BLE-Frame-Capture (HCI-Snoop oder Frida-Hook). Siehe FEATURE-PARITY.md im Repo.</string>
+
+    <string name="manual_faq_q_legal">Ist diese App legal?</string>
+    <string name="manual_faq_a_legal">Reverse-Engineering zum Zweck der Interoperabilität ist in vielen Rechtsräumen erlaubt. <b>Das Fahren</b> eines entsperrten Rollers im öffentlichen Straßenverkehr ist es in den meisten Fällen NICHT. Nur auf Privatgelände nutzen. Siehe Disclaimer ganz oben.</string>
+
+    <!-- Battery hint -->
+    <string name="manual_section_battery">Akku / Hintergrund-Beschränkungen</string>
+    <string name="manual_battery_intro">Android beendet Hintergrund-Apps zur Akku-Schonung. Die Roller-App muss aber BLE auch dann am Leben halten wenn du mit aus geschaltetem Bildschirm fährst. Wenn dein Hersteller restriktive Defaults hat, reicht die Foreground-Service-Notification allein nicht — du musst die App in den System-Einstellungen explizit freigeben.</string>
+    <string name="manual_battery_open_settings">Akku-Einstellungen für diese App öffnen</string>
+    <string name="manual_battery_dontkillmyapp">Für deinen spezifischen Hersteller + deine Android-Version: dontkillmyapp.com — vollständige Liste aller versteckten Einstellungen.</string>
+
+    <string name="manual_oem_pixel_title">Google Pixel / Stock Android</string>
+    <string name="manual_oem_pixel_body">Einstellungen → Apps → zt3-fxx → Akku → „Uneingeschränkt". Pixel ist von allen am wenigsten aggressiv, das reicht meistens.</string>
+    <string name="manual_oem_samsung_title">Samsung (One UI)</string>
+    <string name="manual_oem_samsung_body">Einstellungen → Apps → zt3-fxx → Akku → „Uneingeschränkt". Dann: Einstellungen → Gerätewartung → Akku → Hintergrundnutzungs-Beschränkungen → Sicherstellen dass zt3-fxx NICHT unter „Inaktive Apps" / „Tief-inaktive Apps" steht. Ab One UI 4+ verschiebt die Auto-Heuristik Apps zurück wenn du sie ein paar Tage nicht nutzt — nach einigen Tagen erneut prüfen.</string>
+    <string name="manual_oem_xiaomi_title">Xiaomi / Redmi / POCO (MIUI / HyperOS)</string>
+    <string name="manual_oem_xiaomi_body">Einstellungen → Apps → Apps verwalten → zt3-fxx → Energiesparen → „Keine Einschränkungen". Außerdem: Sicherheits-App → Berechtigungen → Autostart → für zt3-fxx aktivieren. MIUI ist einer der aggressivsten — beide Toggles sind nötig.</string>
+    <string name="manual_oem_huawei_title">Huawei (EMUI / HarmonyOS)</string>
+    <string name="manual_oem_huawei_body">Telefonmanager → Geschützte Apps → für zt3-fxx aktivieren. Außerdem: Einstellungen → Apps → zt3-fxx → Akku → „Manuelle" Verwaltung → Auto-Start, Sekundär-Start und Im-Hintergrund-Laufen aktivieren.</string>
+    <string name="manual_oem_oneplus_title">OnePlus (OxygenOS) / OPPO / Realme (ColorOS)</string>
+    <string name="manual_oem_oneplus_body">Einstellungen → Apps → zt3-fxx → Akku → „Nicht optimieren". Auf OxygenOS 12+: Einstellungen → Akku → Hintergrund-App-Verwaltung → zt3-fxx → „Hintergrundaktivität erlauben". ColorOS hat zusätzlich „Stromverbrauchsschutz" — für diese App ausschalten.</string>
+    <string name="manual_oem_vivo_title">Vivo (FunTouch OS / OriginOS)</string>
+    <string name="manual_oem_vivo_body">Einstellungen → Akku → Hintergrund-Stromverbrauchsmanager → zt3-fxx → „Erlauben". Außerdem: Einstellungen → Weitere Einstellungen → Berechtigungs-Verwaltung → Autostart → aktivieren.</string>
+    <string name="manual_oem_honor_title">Honor (MagicOS, nach Huawei-Trennung)</string>
+    <string name="manual_oem_honor_body">Telefonmanager → App-Start → zt3-fxx → „Manuell verwalten" → alle drei (Auto-Start, Sekundär-Start, Im-Hintergrund) aktivieren. Gleiche restriktive Heuristik wie das alte Huawei EMUI.</string>
+
+    <!-- Changelog -->
+    <string name="manual_section_changelog">Changelog</string>
+    <string name="manual_changelog_intro">Größere Änderungen werden in versionierten Releases ausgeliefert. Reine Bug-Fix-Iterationen sind hier nicht aufgeführt.</string>
     <string name="feedback_email_subject">[zt3-fxx] Feedback / Bug-Bericht</string>
     <string name="feedback_email_body_template">App-Version: %1$s (%2$d)\nGerät: %3$s\nAndroid: %4$s\n\n— bitte beschreibe das Problem oder den Feature-Wunsch unten —\n\n</string>
     <string name="feedback_no_email_app">Keine E-Mail-App gefunden. Bitte schreib uns an support@celox.io.</string>

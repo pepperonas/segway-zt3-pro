@@ -25,6 +25,7 @@ import com.celox.segway.feature.about.AboutScreen
 import com.celox.segway.feature.airlock.AirLockScreen
 import com.celox.segway.feature.battery.BatteryDetailScreen
 import com.celox.segway.feature.diagnostics.DiagnosticsScreen
+import com.celox.segway.feature.manual.ManualScreen
 import com.celox.segway.feature.firmware.FirmwareScreen
 import com.celox.segway.feature.garage.GarageScreen
 import com.celox.segway.feature.home.VehicleScreen
@@ -78,6 +79,7 @@ fun SegwayApp() {
                     onAirLockClick = { navController.navigate(Route.AirLock.route) },
                     onProfilesClick = { navController.navigate(Route.Profiles.route) },
                     onScooterSettingsClick = { navController.navigate(Route.ScooterSettings.route) },
+                    onManualClick = { navController.navigate(Route.Manual.route) },
                 )
             }
             composable(Route.Pair.route) {
@@ -112,6 +114,9 @@ fun SegwayApp() {
             }
             composable(Route.ScooterSettings.route) {
                 ScooterSettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Route.Manual.route) {
+                ManualScreen(onBack = { navController.popBackStack() })
             }
         }
     }
@@ -157,4 +162,5 @@ sealed class Route(val route: String) {
     data object Profiles : Route("profiles")
     data object BatteryDetail : Route("battery_detail")
     data object ScooterSettings : Route("scooter_settings")
+    data object Manual : Route("manual")
 }

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.ElectricMoped
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LockOpen
+import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SystemUpdate
@@ -43,6 +44,7 @@ fun MineScreen(
     onAirLockClick: () -> Unit,
     onProfilesClick: () -> Unit,
     onScooterSettingsClick: () -> Unit = {},
+    onManualClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val feedbackSubject = stringResource(R.string.feedback_email_subject)
@@ -110,6 +112,12 @@ fun MineScreen(
                 supportingContent = { Text(stringResource(R.string.mine_diagnostics_subtitle)) },
                 leadingContent = { Icon(Icons.Outlined.BugReport, null) },
                 modifier = Modifier.clickable { onDiagnosticsClick() }
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.mine_manual_title)) },
+                supportingContent = { Text(stringResource(R.string.mine_manual_subtitle)) },
+                leadingContent = { Icon(Icons.Outlined.MenuBook, null) },
+                modifier = Modifier.clickable { onManualClick() }
             )
             ListItem(
                 headlineContent = { Text(stringResource(R.string.mine_feedback_title)) },

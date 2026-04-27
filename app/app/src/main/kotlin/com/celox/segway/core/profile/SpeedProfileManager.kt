@@ -302,6 +302,14 @@ class SpeedProfileManager @Inject constructor(
         bleLog.note("BlinkerR", "watcher started — fast-polling VCU 0xFF every 200 ms")
         val taps = ArrayDeque<Long>()
         var lastOn = vehicle.state.value.blinkerRightOn
+        // Guard against the watched bit being set at app start (which we
+        // saw with VCU 0xFF — bit 1 is set in 0x0A06 because the register
+        // is actually a slowly-incrementing counter, not a state bit).
+        // Require at least one observed `false` reading before allowing
+        // rising-edge detection. If the bit is constantly set (counter,
+        // not state) we silently never trigger — better than spamming
+        // a "Blinker 1/3" snackbar at every app launch.
+        var seenOff = !lastOn
         try {
             while (currentScopeIsActive() && repo.flow.first().blinkerRightTripleTapEnabled) {
                 if (vehicle.state.value.isConnected && vehicle.state.value.isReady) {
@@ -309,7 +317,8 @@ class SpeedProfileManager @Inject constructor(
                 }
                 delay(POLL_INTERVAL_MS)
                 val current = vehicle.state.value.blinkerRightOn
-                if (current && !lastOn) {
+                if (!current) seenOff = true
+                if (current && !lastOn && seenOff) {
                     val now = System.currentTimeMillis()
                     taps.addLast(now)
                     while (taps.isNotEmpty() && now - taps.first() > DOUBLE_TAP_WINDOW_MS) {

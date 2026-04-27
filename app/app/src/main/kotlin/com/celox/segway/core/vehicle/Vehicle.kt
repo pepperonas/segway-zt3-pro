@@ -106,15 +106,6 @@ data class VehicleState(
     val tailLightMode: Int = 0,                // 0x5D — enum
     val accelerationLevel: Int = 0,            // 0x6E — enum (Low/Med/High)
     val kersLevel: Int = 0,                    // 0x70 — enum (Off/Low/Med/High)
-    /**
-     * Brake / cruise / throttle status from VCU 0xD5. Documented states:
-     * 0x0000 = brake held, 0x0001 = throttle in autopark, 0x0004 = (status),
-     * 0x0008 = "not allowed", 0x000C = cruise active. We project to a
-     * simple booleans for the gesture watcher; raw value kept for diag.
-     */
-    val brakeApplied: Boolean = false,
-    val cruiseActive: Boolean = false,
-    val cruiseStatusRaw: Int = -1,
     /** BMS deep-detail (rarely-changing identifiers, polled lazily). */
     val batterySerial: String = "",
     val batteryManufactureDate: String = "",

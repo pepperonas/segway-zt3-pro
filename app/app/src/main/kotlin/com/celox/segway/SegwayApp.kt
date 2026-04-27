@@ -42,7 +42,7 @@ class SegwayApp : Application() {
         // is on.
         appScope.launch {
             profileRepo.flow
-                .map { it.accessibilityTriggerEnabled || it.customButtonDoubleTapEnabled || it.brakeTripleTapEnabled }
+                .map { it.accessibilityTriggerEnabled || it.customButtonDoubleTapEnabled }
                 .distinctUntilChanged()
                 .collect { needed ->
                     if (needed) {

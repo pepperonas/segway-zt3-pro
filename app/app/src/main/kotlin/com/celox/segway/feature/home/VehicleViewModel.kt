@@ -51,19 +51,6 @@ class VehicleViewModel @Inject constructor(
                 _snackbar.tryEmit("🔒 Doppel-Tap Walk-Knopf → ${profiles.value.boot.speedKmh} km/h")
             }
         }
-        viewModelScope.launch {
-            profileManager.brakeTripleTapEvents.collect {
-                _snackbar.tryEmit("🔒 3× Bremse → ${profiles.value.boot.speedKmh} km/h")
-            }
-        }
-        viewModelScope.launch {
-            // Per-press feedback: makes it obvious to the user whether the
-            // watcher is detecting brake events at all (especially when
-            // testing — 0xD5 only changes during ride, not standstill).
-            profileManager.brakeProgressEvents.collect { count ->
-                _snackbar.tryEmit("Bremse $count/3")
-            }
-        }
     }
 
     fun toggleLock() = vehicle.value?.let { v ->

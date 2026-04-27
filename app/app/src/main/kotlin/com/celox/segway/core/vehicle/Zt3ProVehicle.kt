@@ -296,7 +296,6 @@ class Zt3ProVehicle(
         Triple(0x16, 0x5D.toByte(), 2),   // tail_light_mode (enum)
         Triple(0x16, 0x6E.toByte(), 2),   // acc_level (acceleration level enum)
         Triple(0x16, 0x70.toByte(), 2),   // kers_level (Energy Recovery enum)
-        Triple(0x16, 0xD5.toByte(), 2),   // cruise/throttle/brake-status (00=brake, 0C=cruise)
         // BMS deep telemetry
         Triple(0x07, 0x8F.toByte(), 2),   // BMS_SOC — actual battery
         Triple(0x07, 0x8C.toByte(), 2),   // BMS_VOLTAGE — pack voltage
@@ -664,26 +663,6 @@ class Zt3ProVehicle(
             0x5D -> if (data.size >= 2) _state.update { it.copy(tailLightMode = leU16(data, 0)) }
             0x6E -> if (data.size >= 2) _state.update { it.copy(accelerationLevel = leU16(data, 0)) }
             0x70 -> if (data.size >= 2) _state.update { it.copy(kersLevel = leU16(data, 0)) }
-            // Cruise/Throttle/Brake state register. Documented values:
-            //   0x0000 brake held (ready to drive)
-            //   0x0001 throttle in autopark
-            //   0x0004 (status, undocumented)
-            //   0x0008 throttle "not allowed" (e.g. locked / walk)
-            //   0x000C cruise control engaged
-            // We project to a simple brakeApplied flag (raw value == 0) and
-            // cruiseActive (== 0x0C) so the gesture watcher and UI can stay
-            // straightforward; raw kept for diagnostics.
-            0xD5 -> if (data.size >= 2) {
-                val raw = leU16(data, 0)
-                _state.update {
-                    it.copy(
-                        cruiseStatusRaw = raw,
-                        brakeApplied = raw == 0x0000,
-                        cruiseActive = raw == 0x000C,
-                        isCruiseOn = raw == 0x000C,
-                    )
-                }
-            }
             // VCU_Mileage / VCU_SingleMileage — empirically (2026-04-28 logcat
             // capture) the meaningful value sits in the low u16: e.g.
             // odometer reg 0x62 = `[12 00 00 00]` → 18 km, trip reg 0x68 =

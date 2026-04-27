@@ -248,9 +248,6 @@
     <string name="profiles_a11y_open_settings">Accessibility-Einstellungen öffnen</string>
     <string name="profiles_custom_button_double_tap">Custom-Button doppel-Tap = 22 km/h</string>
     <string name="profiles_custom_button_double_tap_hint">2× Walk-Knopf am Roller (≤ 1,5 s) → Boot-Profile (Lock). Pollt 0x5A alle 250 ms während aktiv.</string>
-    <string name="profiles_brake_triple_tap">3× Bremse = 22 km/h</string>
-    <string name="profiles_brake_triple_tap_hint">Bremshebel 3× innerhalb 3 s ziehen → Boot-Profile (Lock). Funktioniert mit beiden Hebeln. Das Brems-Status-Register (VCU 0xD5) wechselt nur während aktiver Fahrt — Testen im Stand löst nichts aus. Pro erkanntem Brems-Druck erscheint ein Snackbar „Bremse N/3" zur Verifikation.</string>
-    <string name="profiles_brake_triggered_snackbar">🔒 3× Bremse → %1$d km/h</string>
 
     <!-- Unlock dialog -->
     <string name="unlock_dialog_title">Entsperren %1$d km/h</string>
@@ -341,14 +338,14 @@
     <string name="diag_action_fw">FW</string>
     <string name="diag_action_blackbox">Black-Box</string>
     <string name="diag_action_sweep">Sweep</string>
-    <string name="diag_action_button_hunt">Btn-Hunt</string>
+    <string name="diag_action_button_hunt">Reg-Hunt</string>
     <string name="diag_action_set_speed">→ %1$d km/h</string>
     <string name="diag_action_lock">Lock</string>
     <string name="diag_action_unlock">Unlock</string>
-    <string name="diag_hunt_phase_1">📸 Sweep A läuft — NICHT drücken</string>
-    <string name="diag_hunt_phase_2">▶ JETZT BUTTON DRÜCKEN UND HALTEN</string>
-    <string name="diag_hunt_phase_3">📸 Sweep B läuft — Button noch halten</string>
-    <string name="diag_hunt_phase_4">✓ Fertig — siehe DIFF-Zeilen unten</string>
+    <string name="diag_hunt_phase_1">📸 Sweep A läuft — Input idle lassen</string>
+    <string name="diag_hunt_phase_2">▶ JETZT AUSLÖSEN (Button / Blinker / Hebel) — aktiv halten</string>
+    <string name="diag_hunt_phase_3">📸 Sweep B läuft — Input aktiv lassen / State an</string>
+    <string name="diag_hunt_phase_4">✓ Fertig — siehe DIFF-Zeilen unten für geänderte Register</string>
     <string name="diag_blackbox_title">Black-Box (letzte 64 Bytes von 0xF0)</string>
     <string name="diag_blackbox_last_error">Letzter Fehler-Code: 0x%1$02X</string>
     <string name="diag_log_empty">Leerer Log. Roller verbinden, um zu füllen.</string>

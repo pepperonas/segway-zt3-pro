@@ -76,13 +76,6 @@ class SpeedProfileManager @Inject constructor(
     private val _customButtonTapEvents = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 4)
     val customButtonTapEvents: SharedFlow<Unit> = _customButtonTapEvents.asSharedFlow()
 
-    private val _brakeTripleTapEvents = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 4)
-    val brakeTripleTapEvents: SharedFlow<Unit> = _brakeTripleTapEvents.asSharedFlow()
-
-    /** Per-press feedback so the user gets a UI signal each time we detect a brake event. */
-    private val _brakeProgressEvents = MutableSharedFlow<Int>(replay = 0, extraBufferCapacity = 4)
-    val brakeProgressEvents: SharedFlow<Int> = _brakeProgressEvents.asSharedFlow()
-
     init {
         // Custom-button double-tap watcher — fast-polls reg 0x5A
         // (VCU_DRIVE_MODE) at 200 ms so we can resolve real double-taps.
@@ -107,26 +100,6 @@ class SpeedProfileManager @Inject constructor(
                         // Wait until the vehicle is ready, then run.
                         vehicle.state.first { it.isReady }
                         runCustomButtonTapWatcher(vehicle)
-                    }
-                }
-        }
-
-        // Brake-triple-tap watcher — parallel to the custom-button one but
-        // poll on VCU 0xD5 (cruise/throttle/brake-status) which exposes a
-        // brake-held bit (raw 0x0000) we edge-detect for triggers.
-        scope.launch {
-            var watcherJob: Job? = null
-            kotlinx.coroutines.flow.combine(
-                activeHolder.activeVehicle,
-                repo.flow.map { it.brakeTripleTapEnabled }.distinctUntilChanged(),
-            ) { v, enabled -> v to enabled }
-                .collect { (vehicle, enabled) ->
-                    watcherJob?.cancel()
-                    watcherJob = null
-                    if (vehicle == null || !enabled) return@collect
-                    watcherJob = scope.launch {
-                        vehicle.state.first { it.isReady }
-                        runBrakeTripleTapWatcher(vehicle)
                     }
                 }
         }
@@ -291,80 +264,6 @@ class SpeedProfileManager @Inject constructor(
             }
         } finally {
             bleLog.note("BtnTap", "watcher stopped")
-        }
-    }
-
-    /**
-     * Fast-poll loop on VCU 0xD5 (cruise/throttle/brake-status) to detect
-     * three brake-pulls within DOUBLE_TAP_WINDOW_MS. Same edge-detection
-     * pattern as the custom-button watcher: each transition INTO 0x0000
-     * (brake held) counts as a "press" event, three within the window
-     * triggers the boot-profile re-lock.
-     *
-     * The register doesn't distinguish left vs right brake (the VCU
-     * combines both lever inputs into one brake state), so this fires on
-     * either lever. In practice that's fine — three quick pulls of any
-     * brake is an intentional gesture.
-     */
-    private suspend fun runBrakeTripleTapWatcher(vehicle: com.celox.segway.core.vehicle.Vehicle) {
-        bleLog.note("BrakeTap", "watcher started — speed-delta detection (fast-poll MCU 0x86 every 200 ms)")
-        // ZT3 firmware quirk: VCU 0xD5 (the documented brake-status register)
-        // stays stuck at 0x0000 on this hardware regardless of brake input.
-        // Pivot: detect brake by the speed it CAUSES — a rapid drop in
-        // measured speed within 200 ms. Three such drops within
-        // DOUBLE_TAP_WINDOW_MS = trigger.
-        //
-        // Side effect: the gesture only fires during actual riding (you must
-        // have a non-trivial speed for a brake to register a delta). That's
-        // fine — braking at standstill makes no physical sense anyway.
-        val taps = ArrayDeque<Long>()
-        var lastSpeed = vehicle.state.value.speedKmh
-        var lastEventMs = 0L
-        // Empirical thresholds — tunable. -3 km/h within 200 ms ≈ 15 km/h/s
-        // deceleration which is normal for a brake pull but not for natural
-        // coast-down. Cooldown prevents a single long brake from being
-        // counted as multiple events.
-        val minDropKmh = 3f
-        val cooldownMs = 500L
-        try {
-            while (currentScopeIsActive() && repo.flow.first().brakeTripleTapEnabled) {
-                // Active fast-poll for speed so we don't depend on the slow
-                // pollPlan cycle (~4 s) for delta detection. Also keep
-                // polling 0xD5 in parallel for diagnostics — if it ever
-                // turns out to oscillate on a future ZT3 firmware, we'll
-                // see it in BleLog and can switch back.
-                if (vehicle.state.value.isConnected && vehicle.state.value.isReady) {
-                    vehicle.execute(VehicleCommand.ReadRegister(0x86, 2, 0x02))
-                    vehicle.execute(VehicleCommand.ReadRegister(0xD5, 2, 0x16))
-                }
-                delay(POLL_INTERVAL_MS)
-                val speed = vehicle.state.value.speedKmh
-                val drop = lastSpeed - speed
-                val now = System.currentTimeMillis()
-                if (drop >= minDropKmh && now - lastEventMs > cooldownMs) {
-                    lastEventMs = now
-                    taps.addLast(now)
-                    while (taps.isNotEmpty() && now - taps.first() > DOUBLE_TAP_WINDOW_MS) {
-                        taps.removeFirst()
-                    }
-                    bleLog.note(
-                        "BrakeTap",
-                        "speed drop %.1f km/h (%.1f→%.1f, recent=${taps.size})"
-                            .format(drop, lastSpeed, speed),
-                    )
-                    _brakeProgressEvents.tryEmit(taps.size)
-                    if (taps.size >= 3) {
-                        bleLog.note("BrakeTap", "triple-tap → re-lock to boot")
-                        val settings = repo.flow.first()
-                        applyProfile(settings.boot)
-                        _brakeTripleTapEvents.tryEmit(Unit)
-                        taps.clear()
-                    }
-                }
-                lastSpeed = speed
-            }
-        } finally {
-            bleLog.note("BrakeTap", "watcher stopped")
         }
     }
 

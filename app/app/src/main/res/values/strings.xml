@@ -248,9 +248,6 @@
     <string name="profiles_a11y_open_settings">Open Accessibility settings</string>
     <string name="profiles_custom_button_double_tap">Custom-Button double-tap = 22 km/h</string>
     <string name="profiles_custom_button_double_tap_hint">2× walk button on the scooter (≤ 1.5 s) → boot profile (lock). Polls 0x5A every 250 ms while active.</string>
-    <string name="profiles_brake_triple_tap">3× brake = 22 km/h</string>
-    <string name="profiles_brake_triple_tap_hint">Pull the brake lever 3× within 3 s → boot profile (lock). Works with either lever. The brake-status register (VCU 0xD5) only oscillates during actual riding — testing it while standing still won\'t fire. A snackbar "Bremse N/3" appears for every detected pull so you can verify the gesture is registering.</string>
-    <string name="profiles_brake_triggered_snackbar">🔒 3× Brake → %1$d km/h</string>
 
     <!-- Unlock dialog -->
     <string name="unlock_dialog_title">Unlock %1$d km/h</string>
@@ -341,14 +338,14 @@
     <string name="diag_action_fw">FW</string>
     <string name="diag_action_blackbox">Black-Box</string>
     <string name="diag_action_sweep">Sweep</string>
-    <string name="diag_action_button_hunt">Btn-Hunt</string>
+    <string name="diag_action_button_hunt">Reg-Hunt</string>
     <string name="diag_action_set_speed">→ %1$d km/h</string>
     <string name="diag_action_lock">Lock</string>
     <string name="diag_action_unlock">Unlock</string>
-    <string name="diag_hunt_phase_1">📸 Sweep A running — do NOT press</string>
-    <string name="diag_hunt_phase_2">▶ PRESS BUTTON NOW AND HOLD</string>
-    <string name="diag_hunt_phase_3">📸 Sweep B running — keep holding the button</string>
-    <string name="diag_hunt_phase_4">✓ Done — see DIFF lines below</string>
+    <string name="diag_hunt_phase_1">📸 Sweep A running — keep input idle</string>
+    <string name="diag_hunt_phase_2">▶ TRIGGER NOW (button / blinker / lever) AND HOLD/LEAVE ACTIVE</string>
+    <string name="diag_hunt_phase_3">📸 Sweep B running — keep input active / state on</string>
+    <string name="diag_hunt_phase_4">✓ Done — see DIFF lines below for changed registers</string>
     <string name="diag_blackbox_title">Black-Box (last 64 bytes from 0xF0)</string>
     <string name="diag_blackbox_last_error">Last error code: 0x%1$02X</string>
     <string name="diag_log_empty">Empty log. Connect a vehicle to populate.</string>

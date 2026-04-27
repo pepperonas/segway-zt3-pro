@@ -26,6 +26,16 @@ object Changelog {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "0.2.2",
+            versionCode = 10,
+            date = "2026-04-28",
+            highlights = listOf(
+                "Removed the 3× brake-trigger feature: VCU 0xD5 (the documented brake-status register) was confirmed to stay stuck at 0x0000 on this ZT3 hardware regardless of brake input. Speed-delta fallback was also too noisy in field tests to ship.",
+                "Right-blinker trigger pending: the register that exposes turn-signal state on ZT3 is not in any decompiled source we have. Use Diagnostics → Reg-Hunt to identify it (sweep VCU 0x00..0xFF before + after blinker-on, diff). Once known, the watcher will be wired in the next release.",
+                "Renamed Diagnostics chip \"Btn-Hunt\" → \"Reg-Hunt\" and reworded the phase banners so the sweep tool reads as a generic register-hunting helper (works for any input: custom button, blinker, brake, etc).",
+            ),
+        ),
+        Entry(
             version = "0.2.1",
             versionCode = 9,
             date = "2026-04-28",

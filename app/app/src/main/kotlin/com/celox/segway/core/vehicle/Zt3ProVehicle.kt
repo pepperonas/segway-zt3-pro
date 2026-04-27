@@ -91,8 +91,10 @@ class Zt3ProVehicle(
                         firmwareVcu = snap.firmwareVcu,
                         firmwareMcu = snap.firmwareMcu,
                         firmwareBle = snap.firmwareBle,
+                        firmwareBms = snap.firmwareBms,
                         serialNumber = snap.serialNumber,
                         regionCode = snap.regionCode,
+                        chargeThresholdPercent = snap.chargeThresholdPercent,
                     )
                 }
             }
@@ -122,8 +124,10 @@ class Zt3ProVehicle(
                         firmwareVcu = s.firmwareVcu,
                         firmwareMcu = s.firmwareMcu,
                         firmwareBle = s.firmwareBle,
+                        firmwareBms = s.firmwareBms,
                         serialNumber = s.serialNumber,
                         regionCode = s.regionCode,
+                        chargeThresholdPercent = s.chargeThresholdPercent,
                     )
                 )
             }
@@ -187,6 +191,7 @@ class Zt3ProVehicle(
         // VCU identity (rarely changes; cheap to re-poll)
         Triple(0x16, 0x10.toByte(), 14),  // VCU_SN — serial number
         Triple(0x16, 0x17.toByte(), 2),   // VCU_CtrlV — VCU firmware (the controller itself)
+        Triple(0x16, 0x19.toByte(), 2),   // bms_version — BMS FW (mediated via VCU per zt3.json)
         Triple(0x16, 0x1A.toByte(), 16),  // MCU + BLE firmware live at offsets 2-3, 4-5 of this block
         // VCU live state
         Triple(0x16, 0x55.toByte(), 2),   // VCU_BATTPCT — battery %
@@ -211,6 +216,7 @@ class Zt3ProVehicle(
         Triple(0x07, 0x96.toByte(), 4),   // BMS_Temps — pack temperatures
         Triple(0x07, 0xF9.toByte(), 2),   // BMS_TEMP — alt temp register
         Triple(0x07, 0xA0.toByte(), 26),  // BMS_CellVolts — 13S pack (verified: 53.35 V / 4.10 V/cell)
+        Triple(0x07, 0x82.toByte(), 2),   // charge_threshold — Battery Max Charge % (R/W)
         // MCU
         Triple(0x02, 0x86.toByte(), 2),   // MCU_SPEED — actual current speed
         Triple(0x02, 0x48.toByte(), 2),   // MCU_TEMP_A — motor controller temp A
@@ -479,6 +485,13 @@ class Zt3ProVehicle(
                     it.copy(firmwareVcu = "%d.%d.%d".format(data[1].toInt() and 0xFF, (data[0].toInt() ushr 4) and 0x0F, data[0].toInt() and 0x0F))
                 }
             }
+            0x19 -> if (data.size >= 2) {
+                // bms_version (BMS firmware), mediated via VCU per zt3.json.
+                // Same nibble-packed format as VCU/MCU/BLE versions.
+                _state.update {
+                    it.copy(firmwareBms = "%d.%d.%d".format(data[1].toInt() and 0xFF, (data[0].toInt() ushr 4) and 0x0F, data[0].toInt() and 0x0F))
+                }
+            }
             0x1A -> if (data.size >= 6) {
                 // ZT3: reg 0x1A itself (BMS2_VER) is unused; MCU lives at
                 // offset 2-3 (= reg 0x1B?) and BLE at 4-5 — verified
@@ -574,6 +587,11 @@ class Zt3ProVehicle(
             0xA0 -> if (data.size >= 4 && data.size % 2 == 0) {
                 val cells = IntArray(data.size / 2) { i -> leU16(data, i * 2) }
                 _state.update { it.copy(cellVoltagesMv = cells) }
+            }
+            // charge_threshold — Battery Max Charge % cutoff (R/W, 80-100).
+            // Per zt3.json bootstrap: BMS dst=0x07, offset=0x82, uint16-LE.
+            0x82 -> if (data.size >= 2) {
+                _state.update { it.copy(chargeThresholdPercent = leU16(data, 0).coerceIn(0, 100)) }
             }
         }
     }

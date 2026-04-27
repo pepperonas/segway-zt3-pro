@@ -23,6 +23,7 @@ import androidx.navigation.compose.rememberNavController
 import com.celox.segway.R
 import com.celox.segway.feature.about.AboutScreen
 import com.celox.segway.feature.airlock.AirLockScreen
+import com.celox.segway.feature.battery.BatteryDetailScreen
 import com.celox.segway.feature.diagnostics.DiagnosticsScreen
 import com.celox.segway.feature.firmware.FirmwareScreen
 import com.celox.segway.feature.garage.GarageScreen
@@ -60,7 +61,10 @@ fun SegwayApp() {
             modifier = Modifier.padding(padding)
         ) {
             composable(Route.Vehicle.route) {
-                VehicleScreen(onPairClick = { navController.navigate(Route.Pair.route) })
+                VehicleScreen(
+                    onPairClick = { navController.navigate(Route.Pair.route) },
+                    onBatteryDetailClick = { navController.navigate(Route.BatteryDetail.route) },
+                )
             }
             composable(Route.Track.route) { TrackScreen() }
             composable(Route.Mine.route) {
@@ -100,6 +104,9 @@ fun SegwayApp() {
             }
             composable(Route.Profiles.route) {
                 ProfilesScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Route.BatteryDetail.route) {
+                BatteryDetailScreen(onBack = { navController.popBackStack() })
             }
         }
     }
@@ -143,4 +150,5 @@ sealed class Route(val route: String) {
     data object Diagnostics : Route("diagnostics")
     data object AirLock : Route("airlock")
     data object Profiles : Route("profiles")
+    data object BatteryDetail : Route("battery_detail")
 }

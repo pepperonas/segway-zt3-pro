@@ -74,6 +74,17 @@ data class VehicleState(
     val lastRegisterRead: Pair<Int, ByteArray>? = null,
     /** Last read black-box (crash-log) entry. Format implementation-defined. */
     val blackBoxRaw: ByteArray? = null,
+    /**
+     * BMS firmware version (read via VCU 0x19, NOT BMS 0x?? — the VCU mediates this
+     * register per SHU's bootstrap zt3.json). uint16-LE → "X.YYY" format.
+     */
+    val firmwareBms: String = "",
+    /**
+     * Battery max charge percentage (`charge_threshold`, BMS 0x82, R/W).
+     * Range 80–100 in units of percent. Lets the user trade peak range vs
+     * cell longevity.
+     */
+    val chargeThresholdPercent: Int = 0,
 )
 
 /** ZT3 has 4 modes shown on the dashboard: Walk, E, D, S. */

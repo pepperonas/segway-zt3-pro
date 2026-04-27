@@ -76,6 +76,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun VehicleScreen(
     onPairClick: () -> Unit,
+    onBatteryDetailClick: () -> Unit = {},
     viewModel: VehicleViewModel = hiltViewModel(),
 ) {
     val vehicle by viewModel.vehicle.collectAsStateWithLifecycle()
@@ -293,8 +294,8 @@ fun VehicleScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // Battery deep telemetry from BMS
-            BatteryDetailsCard(state)
+            // Battery deep telemetry from BMS — tap to open full detail screen
+            BatteryDetailsCard(state, onClick = onBatteryDetailClick)
 
             Spacer(Modifier.height(16.dp))
 
@@ -680,7 +681,10 @@ private fun InfoRow(label: String, value: String) {
 }
 
 @Composable
-private fun BatteryDetailsCard(state: com.celox.segway.core.vehicle.VehicleState) {
+private fun BatteryDetailsCard(
+    state: com.celox.segway.core.vehicle.VehicleState,
+    onClick: () -> Unit = {},
+) {
     val cells = state.cellVoltagesMv
     val bmsKnown = cells.isNotEmpty() || state.batteryVoltage > 0f
     val cellSpread = if (cells.size >= 2) (cells.max() - cells.min()) else 0
@@ -692,10 +696,14 @@ private fun BatteryDetailsCard(state: com.celox.segway.core.vehicle.VehicleState
     }
     Card(
         modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Akku — Detail", style = MaterialTheme.typography.titleSmall)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Akku — Detail", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                Text("→", style = MaterialTheme.typography.titleSmall)
+            }
             Spacer(Modifier.height(8.dp))
             InfoRow("Spannung", if (state.batteryVoltage > 0f) "%.2f V".format(state.batteryVoltage) else "—")
             InfoRow("Strom", if (bmsKnown) "%+.2f A".format(state.batteryCurrentA) else "—")

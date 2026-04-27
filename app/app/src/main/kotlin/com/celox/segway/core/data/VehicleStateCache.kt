@@ -44,8 +44,10 @@ class VehicleStateCache @Inject constructor(
         val firmwareVcu: String = "",
         val firmwareMcu: String = "",
         val firmwareBle: String = "",
+        val firmwareBms: String = "",
         val serialNumber: String = "",
         val regionCode: String = "",
+        val chargeThresholdPercent: Int = 0,
     )
 
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }

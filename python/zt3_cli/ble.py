@@ -56,6 +56,39 @@ async def scan(timeout: float = 5.0) -> list[DiscoveredScooter]:
     return sorted(found.values(), key=lambda s: -s.rssi)
 
 
+@dataclass
+class RawAdvertisement:
+    address: str
+    name: Optional[str]
+    rssi: int
+    manufacturer_ids: list[int]
+    service_uuids: list[str]
+
+
+async def scan_raw(timeout: float = 8.0) -> list[RawAdvertisement]:
+    """Diagnostic scan — returns ALL nearby BLE devices, not just ZT3.
+
+    Use this to debug why `zt3 scan` finds nothing: if the scooter shows
+    up here with an unexpected manufacturer-id, we adjust the filter.
+    """
+    found: dict[str, RawAdvertisement] = {}
+
+    def _detected(device: BLEDevice, adv: AdvertisementData) -> None:
+        # Latest advertisement wins (manufacturer data + RSSI may update).
+        found[device.address] = RawAdvertisement(
+            address=device.address,
+            name=device.name,
+            rssi=adv.rssi,
+            manufacturer_ids=sorted(adv.manufacturer_data.keys()),
+            service_uuids=list(adv.service_uuids),
+        )
+
+    async with BleakScanner(detection_callback=_detected):
+        await asyncio.sleep(timeout)
+
+    return sorted(found.values(), key=lambda s: -s.rssi)
+
+
 class BleSession:
     """Async context manager wrapping a single BleakClient.
 

@@ -22,7 +22,7 @@ import sys
 from typing import Optional
 
 from . import commands
-from .ble import scan as ble_scan
+from .ble import NINEBOT_MFG_ID, scan as ble_scan, scan_raw
 from .session import open_session
 
 
@@ -80,10 +80,39 @@ async def _cmd_hunt(args: argparse.Namespace) -> int:
         return await commands.cmd_hunt(session, args.dst, lo, hi)
 
 
-async def _cmd_scan(_args: argparse.Namespace) -> int:
+async def _cmd_scan(args: argparse.Namespace) -> int:
+    if args.all:
+        # Diagnostic mode — show every nearby BLE device with its
+        # manufacturer-id list. Useful when the filtered scan returns
+        # nothing and we need to figure out what's actually advertising.
+        print("Scanning ALL nearby BLE devices for 8 s…", file=sys.stderr)
+        found = await scan_raw(timeout=8.0)
+        if not found:
+            print(
+                "no BLE devices in range at all — Mac Bluetooth permission?\n"
+                "  System Settings → Privacy & Security → Bluetooth → Terminal/iTerm = ON\n"
+                "  (you may need to restart the terminal app after granting)",
+                file=sys.stderr,
+            )
+            return 1
+        for d in found:
+            mfg = ", ".join(f"0x{m:04X}" for m in d.manufacturer_ids) or "—"
+            highlight = "  ← ZT3 candidate" if NINEBOT_MFG_ID in d.manufacturer_ids else ""
+            print(
+                f"{d.address}  RSSI={d.rssi:>4} dBm  "
+                f"name={d.name or '?':<24}  mfg=[{mfg}]{highlight}"
+            )
+        return 0
+
     found = await ble_scan(timeout=5.0)
     if not found:
-        print("no ZT3-class scooters in range", file=sys.stderr)
+        print(
+            "no ZT3-class scooters in range (filter: manufacturer 0x434E).\n"
+            "  • is the scooter switched on?\n"
+            "  • is the Android app currently connected to it? disconnect first.\n"
+            "  • try `zt3 scan --all` to see every nearby BLE device.",
+            file=sys.stderr,
+        )
         return 1
     for s in found:
         print(f"{s.address}  {s.name or '(no name)'}  RSSI={s.rssi} dBm")
@@ -106,6 +135,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_conn.set_defaults(func=_cmd_connect)
 
     p_scan = sub.add_parser("scan", help="discover ZT3-class scooters")
+    p_scan.add_argument(
+        "--all",
+        action="store_true",
+        help="show every nearby BLE device (diagnostic — bypasses the 0x434E filter)",
+    )
     p_scan.set_defaults(func=_cmd_scan)
 
     p_read = sub.add_parser("read", help="read a register")

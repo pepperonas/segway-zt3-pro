@@ -243,22 +243,13 @@ class SpeedProfileManager @Inject constructor(
      */
     private suspend fun runCustomButtonTapWatcher(vehicle: com.celox.segway.core.vehicle.Vehicle) {
         bleLog.note("BtnTap", "watcher started — fast-polling 0x5A every 250 ms")
-        // Force the scooter's custom_key (VCU 0x4A) to "Toggle walk mode" (=3)
-        // so the button actually flips drive-mode between Walk and the
-        // previous mode — that's the transition our 0x5A poll detects.
-        // Without this, if the user has the button set to anything else
-        // (Warnblinker, Park-Mode, KERS, …) the button press never changes
-        // 0x5A and the double-tap is invisible to us. Best-effort write
-        // once at watcher start; user can still override via Roller-
-        // Einstellungen, but doing so silently breaks double-tap.
-        if (vehicle.state.value.isReady) {
-            runCatching {
-                vehicle.execute(VehicleCommand.WriteVcuU16(0x4A, 3))
-                bleLog.note("BtnTap", "wrote custom_key=3 (Walk Mode) — required for double-tap")
-            }.onFailure {
-                bleLog.note("BtnTap", "could not set custom_key=3: ${it.message}")
-            }
-        }
+        // Note: we DO NOT force custom_key (VCU 0x4A) to 3 (Walk Mode)
+        // anymore — that overwrote the user's own choice in Roller-
+        // Einstellungen on every reconnect. If the user picks any value
+        // other than 3, the double-tap watcher will simply see no
+        // transitions on reg 0x5A (the button does something else now)
+        // and stay silent — no false trigger, no surprise behaviour.
+        // The hint text in the Custom-Button picker explains this.
         val taps = ArrayDeque<Long>()
         var lastMode: com.celox.segway.core.vehicle.RideMode? = null
         try {

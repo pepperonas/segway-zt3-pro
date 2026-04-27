@@ -125,64 +125,78 @@ class DiagnosticsViewModel @Inject constructor(
     val buttonHuntPhase = kotlinx.coroutines.flow.MutableStateFlow(0)
 
     /**
-     * Two-sweep helper to find which register reflects a custom-button press.
-     * VCU-only (dst=0x16) for speed; sweeps the same range twice with a user
-     * press in between, then walks both captures and emits `DIFF | reg 0xNN
-     * before=[..] after=[..]` notes for any byte that changed.
+     * Triple-sweep register hunt across VCU + MCU + BMS:
+     *
+     *   A — baseline 1, idle
+     *   A2 — baseline 2, also idle (5 s gap so natural counters tick)
+     *   B — post-trigger, after user activates the input
+     *
+     * Diffs A2→B are reported, BUT registers that already differed
+     * between A→A2 (natural counters: runtime, mileage, voltage drift,
+     * etc.) are filtered out as "ignored counters". The output is a
+     * dramatically cleaner DIFF list — only state-changing registers
+     * show up, not natural ticks.
+     *
+     * Sweeps three destinations (VCU=0x16, MCU=0x02, BMS=0x07) so the
+     * blinker / brake / horn / etc. register can be on any of them.
+     * Skips dst=0x07 reads at offset > 0xC0 because BMS rejects those.
      */
     fun runButtonHunt() {
         val v = activeHolder.activeVehicle.value ?: return
         if (buttonHuntPhase.value != 0) return  // already running
         viewModelScope.launch {
             try {
-                // Phase 1: sweep A, capture by walking BleLog entries afterwards.
+                // Phase 1a: sweep A across VCU + MCU + BMS.
                 buttonHuntPhase.value = 1
-                log.note("HUNT", "=== sweep A (BEFORE press) start ===")
-                val seqBeforeA = log.entries.value.lastOrNull()?.seq ?: 0L
-                for (reg in 0x00..0xFF) {
-                    v.execute(VehicleCommand.ReadRegister(reg, 2, 0x16))
-                    kotlinx.coroutines.delay(35L)
+                log.note("HUNT", "=== triple-sweep starting ===")
+                val a = sweepAll(v)
+                log.note("HUNT", "sweep A: ${a.size} regs captured — counter baseline (5 s)")
+
+                // Phase 1b: sweep A2 — establish a counter baseline.
+                kotlinx.coroutines.delay(5_000L)
+                val a2 = sweepAll(v)
+                val counters = mutableSetOf<Pair<Byte, Int>>()
+                for ((key, before) in a) {
+                    val after = a2[key] ?: continue
+                    if (!before.contentEquals(after)) counters += key
                 }
-                kotlinx.coroutines.delay(500L) // drain pipe
-                val seqAfterA = log.entries.value.lastOrNull()?.seq ?: seqBeforeA
-                val before = collectVcuReads(seqBeforeA, seqAfterA)
-                log.note("HUNT", "sweep A captured ${before.size} regs — DRÜCK JETZT (5 s)")
+                log.note(
+                    "HUNT",
+                    "${counters.size} natural counter(s) detected — DRÜCK JETZT (5 s)"
+                )
 
                 // Phase 2: 5 s for the user.
                 buttonHuntPhase.value = 2
                 kotlinx.coroutines.delay(5_000L)
 
-                // Phase 3: sweep B, same idea.
+                // Phase 3: sweep B with input active.
                 buttonHuntPhase.value = 3
-                log.note("HUNT", "=== sweep B (AFTER press) start ===")
-                val seqBeforeB = log.entries.value.lastOrNull()?.seq ?: 0L
-                for (reg in 0x00..0xFF) {
-                    v.execute(VehicleCommand.ReadRegister(reg, 2, 0x16))
-                    kotlinx.coroutines.delay(35L)
-                }
-                kotlinx.coroutines.delay(500L)
-                val seqAfterB = log.entries.value.lastOrNull()?.seq ?: seqBeforeB
-                val after = collectVcuReads(seqBeforeB, seqAfterB)
-                log.note("HUNT", "sweep B captured ${after.size} regs — diffing")
+                val b = sweepAll(v)
+                log.note("HUNT", "sweep B: ${b.size} regs captured — diffing (excluding counters)")
 
-                // Phase 4: emit diffs.
+                // Phase 4: emit diffs (excluding counters).
                 var diffs = 0
-                for (reg in 0x00..0xFF) {
-                    val a = before[reg] ?: continue
-                    val b = after[reg] ?: continue
-                    if (!a.contentEquals(b)) {
-                        diffs++
-                        log.note(
-                            "DIFF",
-                            "reg 0x%02X  before=[%s]  after=[%s]".format(
-                                reg,
-                                a.joinToString(" ") { "%02X".format(it) },
-                                b.joinToString(" ") { "%02X".format(it) },
-                            )
-                        )
+                var skipped = 0
+                for ((key, before) in a2) {
+                    val after = b[key] ?: continue
+                    if (before.contentEquals(after)) continue
+                    if (key in counters) {
+                        skipped++
+                        continue
                     }
+                    diffs++
+                    val (dst, reg) = key
+                    log.note(
+                        "DIFF",
+                        "dst=0x%02X reg=0x%02X  before=[%s]  after=[%s]".format(
+                            dst.toInt() and 0xFF,
+                            reg,
+                            before.joinToString(" ") { "%02X".format(it) },
+                            after.joinToString(" ") { "%02X".format(it) },
+                        )
+                    )
                 }
-                log.note("HUNT", "=== done — $diffs register(s) changed ===")
+                log.note("HUNT", "=== done — $diffs candidate(s), $skipped counter(s) filtered ===")
                 buttonHuntPhase.value = 4
                 kotlinx.coroutines.delay(3_000L)
                 buttonHuntPhase.value = 0
@@ -193,25 +207,43 @@ class DiagnosticsViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Walk the BleLog entries between [startSeqExclusive] and [endSeq], pick
-     * out the `RX-DEC src=16 ... arg=NN [HH HH ...]` notes from the VCU and
-     * return register-id → bytes. The format is fixed (set in
-     * Zt3ProVehicle.handleNotify) so a simple regex is enough.
-     */
-    private fun collectVcuReads(startSeqExclusive: Long, endSeq: Long): Map<Int, ByteArray> {
-        val out = HashMap<Int, ByteArray>()
-        val rx = Regex("src=16 dst=3E cmd=04 arg=([0-9A-Fa-f]{2}) \\[([0-9A-Fa-f ]+)\\]")
+    /** One pass over VCU+MCU+BMS register space, returns (dst,reg) → bytes. */
+    private suspend fun sweepAll(v: com.celox.segway.core.vehicle.Vehicle): Map<Pair<Byte, Int>, ByteArray> {
+        val out = HashMap<Pair<Byte, Int>, ByteArray>()
+        // VCU (0x16): full range 0x00..0xFF.
+        sweepOne(v, 0x16, 0x00..0xFF, out)
+        // MCU (0x02): 0x00..0xFF — BMS-style ranges may also live here.
+        sweepOne(v, 0x02, 0x00..0xFF, out)
+        // BMS (0x07): 0x00..0xCF — higher offsets reject on the ZT3 BMS.
+        sweepOne(v, 0x07, 0x00..0xCF, out)
+        return out
+    }
+
+    private suspend fun sweepOne(
+        v: com.celox.segway.core.vehicle.Vehicle,
+        dst: Byte,
+        range: IntRange,
+        target: MutableMap<Pair<Byte, Int>, ByteArray>,
+    ) {
+        val seqBefore = log.entries.value.lastOrNull()?.seq ?: 0L
+        for (reg in range) {
+            v.execute(VehicleCommand.ReadRegister(reg, 2, dst))
+            kotlinx.coroutines.delay(35L)
+        }
+        kotlinx.coroutines.delay(500L) // drain
+        val seqAfter = log.entries.value.lastOrNull()?.seq ?: seqBefore
+        // Walk the log for src=<dst> RX-DEC notes.
+        val srcHex = "%02X".format(dst.toInt() and 0xFF)
+        val rx = Regex("src=$srcHex dst=3E cmd=04 arg=([0-9A-Fa-f]{2}) \\[([0-9A-Fa-f ]+)\\]")
         for (e in log.entries.value) {
-            if (e.seq <= startSeqExclusive || e.seq > endSeq) continue
+            if (e.seq <= seqBefore || e.seq > seqAfter) continue
             val msg = e.message ?: continue
             val m = rx.find(msg) ?: continue
             val reg = m.groupValues[1].toInt(16)
             val bytes = m.groupValues[2].trim().split(' ')
                 .map { it.toInt(16).toByte() }.toByteArray()
-            out[reg] = bytes
+            target[dst to reg] = bytes
         }
-        return out
     }
 
     private fun sendCmd(cmd: VehicleCommand) {

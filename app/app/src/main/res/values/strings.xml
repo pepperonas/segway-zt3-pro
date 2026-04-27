@@ -413,7 +413,7 @@
     <string name="scooter_settings_custom_button_walk_toggle">Toggle walk mode</string>
     <string name="scooter_settings_custom_button_kers_cycle">Cycle KERS level</string>
     <string name="scooter_settings_custom_button_hazards">Hazard lights</string>
-    <string name="scooter_settings_custom_button_doubletap_hint">⚠ Only "Toggle walk mode" makes the double-tap-to-22 km/h watcher detect taps — every other action (Park, Hill-Hold, KERS, Hazard lights, Off) is invisible to it. While "Double-tap = 22 km/h" is enabled in Speed profiles, this setting is forced back to "Walk mode" on every reconnect. Disable it there first if you want a different action.</string>
+    <string name="scooter_settings_custom_button_doubletap_hint">ℹ Only "Toggle walk mode" makes the double-tap-to-22 km/h watcher detect taps — every other action (Park, Hill-Hold, KERS, Hazard lights, Off) is invisible to it because they don\'t change drive mode. Pick a non-Walk action freely; double-tap-to-22 will simply stay silent until you switch the action back to Walk mode (or disable the double-tap feature in Speed profiles).</string>
     <string name="scooter_settings_unknown_value">Unknown (%1$d)</string>
 
     <!-- Slider unit suffixes -->

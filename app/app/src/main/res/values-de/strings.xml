@@ -413,7 +413,7 @@
     <string name="scooter_settings_custom_button_walk_toggle">Walk-Mode umschalten</string>
     <string name="scooter_settings_custom_button_kers_cycle">KERS-Stufe wechseln</string>
     <string name="scooter_settings_custom_button_hazards">Warnblinker</string>
-    <string name="scooter_settings_custom_button_doubletap_hint">⚠ Nur „Walk-Mode umschalten" macht den Doppel-Tap-Watcher (auf 22 km/h) sichtbar — alle anderen Aktionen (Park, Hill-Hold, KERS, Warnblinker, Aus) ändern den Drive-Mode-Register nicht und werden nicht erkannt. Solange „Doppel-Tap = 22 km/h" in den Speed-Profilen aktiv ist, wird diese Einstellung bei jedem Reconnect zurück auf „Walk-Mode" gesetzt. Erst dort abschalten, wenn du eine andere Aktion willst.</string>
+    <string name="scooter_settings_custom_button_doubletap_hint">ℹ Nur „Walk-Mode umschalten" macht den Doppel-Tap-Watcher (auf 22 km/h) sichtbar — alle anderen Aktionen (Park, Hill-Hold, KERS, Warnblinker, Aus) ändern den Drive-Mode-Register nicht und werden nicht erkannt. Wähle ruhig eine andere Aktion; Doppel-Tap-zu-22 bleibt dann einfach still bis du wieder auf Walk-Mode wechselst (oder den Doppel-Tap in den Speed-Profilen abschaltest).</string>
     <string name="scooter_settings_unknown_value">Unbekannt (%1$d)</string>
 
     <!-- Slider unit suffixes -->

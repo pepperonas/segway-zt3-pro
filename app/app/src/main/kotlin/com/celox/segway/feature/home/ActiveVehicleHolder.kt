@@ -7,7 +7,6 @@ import com.celox.segway.core.ble.GattClient
 import com.celox.segway.core.data.PairingPrefs
 import com.celox.segway.core.data.UserPreferencesRepository
 import com.celox.segway.core.data.VehicleDao
-import com.celox.segway.core.data.VehicleStateCache
 import com.celox.segway.core.ota.FirmwareUpdater
 import com.celox.segway.core.repo.FirmwareTarget
 import com.celox.segway.core.util.BleLog
@@ -43,7 +42,6 @@ class ActiveVehicleHolder @Inject constructor(
     private val pairingPrefs: PairingPrefs,
     private val vehicleDao: VehicleDao,
     private val userPrefs: UserPreferencesRepository,
-    private val stateCache: VehicleStateCache,
     private val bleLog: BleLog,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -66,7 +64,6 @@ class ActiveVehicleHolder @Inject constructor(
             gatt = gatt,
             pairing = pairing,
             pairingPrefs = pairingPrefs,
-            stateCache = stateCache,
             bleLog = bleLog,
             scope = scope
         )

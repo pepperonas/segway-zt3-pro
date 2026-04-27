@@ -149,6 +149,11 @@
     <string name="mine_airlock_subtitle">Auto-unlock by proximity</string>
     <string name="mine_diagnostics_title">Diagnostics</string>
     <string name="mine_diagnostics_subtitle">Live BLE log + crash records</string>
+    <string name="mine_feedback_title">Feedback / report bug</string>
+    <string name="mine_feedback_subtitle">Send us a feature request or bug report</string>
+    <string name="feedback_email_subject">[zt3-fxx] Feedback / bug report</string>
+    <string name="feedback_email_body_template">App version: %1$s (%2$d)\nDevice: %3$s\nAndroid: %4$s\n\n— please describe the issue or feature request below —\n\n</string>
+    <string name="feedback_no_email_app">No email app found. Please write to support@celox.io.</string>
 
     <!-- Errors / generic -->
     <string name="error_bluetooth_off">Bluetooth is off</string>
@@ -337,7 +342,7 @@
     <string name="scooter_settings_custom_button_walk_toggle">Toggle walk mode</string>
     <string name="scooter_settings_custom_button_kers_cycle">Cycle KERS level</string>
     <string name="scooter_settings_custom_button_hazards">Hazard lights</string>
-    <string name="scooter_settings_custom_button_doubletap_hint">Note: while the app\'s "Double-tap = 22 km/h" lock is active, the scooter forces this action to "Toggle walk mode" so the watcher can detect taps. Choose another action only if you turn the double-tap feature off in Speed profiles.</string>
+    <string name="scooter_settings_custom_button_doubletap_hint">⚠ Only "Toggle walk mode" makes the double-tap-to-22 km/h watcher detect taps — every other action (Park, Hill-Hold, KERS, Hazard lights, Off) is invisible to it. While "Double-tap = 22 km/h" is enabled in Speed profiles, this setting is forced back to "Walk mode" on every reconnect. Disable it there first if you want a different action.</string>
     <string name="scooter_settings_unknown_value">Unknown (%1$d)</string>
 
     <!-- Slider unit suffixes -->

@@ -149,6 +149,11 @@
     <string name="mine_airlock_subtitle">Auto-Entsperren bei Annäherung</string>
     <string name="mine_diagnostics_title">Diagnose</string>
     <string name="mine_diagnostics_subtitle">Live-BLE-Log + Crash-Aufzeichnungen</string>
+    <string name="mine_feedback_title">Feedback / Bug melden</string>
+    <string name="mine_feedback_subtitle">Feature-Wunsch oder Fehler senden</string>
+    <string name="feedback_email_subject">[zt3-fxx] Feedback / Bug-Bericht</string>
+    <string name="feedback_email_body_template">App-Version: %1$s (%2$d)\nGerät: %3$s\nAndroid: %4$s\n\n— bitte beschreibe das Problem oder den Feature-Wunsch unten —\n\n</string>
+    <string name="feedback_no_email_app">Keine E-Mail-App gefunden. Bitte schreib uns an support@celox.io.</string>
 
     <!-- Errors / generic -->
     <string name="error_bluetooth_off">Bluetooth ist aus</string>
@@ -337,7 +342,7 @@
     <string name="scooter_settings_custom_button_walk_toggle">Walk-Mode umschalten</string>
     <string name="scooter_settings_custom_button_kers_cycle">KERS-Stufe wechseln</string>
     <string name="scooter_settings_custom_button_hazards">Warnblinker</string>
-    <string name="scooter_settings_custom_button_doubletap_hint">Hinweis: solange die App-Funktion „Doppel-Tap = 22 km/h" aktiv ist, erzwingt sie für diese Aktion „Walk-Mode umschalten", damit der Tap-Watcher die Tastendrücke erkennen kann. Eine andere Aktion wählen geht nur wenn der Doppel-Tap unter Speed-Profile abgeschaltet wird.</string>
+    <string name="scooter_settings_custom_button_doubletap_hint">⚠ Nur „Walk-Mode umschalten" macht den Doppel-Tap-Watcher (auf 22 km/h) sichtbar — alle anderen Aktionen (Park, Hill-Hold, KERS, Warnblinker, Aus) ändern den Drive-Mode-Register nicht und werden nicht erkannt. Solange „Doppel-Tap = 22 km/h" in den Speed-Profilen aktiv ist, wird diese Einstellung bei jedem Reconnect zurück auf „Walk-Mode" gesetzt. Erst dort abschalten, wenn du eine andere Aktion willst.</string>
     <string name="scooter_settings_unknown_value">Unbekannt (%1$d)</string>
 
     <!-- Slider unit suffixes -->

@@ -9,6 +9,7 @@
 - [x3regs.h](https://github.com/MacintoshKeyboardHacking/segMod/blob/main/myBLE4/x3regs.h)
 - [NootNooot Ninebot BLE Documentation](https://nootnooot.codeberg.page/segway-ninebot-ble/)
 - [etransport/ninebot-docs](https://github.com/etransport/ninebot-docs/wiki/protocol)
+- **SHU `bootstrap.zip` / `zt3.json`** (extracted 2026-04-28 from a patched-debuggable SHU build) — full settings/toggle/bitfield map authoritatively in [`zt3-settings-registers.md`](zt3-settings-registers.md).
 
 ---
 

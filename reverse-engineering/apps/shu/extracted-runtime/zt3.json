@@ -1,0 +1,817 @@
+{
+  "peripherals": [
+    "ble",
+    "vcu",
+    "mcu",
+    "bms"
+  ],
+  "bluetooth_device": "ble",
+  "commands": {
+    "read_register": {
+      "type": "read",
+      "cmd": 1,
+      "response_cmd": 4,
+      "arg": "offset",
+      "payload_args": [
+        "length"
+      ],
+      "format": "read_register",
+      "retries": null,
+      "timeout": null
+    },
+    "write_register": {
+      "type": "write",
+      "cmd": 2,
+      "response_cmd": 5,
+      "arg": "offset",
+      "payload_args": [
+        "data"
+      ],
+      "format": "write_register",
+      "retries": null,
+      "timeout": null
+    },
+    "write_no_reply": {
+      "type": "write_no_reply",
+      "cmd": 3,
+      "response_cmd": null,
+      "arg": "offset",
+      "payload_args": [
+        "data"
+      ],
+      "format": "write_register",
+      "retries": null,
+      "timeout": null
+    },
+    "change_sn": {
+      "type": "device_config",
+      "cmd": 24,
+      "response_cmd": null,
+      "arg": "0x10",
+      "payload_args": [
+        "new_sn",
+        "nb_cpuid_auth"
+      ],
+      "format": "change_sn",
+      "retries": null,
+      "timeout": null
+    },
+    "start_update": {
+      "type": "update",
+      "cmd": 7,
+      "response_cmd": 11,
+      "retries": 3,
+      "timeout": 5000,
+      "arg": "0",
+      "payload_args": [
+        "length"
+      ],
+      "format": null
+    },
+    "update_page": {
+      "type": "update",
+      "cmd": 8,
+      "response_cmd": 11,
+      "retries": 5,
+      "timeout": 500,
+      "arg": "idx",
+      "payload_args": [
+        "data"
+      ],
+      "format": null
+    },
+    "update_checksum": {
+      "type": "update",
+      "cmd": 9,
+      "response_cmd": 11,
+      "retries": 3,
+      "timeout": 5000,
+      "arg": "0",
+      "payload_args": [
+        "checksum"
+      ],
+      "format": null
+    },
+    "reset": {
+      "type": "update",
+      "cmd": 10,
+      "response_cmd": null,
+      "arg": "0",
+      "payload_args": [],
+      "format": null,
+      "retries": null,
+      "timeout": null
+    },
+    "set_brownout": {
+      "type": "write_no_reply",
+      "cmd": 122,
+      "response_cmd": null,
+      "arg": "0",
+      "payload_args": [
+        "0x0002"
+      ],
+      "format": null,
+      "retries": null,
+      "timeout": null
+    },
+    "shfw_version": {
+      "type": "shfw",
+      "cmd": 57,
+      "response_cmd": 57,
+      "arg": "0",
+      "payload_args": [],
+      "format": "raw",
+      "retries": null,
+      "timeout": null
+    },
+    "activate": {
+      "type": "write_no_reply",
+      "cmd": 89,
+      "response_cmd": null,
+      "arg": "0",
+      "payload_args": [],
+      "format": null,
+      "retries": null,
+      "timeout": null
+    },
+    "shfw_status": {
+      "type": "shfw",
+      "cmd": 58,
+      "response_cmd": 58,
+      "arg": "0",
+      "payload_args": [],
+      "format": null,
+      "retries": null,
+      "timeout": null
+    },
+    "power_state": {
+      "type": "device_config",
+      "cmd": 121,
+      "response_cmd": null,
+      "arg": "0",
+      "payload_args": [
+        "state"
+      ],
+      "format": null,
+      "retries": null,
+      "timeout": null
+    }
+  },
+  "devices": {
+    "vcu": {
+      "tx_addr": "0x16",
+      "rx_addr": "0x16",
+      "flash_enc": "true",
+      "flash_smaller_pages": "false",
+      "flash_post_wait": 8000,
+      "flash_lock_vehicle": "false",
+      "commands": [
+        "read_register",
+        "write_register",
+        "write_no_reply",
+        "change_sn",
+        "start_update",
+        "update_page",
+        "update_checksum",
+        "reset",
+        "activate",
+        "power_state"
+      ],
+      "board_definitions": [
+        {
+          "if": "true",
+          "board": "zt3_VCU_AT32"
+        }
+      ],
+      "sn_region_map": {
+        "US-U": {
+          "pattern": "1K1U",
+          "label": "US 40km/h",
+          "readonly": false,
+          "locked": false
+        },
+        "US-Z": {
+          "pattern": "1K1Z",
+          "label": "CN 32km/h",
+          "readonly": false,
+          "locked": false
+        },
+        "EU-A": {
+          "pattern": "1K1A",
+          "label": "Asia 25km/h",
+          "readonly": false,
+          "locked": true
+        },
+        "DE-D": {
+          "pattern": "1K1D",
+          "label": "DE 20km/h",
+          "readonly": false,
+          "locked": true
+        },
+        "EU-E": {
+          "pattern": "1K1E",
+          "label": "EU 25km/h",
+          "readonly": false,
+          "locked": true
+        }
+      },
+      "registers": [
+        {
+          "name": "vcu_version",
+          "friendly_name": "vcu version",
+          "offset": "0x17",
+          "datatype": "uint16LE",
+          "ui_blocks": [
+            {
+              "control": "text_display",
+              "section": "about",
+              "friendly_name": "VCU",
+              "weight": 20,
+              "format_function": "versionFormat"
+            }
+          ]
+        },
+        {
+          "name": "vcu_serial",
+          "friendly_name": "VCU Serial Number",
+          "offset": "0x10",
+          "datatype": "string",
+          "ui_blocks": [
+            {
+              "control": "text_display",
+              "section": "about",
+              "weight": 50,
+              "friendly_name": "Serial number",
+              "format_function": null
+            },
+            {
+              "control": "text_display",
+              "section": "about",
+              "weight": 51,
+              "friendly_name": "Region",
+              "format_function": "snRegion"
+            }
+          ],
+          "length": 14,
+          "padding_char": "0x00"
+        },
+        {
+          "name": "vcu_uid",
+          "friendly_name": "VCU UID",
+          "offset": "0xDA",
+          "count": 6,
+          "datatype": "uint16LE",
+          "ui_blocks": []
+        },
+        {
+          "name": "bms_version",
+          "datatype": "uint16LE",
+          "offset": "0x19",
+          "ui_blocks": [
+            {
+              "control": "text_display",
+              "section": "about",
+              "weight": 40,
+              "friendly_name": "BMS",
+              "format_function": "versionFormat"
+            }
+          ],
+          "count": 1
+        },
+        {
+          "name": "mcu_version",
+          "datatype": "uint16LE",
+          "offset": "0x18",
+          "ui_blocks": [
+            {
+              "control": "text_display",
+              "section": "about",
+              "weight": 30,
+              "friendly_name": "MCU",
+              "format_function": "versionFormat"
+            }
+          ],
+          "count": 1
+        },
+        {
+          "name": "mcu_uid",
+          "datatype": "uint16LE",
+          "offset": "0xC0",
+          "ui_blocks": [],
+          "count": 6
+        },
+        {
+          "name": "max_speed_eco_drive",
+          "datatype": "uint16LE",
+          "offset": "0x47",
+          "ui_blocks": [
+            {
+              "control": "slider",
+              "section": "tools",
+              "weight": 30,
+              "friendly_name": "Eco max speed",
+              "mask": "low",
+              "min": 5.0,
+              "max": 15.0,
+              "step": 1.0,
+              "unit": "km/h"
+            },
+            {
+              "control": "slider",
+              "section": "tools",
+              "weight": 20,
+              "friendly_name": "Drive max speed",
+              "mask": "high",
+              "min": 10.0,
+              "max": 25.0,
+              "step": 1.0,
+              "unit": "km/h",
+              "visible_if": "vcu_bool_2.enable_drive"
+            }
+          ],
+          "count": 1
+        },
+        {
+          "name": "max_speed_sports",
+          "datatype": "uint16LE",
+          "offset": "0x48",
+          "ui_blocks": [
+            {
+              "control": "slider",
+              "section": "tools",
+              "weight": 10,
+              "friendly_name": "Sports max speed",
+              "mask": "high",
+              "min": 10.0,
+              "max": 65.0,
+              "step": 1.0,
+              "unit": "km/h",
+              "visible_if": "vcu_bool_2.enable_sports"
+            }
+          ],
+          "count": 1
+        },
+        {
+          "name": "vcu_bool",
+          "datatype": "bitfield16",
+          "offset": "0x1D",
+          "bits": [
+            {
+              "bit": 4,
+              "name": "enable_walk",
+              "friendly_name": "Enable Walk mode",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 35,
+                "hide_on_shfw": false
+              }
+            },
+            {
+              "bit": 11,
+              "name": "turn_signal_sounds",
+              "friendly_name": "Turn signal sounds",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 160,
+                "hide_on_shfw": false
+              }
+            },
+            {
+              "bit": 10,
+              "name": "boost_function",
+              "friendly_name": "Enable boost function",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 130,
+                "hide_on_shfw": false
+              }
+            },
+            {
+              "bit": 5,
+              "name": "ramp_parking",
+              "friendly_name": "Park on Slope",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 100,
+                "hide_on_shfw": false
+              }
+            },
+            {
+              "bit": 0,
+              "name": "traction_control",
+              "friendly_name": "Traction control",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 110,
+                "hide_on_shfw": false
+              }
+            },
+            {
+              "bit": 15,
+              "name": "alarm",
+              "friendly_name": "Enable alarm",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 140,
+                "hide_on_shfw": false
+              }
+            },
+            {
+              "bit": 3,
+              "name": "imperial_units",
+              "friendly_name": "Use imperial units (mph)",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 185,
+                "hide_on_shfw": false
+              }
+            }
+          ]
+        },
+        {
+          "name": "vcu_bool_2",
+          "datatype": "bitfield16",
+          "offset": "0x1E",
+          "bits": [
+            {
+              "bit": 8,
+              "name": "enable_sports",
+              "friendly_name": "Enable Sports mode",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 11
+              }
+            },
+            {
+              "bit": 7,
+              "name": "enable_drive",
+              "friendly_name": "Enable Drive mode",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 21
+              }
+            },
+            {
+              "bit": 0,
+              "name": "app_function_tone",
+              "friendly_name": "App interaction sounds",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 150
+              }
+            }
+          ]
+        },
+        {
+          "name": "vcu_bool_3",
+          "datatype": "bitfield16",
+          "offset": "0x1F",
+          "bits": [
+            {
+              "bit": 7,
+              "name": "charge_now",
+              "friendly_name": "Charge now (bypass schedule)",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 200
+              }
+            },
+            {
+              "bit": 2,
+              "name": "underglow_lights",
+              "friendly_name": "Safety underglow lights",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 90,
+                "visible_if": "false"
+              }
+            },
+            {
+              "bit": 11,
+              "name": "front_position_lamp",
+              "friendly_name": "Front position lamp",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 80,
+                "visible_if": "false"
+              }
+            },
+            {
+              "bit": 1,
+              "name": "charging_breathing_light",
+              "friendly_name": "Tail light breathing on charging",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 210
+              }
+            },
+            {
+              "bit": 0,
+              "name": "auto_headlight",
+              "friendly_name": "Auto headlight",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 70,
+                "visible_if": "false"
+              }
+            },
+            {
+              "bit": 8,
+              "name": "power_off_folding",
+              "friendly_name": "Power off on folding",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 180
+              }
+            },
+            {
+              "bit": 9,
+              "name": "folding_disable_alarm",
+              "friendly_name": "Disable alarm on folding",
+              "ui": {
+                "control": "switch",
+                "section": "tools",
+                "weight": 141
+              }
+            }
+          ]
+        },
+        {
+          "name": "auto_off_time",
+          "datatype": "uint16LE",
+          "offset": "0x49",
+          "ui_blocks": [
+            {
+              "control": "slider",
+              "section": "tools",
+              "weight": 170,
+              "friendly_name": "Power off after",
+              "min": 1.0,
+              "max": 30.0,
+              "step": 1.0,
+              "unit": "minutes"
+            }
+          ],
+          "count": 1
+        },
+        {
+          "name": "start_speed",
+          "datatype": "uint16LE",
+          "offset": "0x42",
+          "ui_blocks": [
+            {
+              "control": "slider",
+              "section": "tools",
+              "weight": 50,
+              "friendly_name": "Motor start speed",
+              "max": 5.0,
+              "step": 1.0,
+              "unit": "km/h"
+            }
+          ],
+          "count": 1
+        },
+        {
+          "name": "kers_level",
+          "datatype": "uint16LE",
+          "offset": "0x70",
+          "ui_blocks": [
+            {
+              "control": "slider_enum",
+              "section": "tools",
+              "weight": 40,
+              "friendly_name": "Energy recovery / KERS",
+              "option_map": {
+                "Off": 0,
+                "Weak": 1,
+                "Standard": 2
+              }
+            }
+          ],
+          "count": 1
+        },
+        {
+          "name": "custom_key",
+          "datatype": "uint16LE",
+          "offset": "0x4A",
+          "ui_blocks": [
+            {
+              "control": "slider_enum",
+              "section": "tools",
+              "weight": 120,
+              "friendly_name": "Custom button action",
+              "option_map": {
+                "Toggle park mode": 1,
+                "Toggle auto hill hold": 2,
+                "Toggle walk mode": 3,
+                "Change KERS level": 5,
+                "Warning lights": 6
+              }
+            }
+          ],
+          "count": 1
+        },
+        {
+          "name": "tail_light_mode",
+          "datatype": "uint16LE",
+          "offset": "0x5D",
+          "ui_blocks": [
+            {
+              "control": "slider_enum",
+              "section": "tools",
+              "weight": 60,
+              "friendly_name": "Tail light mode (braking)",
+              "option_map": {
+                "Brighter": 0,
+                "Blinking": 1
+              }
+            }
+          ],
+          "count": 1
+        },
+        {
+          "name": "acc_level",
+          "datatype": "uint16LE",
+          "offset": "0x6E",
+          "ui_blocks": [
+            {
+              "control": "slider_enum",
+              "section": "tools",
+              "weight": 13,
+              "hide_on_shfw": false,
+              "friendly_name": "Acceleration mode",
+              "option_map": {
+                "Energy saving": 1,
+                "Standard": 2,
+                "Max. speed": 3
+              },
+              "visible_if": "vcu_version >= 0x152 && vcu_bool_2.enable_sports"
+            }
+          ],
+          "count": 1
+        },
+        {
+          "name": "vcu_rand",
+          "datatype": "string",
+          "offset": "0xE4",
+          "ui_blocks": [],
+          "length": 6
+        },
+        {
+          "name": "vcu_flag",
+          "datatype": "uint16LE",
+          "offset": "0xE7",
+          "ui_blocks": [],
+          "count": 1
+        }
+      ],
+      "high_density_flashing": null,
+      "flash_unique_key": "true",
+      "flash_unrestricted": "vcu_rand == \"cfw.sh\" || vcu_rand_hex == \"FFFFFFFFFFFF\" || vcu_rand_hex == \"000000000000\" || vcu_flag == 0"
+    },
+    "mcu": {
+      "tx_addr": "0x02",
+      "rx_addr": "0x02",
+      "flash_enc": "true",
+      "flash_smaller_pages": "false",
+      "flash_post_wait": 8000,
+      "flash_lock_vehicle": "false",
+      "commands": [
+        "read_register",
+        "write_register",
+        "write_no_reply",
+        "start_update",
+        "update_page",
+        "update_checksum",
+        "reset"
+      ],
+      "board_definitions": [
+        {
+          "if": "true",
+          "board": "x3_MCU_AT32"
+        }
+      ],
+      "sn_region_map": {},
+      "registers": [
+        {
+          "name": "mcu_rand",
+          "datatype": "string",
+          "offset": "0xE4",
+          "ui_blocks": [],
+          "length": 6
+        },
+        {
+          "name": "mcu_flag",
+          "datatype": "uint16LE",
+          "offset": "0xE7",
+          "ui_blocks": [],
+          "count": 1
+        }
+      ],
+      "high_density_flashing": null,
+      "flash_unique_key": "true",
+      "flash_unrestricted": "mcu_rand == \"cfw.sh\" || mcu_rand_hex == \"FFFFFFFFFFFF\" || mcu_rand_hex == \"000000000000\" || mcu_flag == 0"
+    },
+    "ble": {
+      "tx_addr": "0x04",
+      "rx_addr": "0x04",
+      "commands": [
+        "read_register",
+        "write_register",
+        "write_no_reply",
+        "start_update",
+        "update_page",
+        "update_checksum",
+        "reset"
+      ],
+      "registers": [
+        {
+          "name": "ble_version",
+          "datatype": "uint16LE",
+          "offset": "0x01",
+          "ui_blocks": [
+            {
+              "control": "text_display",
+              "section": "about",
+              "weight": 10,
+              "friendly_name": "BLE",
+              "format_function": "versionFormat"
+            }
+          ],
+          "count": 1
+        }
+      ],
+      "sn_region_map": {},
+      "board_definitions": [
+        {
+          "if": "true",
+          "board": "zt3_BLE"
+        }
+      ],
+      "flash_enc": "true",
+      "flash_smaller_pages": "false",
+      "flash_lock_vehicle": "false",
+      "high_density_flashing": "true"
+    },
+    "bms": {
+      "tx_addr": "0x07",
+      "rx_addr": "0x07",
+      "commands": [
+        "read_register",
+        "write_register",
+        "write_no_reply",
+        "start_update",
+        "update_page",
+        "update_checksum",
+        "reset",
+        "set_brownout"
+      ],
+      "registers": [
+        {
+          "name": "charge_threshold",
+          "datatype": "uint16LE",
+          "offset": "0x82",
+          "ui_blocks": [
+            {
+              "control": "slider",
+              "section": "tools",
+              "weight": 190,
+              "friendly_name": "Charge limit",
+              "min": 80.0,
+              "max": 100.0,
+              "step": 1.0,
+              "unit": "%"
+            }
+          ],
+          "count": 1
+        }
+      ],
+      "board_definitions": [
+        {
+          "if": "true",
+          "board": "x3_BMS"
+        }
+      ],
+      "sn_region_map": {},
+      "flash_enc": "true",
+      "flash_smaller_pages": "false",
+      "flash_lock_vehicle": "false"
+    }
+  }
+}

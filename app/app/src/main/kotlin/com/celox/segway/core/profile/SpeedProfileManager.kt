@@ -76,13 +76,6 @@ class SpeedProfileManager @Inject constructor(
     private val _customButtonTapEvents = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 4)
     val customButtonTapEvents: SharedFlow<Unit> = _customButtonTapEvents.asSharedFlow()
 
-    private val _blinkerRightTapEvents = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 4)
-    val blinkerRightTapEvents: SharedFlow<Unit> = _blinkerRightTapEvents.asSharedFlow()
-
-    /** Per-press feedback so the user can verify each detected blinker activation. */
-    private val _blinkerRightProgressEvents = MutableSharedFlow<Int>(replay = 0, extraBufferCapacity = 4)
-    val blinkerRightProgressEvents: SharedFlow<Int> = _blinkerRightProgressEvents.asSharedFlow()
-
     init {
         // Custom-button double-tap watcher — fast-polls reg 0x5A
         // (VCU_DRIVE_MODE) at 200 ms so we can resolve real double-taps.
@@ -107,26 +100,6 @@ class SpeedProfileManager @Inject constructor(
                         // Wait until the vehicle is ready, then run.
                         vehicle.state.first { it.isReady }
                         runCustomButtonTapWatcher(vehicle)
-                    }
-                }
-        }
-
-        // Right-blinker triple-tap watcher — polls VCU 0xFF (indicator
-        // bitfield, bit 1 = right blinker per Reg-Hunt diff) every 200 ms,
-        // edge-detects bit-1 transitions 0→1, three within 3 s = boot lock.
-        scope.launch {
-            var watcherJob: Job? = null
-            kotlinx.coroutines.flow.combine(
-                activeHolder.activeVehicle,
-                repo.flow.map { it.blinkerRightTripleTapEnabled }.distinctUntilChanged(),
-            ) { v, enabled -> v to enabled }
-                .collect { (vehicle, enabled) ->
-                    watcherJob?.cancel()
-                    watcherJob = null
-                    if (vehicle == null || !enabled) return@collect
-                    watcherJob = scope.launch {
-                        vehicle.state.first { it.isReady }
-                        runBlinkerRightTripleTapWatcher(vehicle)
                     }
                 }
         }
@@ -236,40 +209,62 @@ class SpeedProfileManager @Inject constructor(
     fun onAccessibilityVolumeTriggered() = onAccessibilityVolumeUpTriggered()
 
     /**
-     * Fast-poll loop on reg 0x5A (VCU_DRIVE_MODE) to detect custom-button
-     * taps. The custom button toggles between Walk and the previous mode,
-     * so each tap flips the register value. Two such transitions within
-     * [DOUBLE_TAP_WINDOW_MS] → re-lock to boot profile.
+     * Fast-poll loop on reg 0x5A (VCU_DRIVE_MODE) AND reg 0x70 (kers_level)
+     * to detect custom-button taps regardless of the configured action:
+     *  - Walk / Park / Hill-Hold flip 0x5A
+     *  - KERS-cycle flips 0x70
+     *  - Off / Hazards stay invisible (raw button-press is not exposed in any
+     *    register on this firmware — verified 2026-04-28 via Mac BLE sweep
+     *    with custom_key=Off; nothing changed when the button was pressed)
+     *
+     * Two transitions on EITHER register within [DOUBLE_TAP_WINDOW_MS] →
+     * re-lock to boot profile.
      */
     private suspend fun runCustomButtonTapWatcher(vehicle: com.celox.segway.core.vehicle.Vehicle) {
-        bleLog.note("BtnTap", "watcher started — fast-polling 0x5A every 250 ms")
-        // Note: we DO NOT force custom_key (VCU 0x4A) to 3 (Walk Mode)
-        // anymore — that overwrote the user's own choice in Roller-
-        // Einstellungen on every reconnect. If the user picks any value
-        // other than 3, the double-tap watcher will simply see no
-        // transitions on reg 0x5A (the button does something else now)
-        // and stay silent — no false trigger, no surprise behaviour.
-        // The hint text in the Custom-Button picker explains this.
+        bleLog.note("BtnTap", "watcher started — polling 0x5A + 0x70 every $POLL_INTERVAL_MS ms")
+        // Note: we DO NOT force custom_key (VCU 0x4A) to a specific value —
+        // the user's own choice in Roller-Einstellungen is preserved. The
+        // watcher silently no-ops if custom_key is Off or Hazards (neither
+        // changes a readable register).
         val taps = ArrayDeque<Long>()
         var lastMode: com.celox.segway.core.vehicle.RideMode? = null
+        var lastKers: Int? = null
+        var altPoll = false  // alternate between 0x5A and 0x70 to halve BLE traffic
         try {
             while (currentScopeIsActive() && repo.flow.first().customButtonDoubleTapEnabled) {
                 if (vehicle.state.value.isConnected && vehicle.state.value.isReady) {
-                    vehicle.execute(VehicleCommand.ReadRegister(0x5A, 2, 0x16))
+                    val reg = if (altPoll) 0x70 else 0x5A
+                    vehicle.execute(VehicleCommand.ReadRegister(reg, 2, 0x16))
+                    altPoll = !altPoll
                 }
                 delay(POLL_INTERVAL_MS)
-                val current = vehicle.state.value.mode ?: continue
-                if (lastMode == null) {
-                    lastMode = current
+                val s = vehicle.state.value
+                val curMode = s.mode
+                val curKers = s.kersLevel
+
+                // Seed baselines on first complete sample so we don't trigger
+                // a phantom tap from null→firstValue on connect.
+                if (lastMode == null && curMode != null) {
+                    lastMode = curMode
+                    lastKers = curKers
                     continue
                 }
-                if (current != lastMode) {
+
+                val modeChanged = curMode != null && lastMode != null && curMode != lastMode
+                val kersChanged = lastKers != null && curKers != lastKers
+
+                if (modeChanged || kersChanged) {
                     val now = System.currentTimeMillis()
                     taps.addLast(now)
                     while (taps.isNotEmpty() && now - taps.first() > DOUBLE_TAP_WINDOW_MS) {
                         taps.removeFirst()
                     }
-                    bleLog.note("BtnTap", "$lastMode → $current (recent=${taps.size})")
+                    val reason = when {
+                        modeChanged && kersChanged -> "$lastMode→$curMode + kers $lastKers→$curKers"
+                        modeChanged -> "$lastMode → $curMode"
+                        else -> "kers $lastKers → $curKers"
+                    }
+                    bleLog.note("BtnTap", "$reason (recent=${taps.size})")
                     if (taps.size >= 2) {
                         bleLog.note("BtnTap", "double-tap → re-lock to boot")
                         val settings = repo.flow.first()
@@ -277,67 +272,12 @@ class SpeedProfileManager @Inject constructor(
                         _customButtonTapEvents.tryEmit(Unit)
                         taps.clear()
                     }
-                    lastMode = current
+                    if (curMode != null) lastMode = curMode
+                    lastKers = curKers
                 }
             }
         } finally {
             bleLog.note("BtnTap", "watcher stopped")
-        }
-    }
-
-    /**
-     * Fast-poll loop on VCU 0xFF (indicator bitfield) to detect three
-     * right-blinker activations within DOUBLE_TAP_WINDOW_MS. Same edge-
-     * detection pattern as the custom-button watcher: rising-edge of
-     * bit 1 = "right blinker turned on" event.
-     *
-     * Identified register via Reg-Hunt diff on 2026-04-28: enabling the
-     * right blinker flipped exactly bit 1 of 0xFF from 0→1.
-     *
-     * Most ZT3 blinkers are toggle-style (one click on, one click off)
-     * so a "tap" here means: turn on, turn off, turn on, turn off, turn
-     * on. Three on-presses → trigger.
-     */
-    private suspend fun runBlinkerRightTripleTapWatcher(vehicle: com.celox.segway.core.vehicle.Vehicle) {
-        bleLog.note("BlinkerR", "watcher started — fast-polling VCU 0xFF every 200 ms")
-        val taps = ArrayDeque<Long>()
-        var lastOn = vehicle.state.value.blinkerRightOn
-        // Guard against the watched bit being set at app start (which we
-        // saw with VCU 0xFF — bit 1 is set in 0x0A06 because the register
-        // is actually a slowly-incrementing counter, not a state bit).
-        // Require at least one observed `false` reading before allowing
-        // rising-edge detection. If the bit is constantly set (counter,
-        // not state) we silently never trigger — better than spamming
-        // a "Blinker 1/3" snackbar at every app launch.
-        var seenOff = !lastOn
-        try {
-            while (currentScopeIsActive() && repo.flow.first().blinkerRightTripleTapEnabled) {
-                if (vehicle.state.value.isConnected && vehicle.state.value.isReady) {
-                    vehicle.execute(VehicleCommand.ReadRegister(0xFF, 2, 0x16))
-                }
-                delay(POLL_INTERVAL_MS)
-                val current = vehicle.state.value.blinkerRightOn
-                if (!current) seenOff = true
-                if (current && !lastOn && seenOff) {
-                    val now = System.currentTimeMillis()
-                    taps.addLast(now)
-                    while (taps.isNotEmpty() && now - taps.first() > DOUBLE_TAP_WINDOW_MS) {
-                        taps.removeFirst()
-                    }
-                    bleLog.note("BlinkerR", "right-blinker on (recent=${taps.size})")
-                    _blinkerRightProgressEvents.tryEmit(taps.size)
-                    if (taps.size >= 3) {
-                        bleLog.note("BlinkerR", "triple-tap → re-lock to boot")
-                        val settings = repo.flow.first()
-                        applyProfile(settings.boot)
-                        _blinkerRightTapEvents.tryEmit(Unit)
-                        taps.clear()
-                    }
-                }
-                lastOn = current
-            }
-        } finally {
-            bleLog.note("BlinkerR", "watcher stopped")
         }
     }
 

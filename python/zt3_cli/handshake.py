@@ -110,23 +110,30 @@ async def _stage2_fresh(ble: BleSession, crypto: NinebotCrypto) -> bool:
 
 
 async def _stage3_challenge_echo(ble: BleSession, crypto: NinebotCrypto) -> bool:
-    """Send D0(challenge) ONCE, wait up to 2.5 s for the O flag."""
+    """Send D0(challenge) up to 4× with 300 ms gaps — matches Kotlin loop."""
     challenge = crypto.snapshot_challenge()
-    log.debug("stage3 send (counter=%d, challenge=%s)", crypto.counter, challenge.hex(" "))
-    wire = frame.challenge_response(crypto, frame.DST_HANDSHAKE, challenge)
-    await ble.send(wire)
-    for _ in range(125):  # 2.5 s
-        f = await ble.recv(timeout=0.02)
-        if f is not None:
-            decoded = frame.parse(crypto, f)
-            if decoded is not None:
-                log.debug(
-                    "  parsed: src=%02X dst=%02X cmd=%02X arg=%02X payload=%s",
-                    decoded.src, decoded.dst, decoded.cmd, decoded.arg,
-                    decoded.payload.hex(" "),
-                )
+    for attempt in range(4):
         if crypto.stage_fully_paired:
             break
+        log.debug("stage3 attempt %d (counter=%d, challenge=%s)",
+                  attempt + 1, crypto.counter, challenge.hex(" "))
+        wire = frame.challenge_response(crypto, frame.DST_HANDSHAKE, challenge)
+        await ble.send(wire)
+        for _ in range(30):  # 600 ms wait per attempt
+            f = await ble.recv(timeout=0.02)
+            if f is not None:
+                decoded = frame.parse(crypto, f)
+                if decoded is not None:
+                    log.debug(
+                        "  parsed: src=%02X dst=%02X cmd=%02X arg=%02X payload=%s",
+                        decoded.src, decoded.dst, decoded.cmd, decoded.arg,
+                        decoded.payload.hex(" "),
+                    )
+            if crypto.stage_fully_paired:
+                break
+        if crypto.stage_fully_paired:
+            break
+        await asyncio.sleep(0.3)
     return crypto.stage_fully_paired
 
 
@@ -151,6 +158,10 @@ async def perform_handshake(
     if persisted_random is not None and len(persisted_random) == 16 and any(persisted_random):
         log.info("handshake: stage 2 — resume via persisted random")
         crypto.set_random_app_data(persisted_random)
+        # Resume path: set_random_app_data has already moved the cipher to
+        # M-level. Mark stage_paired_key so the session is usable even if
+        # Stage 3 doesn't ACK (some firmware variants are silent on resume).
+        crypto.stage_paired_key = True
         resumed_from_persisted = True
     else:
         log.info("handshake: stage 2 — fresh o1 (press the power button on your scooter NOW)")
@@ -160,13 +171,8 @@ async def perform_handshake(
     log.info("handshake: stage 3 — challenge echo")
     if not await _stage3_challenge_echo(ble, crypto):
         if resumed_from_persisted:
-            log.warning("stage 3 failed on resume — falling back to fresh pair")
-            crypto.reset_pairing_state()
-            if not await _stage2_fresh(ble, crypto):
-                raise HandshakeError("stage 2 fallback failed")
-            await _stage3_challenge_echo(ble, crypto)
-        # If still not fully paired, M is probably enough — log and proceed.
-        if not crypto.stage_fully_paired:
-            log.warning("stage 3 (O) didn't ack — proceeding with M-level cipher")
+            log.warning("stage 3 (O) didn't ack on resume — proceeding with M-level cipher; if reads fail, delete state and re-pair")
+        elif not crypto.stage_fully_paired:
+            log.warning("stage 3 (O) didn't ack on fresh pair — proceeding with M-level cipher")
 
     return crypto.stage_paired_key

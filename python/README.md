@@ -90,6 +90,27 @@ expect "Stage 3: ✓".
 
 ## Status
 
-First-version tooling. Built to unblock the right-blinker register hunt.
-Out of scope (for now): subscribed-push parameters, OTA flash, Linux
-quirks. The Android app is still the canonical user interface.
+Working end-to-end on macOS against a real ZT3 Pro D — handshake (Stage 1+2+3)
+verified byte-perfect via the resume path. The CLI was used to:
+
+- Sweep VCU 0x00..0xFF, MCU 0x00..0xFF, BMS 0x00..0xFF, and rapid-poll the named
+  bitfield registers under controlled blinker / brake toggling. Outcome:
+  **turn-signal and brake-pedal state are not exposed as readable registers
+  on this firmware.** Every diff was either a noisy counter or natural battery
+  drift — no clean state bit anywhere. This unblocked an Android feature decision
+  (drop the blinker trigger, keep the custom-button double-tap).
+- Verify that the **raw button-press is not exposed** either: with `custom_key=0`
+  (Off) and the button held, no register changed. Only the action-effect of the
+  button (Walk → 0x5A, KERS → 0x70, Park/Hill-Hold → 0x5A) is observable.
+
+### Important workflow caveat
+
+**Do not fresh-pair from the Mac CLI.** Stage 2 fresh-pair (`o1`) does NOT get ACK'd
+by this firmware — the scooter accepts the random into its store but disconnects
+without confirming, which scrambles the Android app's saved random. Always pair
+via the Android app first, then `adb shell run-as ... cat pairing.preferences_pb`
+to extract the new `cryptoRandom`, then `zt3 import-random "<base64>" --mac
+<UUID>`. Resume path (Stage 3 only) works flawlessly.
+
+Out of scope (for now): subscribed-push parameters, OTA flash, Linux quirks.
+The Android app remains the canonical user interface.

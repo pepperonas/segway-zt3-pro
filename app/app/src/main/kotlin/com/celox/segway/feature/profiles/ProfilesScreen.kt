@@ -215,26 +215,6 @@ fun ProfilesScreen(
                     )
                 }
 
-                Spacer(Modifier.height(12.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            stringResource(R.string.profiles_blinker_right_triple_tap),
-                            fontWeight = FontWeight.Medium,
-                        )
-                        Text(
-                            stringResource(R.string.profiles_blinker_right_triple_tap_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = settings.blinkerRightTripleTapEnabled,
-                        onCheckedChange = vm::setBlinkerRightTripleTap,
-                    )
-                }
-
             }
         }
     }

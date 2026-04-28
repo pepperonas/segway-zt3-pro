@@ -117,16 +117,6 @@ data class VehicleState(
     val mcuPartNumber: String = "",
     val mcuMode: Int = 0,
     val mcuVoltage: Float = 0f,
-    /**
-     * Indicator/blinker state from VCU 0xFF, projected to per-direction
-     * booleans. Identified empirically via Reg-Hunt: turning on the right
-     * blinker flips bit 1 from 0 to 1. Bit 0 is the assumed left-blinker
-     * counterpart (mirrors common Ninebot convention; not yet verified
-     * against the left lever on this hardware).
-     */
-    val blinkerRightOn: Boolean = false,
-    val blinkerLeftOn: Boolean = false,
-    val indicatorStatusRaw: Int = -1,
 )
 
 /**

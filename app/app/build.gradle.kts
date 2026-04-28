@@ -15,8 +15,8 @@ android {
         applicationId = "io.celox.zt3fxx"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "0.2.3"
+        versionCode = 12
+        versionName = "0.2.4"
 
         vectorDrawables.useSupportLibrary = true
     }

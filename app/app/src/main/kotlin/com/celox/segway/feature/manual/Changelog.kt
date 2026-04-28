@@ -26,6 +26,16 @@ object Changelog {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "0.2.4",
+            versionCode = 12,
+            date = "2026-04-28",
+            highlights = listOf(
+                "Dropped the right-blinker-triple-tap trigger entirely. A Mac-side Python BLE CLI (python/zt3_cli, byte-perfect Ninebot-Crypto port verified against the Android pairing-DataStore) was used to sweep VCU 0x00..0xFF, MCU 0x00..0xFF, BMS 0x00..0xFF, and rapid-poll VCU 0x1D/0x1E/0x1F under controlled blinker toggling. No clean state bit surfaced anywhere — the only diffs were noisy counters or natural battery drift. Conclusion: turn-signal state is not exposed as a readable register on this firmware. The custom-button double-tap remains the shipped lock-trigger.",
+                "Custom-button double-tap watcher now polls reg 0x70 (kers_level) in addition to 0x5A (drive_mode). The double-tap-to-22 km/h trigger now works with Walk, Park, Hill-Hold AND KERS-cycle actions — only Hazards and Off remain invisible (raw button-press is not exposed by firmware, verified via Mac-CLI sweep with custom_key=Off — no register changed when the button was held).",
+                "Removed VehicleState.blinkerLeftOn / blinkerRightOn / indicatorStatusRaw, the VCU 0xFF poll-plan entry, the BlinkerR watcher in SpeedProfileManager, and the related profile toggle / strings.",
+            ),
+        ),
+        Entry(
             version = "0.2.3",
             versionCode = 11,
             date = "2026-04-28",

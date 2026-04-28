@@ -248,8 +248,6 @@
     <string name="profiles_a11y_open_settings">Open Accessibility settings</string>
     <string name="profiles_custom_button_double_tap">Custom-Button double-tap = 22 km/h</string>
     <string name="profiles_custom_button_double_tap_hint">2× walk button on the scooter (≤ 1.5 s) → boot profile (lock). Polls 0x5A every 250 ms while active.</string>
-    <string name="profiles_blinker_right_triple_tap">3× right blinker = 22 km/h</string>
-    <string name="profiles_blinker_right_triple_tap_hint">Activate the right turn signal 3× within 3 s → boot profile (lock). Watches bit 1 of VCU 0xFF (identified via Reg-Hunt). A snackbar "Blinker N/3" appears for every detected activation.</string>
 
     <!-- Unlock dialog -->
     <string name="unlock_dialog_title">Unlock %1$d km/h</string>
@@ -413,7 +411,7 @@
     <string name="scooter_settings_custom_button_walk_toggle">Toggle walk mode</string>
     <string name="scooter_settings_custom_button_kers_cycle">Cycle KERS level</string>
     <string name="scooter_settings_custom_button_hazards">Hazard lights</string>
-    <string name="scooter_settings_custom_button_doubletap_hint">ℹ Only "Toggle walk mode" makes the double-tap-to-22 km/h watcher detect taps — every other action (Park, Hill-Hold, KERS, Hazard lights, Off) is invisible to it because they don\'t change drive mode. Pick a non-Walk action freely; double-tap-to-22 will simply stay silent until you switch the action back to Walk mode (or disable the double-tap feature in Speed profiles).</string>
+    <string name="scooter_settings_custom_button_doubletap_hint">ℹ Double-tap-to-22 km/h works with Walk, Park, Hill-Hold and KERS — every press changes a readable register that the watcher catches. "Hazards" and "Off" are invisible: the firmware doesn\'t expose the raw button-press, so when those actions are selected the watcher stays silent (no false trigger either).</string>
     <string name="scooter_settings_unknown_value">Unknown (%1$d)</string>
 
     <!-- Slider unit suffixes -->

@@ -38,6 +38,7 @@
 | [`UNLOCK-PLAN.md`](UNLOCK-PLAN.md) | Schritt-für-Schritt-Anleitung mit allen 5 Methoden, Software- und Hardware-Listen, Quellen |
 | [`PRIOR-RESEARCH.md`](PRIOR-RESEARCH.md) | Vorrecherche zu ZT3 Pro D (Stand 2026-04-22) – Pairing-Flow, Command-Tabelle, Vergleich G3 vs. ZT3 |
 | [`app/`](app/) | **Eigene Android-App** (Kotlin / Compose / Material 3) – Reborn der Segway Mobility App mit Speed-Profiles, Stealth-Unlock, OTA-Flash, Multi-Vehicle, OSM-Karte, Diagnostics |
+| [`python/`](python/) | **Mac/Linux BLE-CLI** (`zt3-cli`) – Python-Port des NinebotCrypto-Stacks für ~50 ms Iteration. `read` / `write` / `sweep` / `watch` / `hunt` zur schnellen Register-Discovery ohne `gradlew installDebug`. |
 | [`reverse-engineering/`](reverse-engineering/) | Statische Decompile-Analyse beider APKs **+ dynamische BLE-Capture-Auswertung** |
 | ↳ [`apps/ninebot-segway/`](reverse-engineering/apps/ninebot-segway/) | Offizielle Segway Mobility App – durch NetEase NIS gepackt |
 | ↳ [`apps/shu/`](reverse-engineering/apps/shu/) | ScooterHacking Utility (SHU) – Open Source, BLE-Protokoll im Klartext |
@@ -124,7 +125,7 @@ Native Kotlin-App, voll funktionsfähig auf realem ZT3 Pro D (DE-Region):
 **Speed-Profiles & Unlock**
 - **Speed-Profiles** (Boot-Default 22 km/h, 3 Quick-Actions, Unlock-Profil 40 km/h)
 - **Stealth-Unlock** via PIN-Dialog **oder** Vol-Down-3× / Vol-Up-3× (Accessibility-Service, auch bei Screen aus)
-- **Custom-Button Doppel-Tap** → 22 km/h-Lock (Hill-Hold-Notify-Polling alle 200 ms)
+- **Custom-Button Doppel-Tap** → 22 km/h-Lock — funktioniert mit Walk, Park, Hill-Hold und KERS-Cycle (Watcher pollt 0x5A + 0x70 alternierend alle 250 ms). Off / Hazards exponieren keine lesbare State-Änderung — vom roher BLE-Sweep mit `zt3-cli` bestätigt — und bleiben bewusst still.
 - **Auto-Revert-Timer** mit Live-Countdown-Banner
 
 **Roller-Einstellungen-Tab** (neu, bytegenau aus SHU bootstrap.zip extrahiert):
@@ -140,6 +141,8 @@ Native Kotlin-App, voll funktionsfähig auf realem ZT3 Pro D (DE-Region):
 - **AirLock** (Proximity-Auto-Unlock per RSSI-EMA)
 
 Setup: `cd app && ./gradlew :app:installDebug`. Min-SDK 26 (Android 8). ApplicationId: `io.celox.zt3fxx`. Details: [`app/README.md`](app/README.md). Feature-Status: [`app/FEATURE-PARITY.md`](app/FEATURE-PARITY.md).
+
+**Mac BLE-CLI** (`python/zt3_cli`): Byte-genauer NinebotCrypto-Port für direkten Roller-Zugriff vom Mac aus. Ersetzt das in-app Reg-Hunt für Discovery-Sessions — pro Befehl ~50 ms statt ~10 s installDebug-Cycle. Workflow: einmal in Android pairen → `adb` extrahiert `cryptoRandom` → `zt3 import-random` → Resume-Path funktioniert. Setup: `cd python && pip install -e .`. Details: [`python/README.md`](python/README.md).
 
 > ✅ **Production-Ready für ZT3 Pro D** (Stand 2026-04-28). Field-Test-Historie: [`app/FIELD-TEST-LOG.md`](app/FIELD-TEST-LOG.md). Open Items (Volume + Battery-Capacity / Manufacture-Date / Throughput, Dashboard-Settings) brauchen HCI-Snoop oder Frida-Hook auf XiaoDash — Register sind weder in SHU-Bootstrap noch im obfuskierten XiaoDash-Smali statisch greifbar.
 

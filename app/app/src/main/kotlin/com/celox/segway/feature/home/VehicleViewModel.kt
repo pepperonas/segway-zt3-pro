@@ -2,6 +2,8 @@ package com.celox.segway.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.celox.segway.core.profile.LiveRideSession
+import com.celox.segway.core.profile.RideSessionRecorder
 import com.celox.segway.core.profile.SpeedProfile
 import com.celox.segway.core.profile.SpeedProfileManager
 import com.celox.segway.core.profile.SpeedProfileRepository
@@ -25,9 +27,12 @@ class VehicleViewModel @Inject constructor(
     private val activeVehicleHolder: ActiveVehicleHolder,
     private val profileManager: SpeedProfileManager,
     private val profileRepo: SpeedProfileRepository,
+    rideSessionRecorder: RideSessionRecorder,
 ) : ViewModel() {
 
     val vehicle: StateFlow<Vehicle?> = activeVehicleHolder.activeVehicle
+
+    val liveRide: StateFlow<LiveRideSession?> = rideSessionRecorder.live
 
     val state: StateFlow<VehicleState> = vehicle
         .flatMapLatest { v -> v?.state ?: MutableStateFlow(VehicleState()).asStateFlow() }

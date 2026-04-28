@@ -107,7 +107,7 @@ Zwei parallele Analyse-Agenten lieferten widersprüchliche Befunde:
 | Agent | Befund |
 |---|---|
 | **A** (SHU Source-Code statisch) | ZT3 Pro D fällt in Case 3 (Ninebot Plaintext), kein Crypto |
-| **B** (HCI-Capture `2026-04-25-shu-flash-session.md`) | Manufacturer-ID `0x434E` ("NC") = Crypto-Variante; alle 3142 ATT-Payloads verschlüsselt |
+| **B** (HCI-Capture vom 2026-04-25 SHU-Flash) | Manufacturer-ID `0x434E` ("NC") = Crypto-Variante; alle 3142 ATT-Payloads verschlüsselt |
 | **C** (Final-Verify) | Agent A's Case-3-Klassifikation war falsch. Korrekt ist Case 2 (NinebotCrypto). `ScooterActivity.n():1046` wählt für `usesCrypto=true` den NinebotCrypto-Pfad, und für ZT3 ist `usesCrypto=true`. |
 
 → **Auflösung**: ZT3 Pro D **muss** den NinebotCrypto-Pfad sprechen. Plaintext-Frames werden auf Wire empfangen aber von der Decrypt-Logik des Rollers verworfen (CRC-Mismatch oder Format-Error nach Decrypt-Versuch) → Stille.

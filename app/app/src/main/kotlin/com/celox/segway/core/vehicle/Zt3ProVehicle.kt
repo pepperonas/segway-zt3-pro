@@ -171,6 +171,25 @@ class Zt3ProVehicle(
                 }
             }
         }
+        // Fast loop dedicated to the speed register (VCU 0x57). The full
+        // pollPlan above sweeps ~50 regs with 60 ms gap each, so a single
+        // sweep takes ~3 s — too slow for a smooth speedometer or accurate
+        // distance integration in [RideSessionRecorder].
+        //
+        // Cadence is adaptive: while moving we want 250 ms (4 Hz) so the
+        // gauge tracks reality; while stationary we drop to 1500 ms so we
+        // don't congest the BLE link and make UI controls (dropdowns, write
+        // commands) feel sluggish. The slow pollPlan keeps the rest of the
+        // state fresh either way.
+        scope.launch {
+            while (true) {
+                val moving = _state.value.speedKmh > 0.5f
+                kotlinx.coroutines.delay(if (moving) 250L else 1_500L)
+                if (_state.value.isReady) {
+                    runCatching { gatt.send(codec.readRegister(0x16, 0x57.toByte(), 2)) }
+                }
+            }
+        }
     }
 
     override suspend fun connect() {
@@ -546,12 +565,12 @@ class Zt3ProVehicle(
             )
         )
 
-        // Mirror the answer for any incoming notify (regardless of cmd byte) into
-        // lastRegisterRead so the diagnostics screen can render it. Real ZT3
-        // responses use cmd=0x05 not the legacy 0x01.
-        _state.update {
-            it.copy(lastRegisterRead = (parsed.arg.toInt() and 0xFF) to parsed.payload)
-        }
+        // Note: previously every notify also updated `state.lastRegisterRead` for
+        // a hypothetical diagnostics view. That field was never read by any
+        // consumer and (because Pair/ByteArray have identity equals) caused
+        // a state emission on every BLE response — i.e., 10+ recompositions
+        // per second of every screen subscribed to vehicle.state. Removed,
+        // since dropdowns and other UI controls were perceptibly laggy.
 
         val offset = parsed.arg.toInt() and 0xFF
         val data = parsed.payload
@@ -718,7 +737,12 @@ class Zt3ProVehicle(
             // BMS_CellVolts — N × 16-bit cell voltages in millivolts (LE).
             0xA0 -> if (data.size >= 4 && data.size % 2 == 0) {
                 val cells = IntArray(data.size / 2) { i -> leU16(data, i * 2) }
-                _state.update { it.copy(cellVoltagesMv = cells) }
+                // IntArray uses identity equality, so a fresh-but-equal array
+                // would still trigger a state emission. Dedupe by content.
+                _state.update { st ->
+                    if (st.cellVoltagesMv.contentEquals(cells)) st
+                    else st.copy(cellVoltagesMv = cells)
+                }
             }
             // charge_threshold — Battery Max Charge % cutoff (R/W, 80-100).
             // Per zt3.json bootstrap: BMS dst=0x07, offset=0x82, uint16-LE.

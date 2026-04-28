@@ -1,6 +1,11 @@
 package com.celox.segway.feature.track
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.preference.PreferenceManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,6 +64,30 @@ fun TrackScreen(vm: TrackViewModel = hiltViewModel()) {
     var recording by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
 
+    // Track recording is a location-typed FGS; on Android 14+ it MUST have
+    // ACCESS_FINE_LOCATION granted before startForegroundService is called,
+    // otherwise the service times out without calling startForeground and
+    // the system kills the whole app with ForegroundServiceDidNotStartInTime.
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            TrackRecordingService.start(ctx)
+            recording = true
+        }
+    }
+    val startRecording: () -> Unit = {
+        val granted = ContextCompat.checkSelfPermission(
+            ctx, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            TrackRecordingService.start(ctx)
+            recording = true
+        } else {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -75,8 +104,12 @@ fun TrackScreen(vm: TrackViewModel = hiltViewModel()) {
                 text = { Text(if (recording) stringResource(R.string.track_stop) else stringResource(R.string.track_start)) },
                 icon = { Icon(if (recording) Icons.Filled.Stop else Icons.Filled.PlayArrow, null) },
                 onClick = {
-                    if (recording) TrackRecordingService.stop(ctx) else TrackRecordingService.start(ctx)
-                    recording = !recording
+                    if (recording) {
+                        TrackRecordingService.stop(ctx)
+                        recording = false
+                    } else {
+                        startRecording()
+                    }
                 },
                 elevation = FloatingActionButtonDefaults.elevation(4.dp)
             )

@@ -23,9 +23,11 @@ import androidx.compose.ui.unit.sp
 /**
  * Material 3-styled circular speedometer with smooth value animation.
  *
- * @param speedKmh current speed in km/h
+ * @param speedKmh current speed reported by the scooter (BLE telemetry)
  * @param maxSpeedKmh maximum value the gauge can show
  * @param size diameter of the gauge (dp)
+ * @param gpsSpeedKmh optional GPS-derived speed shown small below the BLE
+ *   number for cross-check; pass `null` if no GPS fix or no permission.
  */
 @Composable
 fun Speedometer(
@@ -33,10 +35,14 @@ fun Speedometer(
     maxSpeedKmh: Float = 40f,
     size: androidx.compose.ui.unit.Dp = 240.dp,
     modifier: Modifier = Modifier,
+    gpsSpeedKmh: Float? = null,
 ) {
     val animated by animateFloatAsState(
         targetValue = speedKmh.coerceIn(0f, maxSpeedKmh),
-        animationSpec = tween(durationMillis = 600),
+        // Shorter than the previous 600 ms — the dedicated 250 ms speed-only
+        // poll feeds new samples 4×/sec, so a long animation would lag visibly
+        // behind the actual scooter speed.
+        animationSpec = tween(durationMillis = 200),
         label = "speed"
     )
     val sweepAngle = (animated / maxSpeedKmh) * 270f
@@ -82,6 +88,13 @@ fun Speedometer(
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (gpsSpeedKmh != null) {
+                    Text(
+                        text = "GPS %.1f".format(gpsSpeedKmh),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    )
+                }
             }
         }
     }

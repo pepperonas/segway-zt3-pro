@@ -26,6 +26,20 @@ object Changelog {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "0.3.0",
+            versionCode = 13,
+            date = "2026-04-28",
+            highlights = listOf(
+                "Live ride sessions: BLE-only auto-detection (start when speed > 1 km/h for 2 s, stop after 30 s at zero) writes a session row to a new Room table on every ride. Stats: distance (integrated from speed × Δt), max, average, energy (V × |I| × Δt → Wh), battery delta. New \"Ride history\" screen under Mine with all-time totals card.",
+                "Live trip card on the home screen during active ride: distance, duration, max, average, energy. Distance auto-formats m → km past 1000 m.",
+                "Speedometer adds GPS-derived speed as a small cross-check number under the BLE km/h. Graceful when location permission is missing or no fix.",
+                "Speed-register polling is now adaptive: 4 Hz while moving, 0.7 Hz at standstill. Eliminates dropdown lag in Roller-Settings caused by BLE write contention.",
+                "Track recording (the GPS map feature) now requests ACCESS_FINE_LOCATION before starting the foreground service. Previously this could crash the app on Android 14+ with ForegroundServiceDidNotStartInTimeException when the service auto-restarted without the permission.",
+                "Major recomposition fix: every BLE response was emitting a fresh Pair<Int, ByteArray> into VehicleState.lastRegisterRead — identity-equality on ByteArray meant the entire Compose tree recomposed 10+ times per second, causing visible UI lag in dropdowns. Field was unread anywhere; removed entirely. cellVoltagesMv (IntArray) is now content-deduped before emission.",
+                "Database migrated from v1 → v2 with an additive `ride_sessions` table. Existing garage entries are preserved (no destructive migration on this bump).",
+            ),
+        ),
+        Entry(
             version = "0.2.4",
             versionCode = 12,
             date = "2026-04-28",

@@ -1,213 +1,75 @@
-# ZT3 Pro D Reverse-Engineering & Unlock-Research
+# ZT3 Pro D — Reverse-Engineering & Companion App
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Status: Active Research](https://img.shields.io/badge/status-active%20research-brightgreen.svg)](#)
-[![Stand](https://img.shields.io/badge/Stand-2026--04-blue.svg)](#)
-[![Platform: Android](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)](#)
-[![Made with Markdown](https://img.shields.io/badge/Made%20with-Markdown-1f425f.svg)](https://daringfireball.net/projects/markdown/)
+Native Android-App + Mac-CLI für den **Segway-Ninebot ZT3 Pro D**, mit kompletter NinebotCrypto-Implementation und Live-BLE-Telemetrie. Aktueller Schwerpunkt: ESP32-MitM, um den Roller mit eigenen Funktionen auszustatten ohne die Stock-Firmware zu modifizieren.
 
-[![Scooter: Segway-Ninebot ZT3 Pro D](https://img.shields.io/badge/Scooter-Segway--Ninebot%20ZT3%20Pro%20D-orange.svg)](https://www.segway.com)
-[![Region: D (DE)](https://img.shields.io/badge/Region-D%20(DE)-red.svg)](#)
-[![Stock Limit: 20 km/h](https://img.shields.io/badge/Stock%20Limit-20%20km%2Fh-red.svg)](#)
-[![Target: 40 km/h](https://img.shields.io/badge/Target-40%20km%2Fh-success.svg)](#)
-
-[![apktool](https://img.shields.io/badge/apktool-2.12.1-blue.svg)](https://apktool.org/)
-[![jadx](https://img.shields.io/badge/jadx-1.5.3-blue.svg)](https://github.com/skylot/jadx)
-[![Git LFS](https://img.shields.io/badge/Git-LFS-F64935?logo=gitlfs&logoColor=white)](https://git-lfs.github.com/)
-[![Decompiled with ❤](https://img.shields.io/badge/decompiled%20with-%E2%99%A5-red.svg)](#)
-
-[![Ninebot APK](https://img.shields.io/badge/Ninebot%20Segway-v7.6.3%20%7C%20116%20MB-lightgrey.svg)](reverse-engineering/apps/ninebot-segway/)
-[![SHU APK](https://img.shields.io/badge/SHU-v3.0%20open__beta--5%20%7C%205.7%20MB-lightgrey.svg)](reverse-engineering/apps/shu/)
-[![NetEase NIS Pack](https://img.shields.io/badge/Ninebot%20Pack-NetEase%20NIS-critical.svg)](reverse-engineering/apps/ninebot-segway/ANALYSIS.md#netease-nis-app-shielding-hauptbefund)
-[![SHU: Open Source](https://img.shields.io/badge/SHU-Open%20Source-success.svg)](reverse-engineering/apps/shu/ANALYSIS.md)
-
-[![BLE: Nordic UART](https://img.shields.io/badge/BLE-Nordic%20UART%20Service-blue.svg)](reverse-engineering/apps/shu/ANALYSIS.md#ble-protokoll-hauptbefund)
-[![Crypto: ECDH P-256](https://img.shields.io/badge/Crypto-ECDH%20secp256r1-yellow.svg)](reverse-engineering/apps/shu/ANALYSIS.md#ble-protokoll-hauptbefund)
-[![AES-CCM](https://img.shields.io/badge/AES--128-CCM-yellow.svg)](reverse-engineering/apps/shu/ANALYSIS.md#ble-protokoll-hauptbefund)
-[![HKDF-SHA-256](https://img.shields.io/badge/KDF-HKDF--SHA--256-yellow.svg)](reverse-engineering/apps/shu/ANALYSIS.md#ble-protokoll-hauptbefund)
-[![Frame Magic](https://img.shields.io/badge/Frame-0x55%200xAB-purple.svg)](reverse-engineering/apps/shu/ANALYSIS.md#ble-protokoll-hauptbefund)
-
-> ⚠ **Rechtlicher Hinweis**: Tuning eines StVZO-zugelassenen E-Scooters führt zu Verlust der Betriebserlaubnis, Versicherungsschutz und Garantie. Inhalte hier sind ausschließlich für **Reverse-Engineering / Privatgelände** dokumentiert.
+> ⚠ Privatgelände-Use only. Tuning eines StVZO-Rollers verwirkt Betriebserlaubnis, Versicherung, Garantie.
 
 ---
 
 ## Inhalt
 
-| Datei / Verzeichnis | Beschreibung |
+| Pfad | Beschreibung |
 |---|---|
-| [`UNLOCK-PLAN.md`](UNLOCK-PLAN.md) | Schritt-für-Schritt-Anleitung mit allen 5 Methoden, Software- und Hardware-Listen, Quellen |
-| [`PRIOR-RESEARCH.md`](PRIOR-RESEARCH.md) | Vorrecherche zu ZT3 Pro D (Stand 2026-04-22) – Pairing-Flow, Command-Tabelle, Vergleich G3 vs. ZT3 |
-| [`app/`](app/) | **Eigene Android-App** (Kotlin / Compose / Material 3) – Reborn der Segway Mobility App mit Speed-Profiles, Stealth-Unlock, OTA-Flash, Multi-Vehicle, OSM-Karte, Diagnostics |
-| [`python/`](python/) | **Mac/Linux BLE-CLI** (`zt3-cli`) – Python-Port des NinebotCrypto-Stacks für ~50 ms Iteration. `read` / `write` / `sweep` / `watch` / `hunt` zur schnellen Register-Discovery ohne `gradlew installDebug`. |
-| [`reverse-engineering/`](reverse-engineering/) | Statische Decompile-Analyse beider APKs **+ dynamische BLE-Capture-Auswertung** |
-| ↳ [`apps/ninebot-segway/`](reverse-engineering/apps/ninebot-segway/) | Offizielle Segway Mobility App – durch NetEase NIS gepackt |
-| ↳ [`apps/shu/`](reverse-engineering/apps/shu/) | ScooterHacking Utility (SHU) – Open Source, BLE-Protokoll im Klartext |
-| ↳ [`ble-captures/`](reverse-engineering/ble-captures/) | HCI-Snoop-Mitschnitte echter Sessions (z. B. SHU-Multi-Komponenten-Flash) — bestätigt Wire-Verhalten |
+| [`app/`](app/) | Android-App (Kotlin · Compose · Hilt). Speed-Profile, Stealth-Lock, Live-Telemetrie, OTA, OSM-Track. Setup: [`app/README.md`](app/README.md) |
+| [`python/`](python/) | Mac/Linux BLE-CLI `zt3-cli` — Python-Port der NinebotCrypto. `read`/`write`/`sweep`/`watch`/`hunt` zur Register-Discovery. Setup: [`python/README.md`](python/README.md) |
+| [`esp32/`](esp32/) | (geplant) Stem-Bus-Bridge — ESP32-C3 im Dashboard-Gehäuse, sniffed Single-wire UART zwischen Dashboard und VCU, BLE-Central für Lock-Trigger, optional 2. Knoten im Deck via ESP-NOW. Roadmap: [`ESP32-BRIDGE-PLAN.md`](ESP32-BRIDGE-PLAN.md) |
+| [`reverse-engineering/`](reverse-engineering/) | Wire-Format-Doku, BLE-Capture-Methodik, SHU-Crypto-Analyse |
+| [`FLASH-NOTES.md`](FLASH-NOTES.md) | SHU-Beta-Workflow für 40 km/h + Region-Change US (so habe ich es selbst gemacht) |
 
-## Quick-Reference – ZT3 Pro D BLE-Stack
+## Quick-Reference — ZT3 Pro D BLE-Stack
 
-| Aspekt | Wert | Quelle |
-|---|---|---|
-| BLE-Service | Nordic UART `6e400001-b5a3-f393-e0a9-e50e24dcca9e` | SHU `services/g.java` |
-| RX-Char | `6e400002-b5a3-f393-e0a9-e50e24dcca9e` (App→Roller, Write) | SHU `services/g.java` |
-| TX-Char | `6e400003-b5a3-f393-e0a9-e50e24dcca9e` (Roller→App, Notify) | SHU `services/g.java` |
-| Adv-Manufacturer-Prefix | `FF 4E 43` ("NC", Crypto-Variante) | SHU `classes/k.java` |
-| Frame-Magic | `0x5A 0xA5` (klassisch NinebotCrypto, **bestätigt für ZT3 Pro D**) bzw. `0x55 0xAB` (moderner ECDH-Pfad, andere Modelle) | [BLE-Capture 2026-04-25](reverse-engineering/ble-captures/2026-04-25-shu-flash-session.md) |
-| ECDH-Kurve | secp256r1 (NIST P-256) | SHU `crypto/elliptic/d.java` |
-| Symm. Verschlüsselung | AES-128/CCM, 24-Bit MAC | SHU `crypto/elliptic/d.java` |
-| KDF | HKDF-SHA-256 | SHU `crypto/elliptic/d.java` |
-| MAC | HMAC-SHA-256 | SHU `crypto/elliptic/d.java` |
-| Init-Hello | `0x00 ++ "blt.4.159" ++ rand[10]` | SHU `crypto/elliptic/d.java` |
+| Aspekt | Wert |
+|---|---|
+| BLE-Service | Nordic UART `6e400001-b5a3-f393-e0a9-e50e24dcca9e` |
+| RX-Char (App→Roller) | `6e400002-…` (write-no-resp) |
+| TX-Char (Roller→App) | `6e400003-…` (notify) |
+| Adv-Manufacturer-Prefix | `FF 4E 43` ("NC" = NinebotCrypto) |
+| Frame-Magic | `0x5A 0xA5` (klassisch NinebotCrypto, **bestätigt für ZT3 Pro D**) |
+| Symm. Verschlüsselung | AES-128 CBC-MAC + AES-CTR, Salt + SHA-1-derived Session-Key |
+| Pairing-Flow | 3-stage Stage 1/2/3 (`0x5B`/`0x5C`/`0x5D`), Resume via `setRandomAppData` |
 
-## Empfohlene Unlock-Pfade (Kurzform)
+Komplette Register-Map: [`reverse-engineering/protocol/zt3-ble-register-reference.md`](reverse-engineering/protocol/zt3-ble-register-reference.md). Settings-Register (XiaoDash-equivalent): [`reverse-engineering/protocol/zt3-settings-registers.md`](reverse-engineering/protocol/zt3-settings-registers.md).
 
-| # | Methode | Kosten | Reversibel | Endgeschw. | Schwierigkeit |
-|---|---|---|---|---|---|
-| **1** ⭐ | **SHU v3 Beta + Region-Change** (VPN nötig) | **kostenlos** | ✅ ja | **40 km/h** | ⭐ trivial |
-| 2 | NBT Unlock Key (Web-BLE) | ~129 € | ✅ ja | 38–40 km/h | ⭐ trivial |
-| 3 | Dashboard-Tausch (China/US) | ~50–60 € | ✅ ja | 31–40 km/h | ⭐⭐⭐ |
-| 4 | ZT3Tools + ST-Link V2 (DIY) | ~15–25 € | ⚠ nur mit Backup | 40 km/h | ⭐⭐⭐⭐ |
-| 5 | XiaoDash Custom Firmware | Lizenz | ⚠ teils | 40 km/h + Profile | ⭐⭐⭐⭐ |
+## App-Status (2026-04-28)
 
-> 🎯 **Methode 1** ist die klar empfohlene: Open Source, kostenlos, ohne Werkzeug. Verwendet die SHU-Beta aus diesem Repo + Android + VPN außerhalb der EU.
+Production-Ready auf realer ZT3 Pro D Hardware. Highlights:
 
-Vollständige Anleitung: [`UNLOCK-PLAN.md`](UNLOCK-PLAN.md).
+- **NinebotCrypto byte-genau** verifiziert via patched-SHU CRYPTO_DUMP-Methode
+- **Per-MAC Resume** (kein Power-Button-Drücken nach App-Restart)
+- **Speedometer + Live-Trip-Card** (Distanz, Max, Ø, Energie, GPS-Cross-Check)
+- **Stealth-Unlock** via Vol-Down-3× / Vol-Up-3× (auch Screen-Off)
+- **Custom-Button-Doppel-Tap** → Lock-Profil (Walk/Park/Hill-Hold/KERS)
+- **Roller-Einstellungen** mit 17 Bitfield-Toggles + 4 Slidern + 3 Enums (byte-genau aus SHU-Bootstrap)
+- **Multi-Vehicle-Garage** + **OTA-Flash** + **Region-Change** + **AirLock**
+- **OSM-Karte** + **GPS-Track-Recording**
+- **Trip-History-DB** mit Auto-Session-Detection (BLE-only, kein GPS nötig)
 
-## Dekompilieren – Reproduktion
+Detail: [`app/README.md`](app/README.md). Field-Test-Historie: [`app/FIELD-TEST-LOG.md`](app/FIELD-TEST-LOG.md).
 
-Die Decompile-Outputs sind **nicht im Repo enthalten** (~460 MB) und werden zur Laufzeit erzeugt:
+## Setup für Entwicklung
 
 ```bash
-# Tools (einmalig)
-brew install apktool jadx
+# Android-App
+cd app && ./gradlew :app:installDebug
 
-# Ninebot
-cd reverse-engineering/apps/ninebot-segway
-apktool d -f -o decompiled/apktool com.ninebot.segway.apk
-jadx -d decompiled/jadx --no-res com.ninebot.segway.apk
-
-# SHU
-cd reverse-engineering/apps/shu
-apktool d -f -o decompiled/apktool ScooterHackingUtility-pre_release.open_beta-5.apk
-jadx -d decompiled/jadx --no-res ScooterHackingUtility-pre_release.open_beta-5.apk
+# Mac-CLI
+cd python && python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+zt3 scan
 ```
 
-Die APKs selbst sind via **Git LFS** versioniert (siehe `.gitattributes`). LFS muss vor dem Klon installiert sein:
+Workflow Mac-CLI (resume-only, **niemals fresh-pair vom Mac**):
+1. In Android-App pairen
+2. `adb shell run-as io.celox.zt3fxx.debug cat files/datastore/pairing.preferences_pb` → `cryptoRandom` extrahieren
+3. `zt3 import-random "<base64>" --mac <CoreBluetoothUUID>`
+4. `zt3 connect` läuft den Resume-Path
 
-```bash
-brew install git-lfs && git lfs install
-git clone https://github.com/pepperonas/segway-zt3-pro.git
-```
+## Repo-Konventionen
 
-## Eigene App – aktueller Stand
-
-[![App: zt3-fxx](https://img.shields.io/badge/app-io.celox.zt3fxx-FF6F1F)](app/)
-[![Compose M3](https://img.shields.io/badge/Compose-Material%203-4285F4?logo=jetpackcompose)](app/)
-[![Hilt](https://img.shields.io/badge/DI-Hilt-2C2D72)](app/)
-[![Stealth Unlock](https://img.shields.io/badge/feature-Vol--Down--3%C3%97%20Stealth%20Unlock-success)](app/)
-[![Settings: 22 toggles](https://img.shields.io/badge/Settings-22%20XiaoDash--equiv.-success)](app/FEATURE-PARITY.md)
-
-Native Kotlin-App, voll funktionsfähig auf realem ZT3 Pro D (DE-Region):
-
-**Connectivity & Crypto**
-- **NinebotCrypto Wire-Protokoll** (`0x5A 0xA5` Magic, AES-CBC-MAC + AES-CTR) — verifiziert byte-genau gegen SHU
-- **Per-MAC Resume** via persisted appRandom — kein Power-Button-Drücken nach App-Restart
-- **Auto-Reconnect-Watchdog** (8 s Polling) + Foreground-Service hält BLE auch bei Screen-Off / Bildschirmsperre
-- **State-Cache** in DataStore — letzte Telemetrie sofort sichtbar beim Cold-Start, kein „Securing connection"-Flash
-
-**Telemetrie & UI**
-- **Speedometer + Mode + Lock + Lights + Cruise** als primäre Steuerung
-- **Battery-Detail-Screen** mit BMS-FW, SoC, Live-Power (V·I), Range@Full, Cell-Diff, alle 13 Cells
-- **OSM-Karte** + GPS-Track-Recording mit Persistenz und History-Overlay
-- **Beacon-Live-Decoder** (Speed/Battery aus Adv ohne Connect)
-- **Diagnostics** mit Live-BLE-Frame-Log + Field-Test-Buttons
-
-**Speed-Profiles & Unlock**
-- **Speed-Profiles** (Boot-Default 22 km/h, 3 Quick-Actions, Unlock-Profil 40 km/h)
-- **Stealth-Unlock** via PIN-Dialog **oder** Vol-Down-3× / Vol-Up-3× (Accessibility-Service, auch bei Screen aus)
-- **Custom-Button Doppel-Tap** → 22 km/h-Lock — funktioniert mit Walk, Park, Hill-Hold und KERS-Cycle (Watcher pollt 0x5A + 0x70 alternierend alle 250 ms). Off / Hazards exponieren keine lesbare State-Änderung — vom roher BLE-Sweep mit `zt3-cli` bestätigt — und bleiben bewusst still.
-- **Auto-Revert-Timer** mit Live-Countdown-Banner
-
-**Roller-Einstellungen-Tab** (neu, bytegenau aus SHU bootstrap.zip extrahiert):
-- 17 Bitfield-Toggles: Traction Control, Imperial Units, Hill-Hold (=Hold Descent), Boost, Indicator Sound, App Tone, Alarm, Walk/Drive/Sport-Mode-Enables, Auto Headlight, Front Position Lamp, UnderGlow, Breathing Charging Light, Power-off-on-folding, Disable-alarm-on-folding, Front Lamp
-- 4 Slider: Start-Speed, Auto-Shutdown, Charge-Threshold (80–100 %), Custom Button Action
-- 3 Enums: Taillight Mode, Acceleration, KERS (= Motorbremse)
-- **Bitfield-Write-Guard**: 3 s nach User-Toggle werden widersprüchliche Poll-Antworten ignoriert (deckt Firmware-Settling ab — z. B. Alarm-Aktivierung blinkt Indicator-Sound nicht mehr off-then-on)
-
-**Garage & OTA**
-- **Multi-Vehicle Garage** (Room-DB, aktivieren / umbenennen / entkoppeln, „Löschen" forciert echten Fresh-Pair)
-- **OTA-Flash** mit IAP-State-Machine + CFW-Repo-Client
-- **Region-Change** (D → U) als One-Tap-Aktion (oder direkt aus dem SN derived)
-- **AirLock** (Proximity-Auto-Unlock per RSSI-EMA)
-
-Setup: `cd app && ./gradlew :app:installDebug`. Min-SDK 26 (Android 8). ApplicationId: `io.celox.zt3fxx`. Details: [`app/README.md`](app/README.md). Feature-Status: [`app/FEATURE-PARITY.md`](app/FEATURE-PARITY.md).
-
-**Mac BLE-CLI** (`python/zt3_cli`): Byte-genauer NinebotCrypto-Port für direkten Roller-Zugriff vom Mac aus. Ersetzt das in-app Reg-Hunt für Discovery-Sessions — pro Befehl ~50 ms statt ~10 s installDebug-Cycle. Workflow: einmal in Android pairen → `adb` extrahiert `cryptoRandom` → `zt3 import-random` → Resume-Path funktioniert. Setup: `cd python && pip install -e .`. Details: [`python/README.md`](python/README.md).
-
-> ✅ **Production-Ready für ZT3 Pro D** (Stand 2026-04-28). Field-Test-Historie: [`app/FIELD-TEST-LOG.md`](app/FIELD-TEST-LOG.md). Open Items (Volume + Battery-Capacity / Manufacture-Date / Throughput, Dashboard-Settings) brauchen HCI-Snoop oder Frida-Hook auf XiaoDash — Register sind weder in SHU-Bootstrap noch im obfuskierten XiaoDash-Smali statisch greifbar.
-
-## Top-Findings
-
-| # | Finding |
-|---|---|
-| 🟢 | **SHU v3 Beta unterstützt die x3-Reihe (G3, ZT3, F3)** – über FLASH-Repo + Region-Change auf US werden 40 km/h freigeschaltet (VPN außerhalb EU + Android nötig) |
-| 🟢 | SHU liefert das **komplette ECDH-Pairing-Protokoll im Klartext** – damit ist eigene Tool-Entwicklung jederzeit möglich |
-| 🔴 | **Mapbox Secret-Token (`sk.…`) hartcodiert** in der Ninebot-App (siehe [Hartcodierte Secrets](reverse-engineering/apps/ninebot-segway/ANALYSIS.md#hartcodierte-secrets)) |
-| 🟠 | Ninebot-App vollständig **NetEase-NIS-gepackt** – BLE-Crypto nicht statisch extrahierbar (aber durch SHU bereits dokumentiert) |
-
-## Doku-Struktur (Detail)
-
-```
-zt3pro/
-├── README.md                                       # diese Datei
-├── UNLOCK-PLAN.md                                  # 5 Methoden, Software/Hardware-Listen
-├── PRIOR-RESEARCH.md                               # ZT3 Pro D Tiefen-Recherche, Command-Tabelle
-├── .gitignore                                      # decompiled/* aus Git ausgeschlossen
-├── .gitattributes                                  # Git LFS für *.apk
-│
-├── app/                                            # eigene Android-App (Kotlin/Compose)
-│   ├── README.md                                   # Setup, Status, Module-Layout
-│   ├── settings.gradle.kts
-│   ├── build.gradle.kts
-│   ├── gradle/libs.versions.toml
-│   └── app/src/main/
-│       ├── AndroidManifest.xml
-│       ├── kotlin/com/celox/segway/
-│       │   ├── core/{ble,crypto,ota,profile,repo,vehicle,data,util}/
-│       │   ├── feature/{home,pair,garage,firmware,profiles,airlock,
-│       │   │           diagnostics,track,discover,mine,settings,about}/
-│       │   ├── ui/{theme,components,nav}/
-│       │   └── di/AppModule.kt
-│       └── res/
-│
-└── reverse-engineering/
-    ├── README.md                                   # Methodik-Übersicht
-    ├── apps/                                       # statische APK-Analyse
-    │   ├── ninebot-segway/
-    │   │   ├── com.ninebot.segway.apk              # via Git LFS (116 MB)
-    │   │   ├── decompiled/                         # gitignored
-    │   │   └── ANALYSIS.md                         # konsolidierte Komplett-Analyse
-    │   └── shu/
-    │       ├── ScooterHackingUtility-pre_release.open_beta-5.apk
-    │       ├── decompiled/                         # gitignored
-    │       └── ANALYSIS.md                         # konsolidierte Komplett-Analyse
-    └── ble-captures/                               # dynamische Wire-Analyse
-        ├── README.md                               # Methodik (tshark, btsnoop)
-        └── 2026-04-25-shu-flash-session.md         # Multi-Komponenten-Flash, ~420 KB
-```
-
-## Lizenz & Quellen
-
-Inhalte unter [MIT License](LICENSE).
-
-Wichtige externe Quellen sind in den jeweiligen Dokumenten verlinkt:
-
-- [scooterteam/ZT3Tools](https://github.com/scooterteam/ZT3Tools/) (archiviert Juli 2025)
-- [bastelpichi-Wiki – SHU/SHFW Kompatibilität](https://wiki.bastelpichi.de/compatibility.html)
-- [ScooterHacking Utility](https://utility.cfw.sh/)
-- [XiaoDash für ZT3](https://www.xiaodash.app/zt3)
-- [RollerPlausch – ZT3 Pro Unlock-Thread](https://rollerplausch.com/threads/zt3-pro-unlock-40-kmh-dashboard-tausch-oder-st-link-vcu-1-4-8-1-4-10-max-tempomat-zt3scripts.12501/)
+- APKs (Ninebot, SHU) sind via Git LFS versioniert — `git lfs install` vor Klon
+- `decompiled/`, `node_modules/`, `build/`, `.gradle/` sind gitignored
+- Changelog der App: [`app/app/src/main/kotlin/com/celox/segway/feature/manual/Changelog.kt`](app/app/src/main/kotlin/com/celox/segway/feature/manual/Changelog.kt) — eine Zeile pro user-perceptible Change
 
 ---
 
-🛴 **Made with curiosity** – © 2026 Martin Pfeffer | [celox.io](https://celox.io)
+🛴 © 2026 Martin Pfeffer · MIT License

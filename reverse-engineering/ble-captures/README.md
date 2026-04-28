@@ -1,45 +1,42 @@
-# BLE-Captures – ZT3 Pro D
+# BLE-Captures — Methodik
 
-Dynamische Analyse von HCI-Snoop-Logs (BLE-Mitschnitte zwischen Android-Phone und Roller). Ergänzt die statische APK-Analyse unter [`../apps/`](../apps/) um echtes Wire-Verhalten.
+HCI-Snoop-Logs sind unser primäres Wire-Verifikations-Tool: Live-Mitschnitt der BLE-Kommunikation zwischen Phone und Roller, beim Bauen / Debuggen der App und beim ESP32-MitM.
 
-## Captures
-
-| Datum | Datei | App | Kontext | Doku |
-|---|---|---|---|---|
-| 2026-04-25 | `bt_capture-v2.pcap`* | **SHU Beta** v3.0 open_beta-5 | vermuteter Multi-Komponenten-Firmware-Flash | [`2026-04-25-shu-flash-session.md`](2026-04-25-shu-flash-session.md) |
-
-\* `.pcap`-Files sind **nicht im Repo** — sie enthalten potenziell identifizierende BLE-Adressen aus der Umgebung. Analyse-Outputs sind anonymisiert.
-
-## Methodik
+## Capture auf Android
 
 ```bash
-# Mitschnitt auf Android (Developer-Options → "Bluetooth-HCI-Snoop-Log aktivieren")
-adb pull /sdcard/btsnoop_hci.log
+# Einmalig: Developer-Options → "Bluetooth-HCI-Snoop-Log aktivieren"
+adb pull /sdcard/btsnoop_hci.log capture.pcap
 
-# Auswertung mit tshark
-tshark -r capture.pcap -q -z io,phs                              # Protokoll-Hierarchie
-tshark -r capture.pcap -V                                        # vollständiger Detail-Dump
-tshark -r capture.pcap -Y 'btatt' -T fields -e btatt.opcode -e btatt.handle -e btatt.value
+# Auswertung
+tshark -r capture.pcap -V                                  # full detail
+tshark -r capture.pcap -Y 'btatt' -T fields \
+       -e btatt.opcode -e btatt.handle -e btatt.value      # ATT-Frames als TSV
 ```
 
-Wireshark dekodiert HCI-H4 inkl. ATT/GATT nativ. Verschlüsselte Payloads (AES-CCM des NinebotCrypto-Layers) bleiben ohne Session-Key opak — über **Frame-Struktur, Timing und Längen-Verteilung** lässt sich aber trotzdem rekonstruieren, was passiert ist.
+Wireshark dekodiert HCI-H4 + ATT/GATT nativ.
 
-## Was sich aus einem Capture ablesen lässt (auch ohne Key)
+## Was sich ohne Session-Key ablesen lässt
 
 | Artefakt | Aussage |
 |---|---|
-| Service-/Char-UUIDs | Protokoll-Variante (NUS vs. Custom-"ninebot") |
-| Adv-Name + Manufacturer-ID | Geräte-Identifikation, Region-Variante |
-| Write- vs. Notify-Volumen | Daten-Richtung (Upload = Flash, Download = Dump) |
-| Frame-Größenverteilung | "Big-Frame-Bursts" (141 B = max-MTU) ⇒ Bulk-Transfer |
-| Bursts vs. Klein-Traffic | Flash-Phasen vs. Parameter-/Telemetrie-Phasen |
-| Disconnect/Reconnect-Muster | Komponenten-Reboots nach Teil-Flash |
-| Sequenz-Counter im Trailer | Frame-Verlust-Erkennung, Reihenfolge |
+| Service-/Char-UUIDs | Nordic UART (`6e400001-…`) bestätigt |
+| Adv-Manufacturer-Bytes | `FF 4E 43` = NinebotCrypto-Variante |
+| Write- vs. Notify-Volumen | Daten-Richtung (Upload = Flash, Download = Read-Sweep) |
+| Frame-Größenverteilung | Big-Frame-Bursts (~141 B) ⇒ Bulk / OTA |
+| Disconnect/Reconnect-Muster | Modul-Reboots nach Teil-Flash |
+| Sequenz-Counter im Trailer | Frame-Verlust-Erkennung |
 
-## Was sich **nicht** ablesen lässt
+## Mit Session-Key (= unser Setup)
 
-- Konkreter Befehl/Parameter (verschlüsselt, ECDH-pro-Session-Key)
-- Geflashte Firmware-Datei
-- App-interne UI-Aktionen (HCI sieht nur, was raus auf den Wire geht)
+Da wir die NinebotCrypto-Implementierung in der App haben, können wir Frames live decodieren. Drei Pfade:
 
-Für entschlüsselte Captures müsste der ECDH-Session-Key aus der App extrahiert werden (Frida-Hook auf `crypto/elliptic/d.java#deriveKey` o.ä.) — siehe [`../apps/shu/ANALYSIS.md`](../apps/shu/ANALYSIS.md).
+1. **Patched-SHU**: `Log.d`-Injection in SHU-Smali → `adb logcat -s CRYPTO_DUMP` zeigt jeden TX in plain. War unser Bug-Debug-Tool. Details: [`../apps/shu/ANALYSIS.md`](../apps/shu/ANALYSIS.md).
+2. **App-eigenes Diagnostics-Log** (Ring-Buffer 512 Frames, monospace, Share-as-Text)
+3. **ESP32-MitM** (geplant) — Real-Time-Decode aller Frames in beide Richtungen via UART/WiFi-Console.
+
+Für ESP32 wird HCI-Snoop wieder zentral: Verifizieren, dass die ESP32-Adv und der Crypto-Output 1:1 mit dem echten Roller übereinstimmen.
+
+## `.pcap`-Files
+
+Captures liegen **nicht** im Repo (potenziell identifizierende BLE-Adressen aus der Umgebung). Bei Bedarf lokal mit `adb pull` ziehen.

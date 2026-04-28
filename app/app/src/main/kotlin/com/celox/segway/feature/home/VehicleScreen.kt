@@ -72,6 +72,7 @@ import com.celox.segway.feature.profiles.AccessibilityHelper
 import com.celox.segway.feature.profiles.UnlockDialog
 import com.celox.segway.ui.components.Speedometer
 import com.celox.segway.ui.components.StatTile
+import com.celox.segway.ui.components.rememberGpsSpeedKmh
 import kotlinx.coroutines.launch
 
 @Composable
@@ -86,6 +87,7 @@ fun VehicleScreen(
     val activeProfileId by viewModel.activeProfileId.collectAsStateWithLifecycle()
     val autoRevertAt by viewModel.autoRevertAt.collectAsStateWithLifecycle()
     val isUnlockActive by viewModel.isUnlockActive.collectAsStateWithLifecycle()
+    val liveRide by viewModel.liveRide.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -152,7 +154,17 @@ fun VehicleScreen(
                 AccessibilityServiceBanner()
             }
 
-            Speedometer(speedKmh = state.speedKmh, maxSpeedKmh = profiles.unlock.speedKmh.toFloat())
+            val gpsSpeed = rememberGpsSpeedKmh()
+            Speedometer(
+                speedKmh = state.speedKmh,
+                maxSpeedKmh = profiles.unlock.speedKmh.toFloat(),
+                gpsSpeedKmh = gpsSpeed,
+            )
+
+            // Active ride session — shows live aggregates (distance, max, avg, Wh)
+            // while the scooter is moving. Auto-detected by RideSessionRecorder
+            // from speedKmh; vanishes again ~30 s after coming to a stop.
+            liveRide?.let { LiveTripCard(it) }
 
             Spacer(Modifier.height(24.dp))
 
@@ -823,6 +835,84 @@ private fun DiagnosticsTelemetryCard(state: com.celox.segway.core.vehicle.Vehicl
                 InfoRow(stringResource(R.string.vehicle_warn_code), "0x%04X".format(state.warnCode))
         }
     }
+}
+
+@Composable
+private fun LiveTripCard(live: com.celox.segway.core.profile.LiveRideSession) {
+    Spacer(Modifier.height(12.dp))
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.DirectionsRun, null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    stringResource(R.string.vehicle_live_trip),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    formatDuration(live.durationSec),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                LiveStat(
+                    label = stringResource(R.string.vehicle_live_distance),
+                    value = formatDistanceKm(live.distanceKm),
+                    modifier = Modifier.weight(1f)
+                )
+                LiveStat(
+                    label = stringResource(R.string.vehicle_live_max),
+                    value = "%.1f km/h".format(live.maxSpeedKmh),
+                    modifier = Modifier.weight(1f)
+                )
+                LiveStat(
+                    label = stringResource(R.string.vehicle_live_avg),
+                    value = "%.1f km/h".format(live.avgSpeedKmh),
+                    modifier = Modifier.weight(1f)
+                )
+                LiveStat(
+                    label = stringResource(R.string.vehicle_live_energy),
+                    value = if (live.energyWh >= 1f) "%.0f Wh".format(live.energyWh) else "—",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiveStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * Distance formatter for the live-trip card. Below 1 km we count metres so
+ * the user sees the number tick up even on short rides; from 1 km up we use
+ * km with two decimals.
+ */
+private fun formatDistanceKm(km: Float): String {
+    val m = km * 1000f
+    return if (m < 1000f) "%d m".format(m.toInt()) else "%.2f km".format(km)
 }
 
 private fun formatDuration(seconds: Long): String {

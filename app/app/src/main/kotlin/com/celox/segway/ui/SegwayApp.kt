@@ -35,6 +35,7 @@ import com.celox.segway.feature.profiles.ProfilesScreen
 import com.celox.segway.feature.scooter_settings.ScooterSettingsScreen
 import com.celox.segway.feature.settings.SettingsScreen
 import com.celox.segway.feature.track.TrackScreen
+import com.celox.segway.feature.trips.TripHistoryScreen
 
 @Composable
 fun SegwayApp() {
@@ -80,6 +81,7 @@ fun SegwayApp() {
                     onProfilesClick = { navController.navigate(Route.Profiles.route) },
                     onScooterSettingsClick = { navController.navigate(Route.ScooterSettings.route) },
                     onManualClick = { navController.navigate(Route.Manual.route) },
+                    onTripsClick = { navController.navigate(Route.Trips.route) },
                 )
             }
             composable(Route.Pair.route) {
@@ -117,6 +119,9 @@ fun SegwayApp() {
             }
             composable(Route.Manual.route) {
                 ManualScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Route.Trips.route) {
+                TripHistoryScreen(onBack = { navController.popBackStack() })
             }
         }
     }
@@ -163,4 +168,5 @@ sealed class Route(val route: String) {
     data object BatteryDetail : Route("battery_detail")
     data object ScooterSettings : Route("scooter_settings")
     data object Manual : Route("manual")
+    data object Trips : Route("trips")
 }

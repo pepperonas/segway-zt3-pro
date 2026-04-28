@@ -587,7 +587,7 @@ private static String c(String sn, h hVar) {
 | `K` | KR / Korea | regional |
 | `J` | JP / Japan | regional |
 
-Beispiel: `1K1UA2551P3965` → Position 3 = `U` → **US-Region** (40 km/h Hardware-Limit weg, kompatibel mit SHU-„Change Region to US"-Workflow aus [`UNLOCK-PLAN.md`](../../UNLOCK-PLAN.md)).
+Beispiel: `1K1UA2551P3965` → Position 3 = `U` → **US-Region** (40 km/h Hardware-Limit weg, kompatibel mit SHU-„Change Region to US"-Workflow aus [`FLASH-NOTES.md`](../../FLASH-NOTES.md)).
 
 ### Region ändern (= neuen SN schreiben)
 

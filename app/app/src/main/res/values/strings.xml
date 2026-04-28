@@ -52,6 +52,25 @@
     <string name="vehicle_section_mode">Mode</string>
     <string name="vehicle_section_quick_profiles">Quick profiles</string>
     <string name="vehicle_section_live">Live data</string>
+    <string name="vehicle_live_trip">Active ride</string>
+    <string name="vehicle_live_distance">Distance</string>
+    <string name="vehicle_live_max">Max</string>
+    <string name="vehicle_live_avg">Avg</string>
+    <string name="vehicle_live_energy">Energy</string>
+
+    <string name="trips_title">Ride history</string>
+    <string name="trips_empty">No rides recorded yet.\nStart riding — sessions are detected automatically.</string>
+    <string name="trips_summary_title">All-time totals</string>
+    <string name="trips_total_rides">Rides</string>
+    <string name="trips_total_distance">Distance</string>
+    <string name="trips_total_time">Time</string>
+    <string name="trips_total_energy">Energy</string>
+    <string name="trips_top_speed">Top speed</string>
+    <string name="trips_duration">Duration</string>
+    <string name="trips_battery_used">Battery</string>
+    <string name="trips_delete">Delete</string>
+    <string name="mine_trips_title">Ride history</string>
+    <string name="mine_trips_subtitle">Distance, energy, max/avg speed per ride</string>
     <string name="vehicle_lights_on">Lights on</string>
     <string name="vehicle_lights_off">Lights off</string>
     <string name="vehicle_reading_mode">Reading mode from scooter…</string>

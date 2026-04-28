@@ -74,8 +74,6 @@ data class VehicleState(
     val motorTempMaxC: Float = 0f,
     /** Overall MCU controller temperature (MCU 0x3E, °C × 10). */
     val mcuTempC: Float = 0f,
-    /** Last raw register read (offset → bytes), so the diagnostics screen can show arbitrary regs. */
-    val lastRegisterRead: Pair<Int, ByteArray>? = null,
     /** Last read black-box (crash-log) entry. Format implementation-defined. */
     val blackBoxRaw: ByteArray? = null,
     /**

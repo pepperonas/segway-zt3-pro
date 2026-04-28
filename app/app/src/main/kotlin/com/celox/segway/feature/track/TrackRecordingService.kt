@@ -1,5 +1,6 @@
 package com.celox.segway.feature.track
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -7,6 +8,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -14,6 +16,7 @@ import android.os.Binder
 import android.os.Bundle
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.celox.segway.MainActivity
 import com.celox.segway.R
 import com.celox.segway.core.data.UserPreferencesRepository
@@ -65,12 +68,36 @@ class TrackRecordingService : Service() {
         super.onCreate()
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         ensureChannel()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        // Do NOT call startForeground here. On Android 14+, an FGS of type
+        // `location` may only be promoted to foreground while the runtime
+        // location permission is granted; calling it from onCreate (which the
+        // OS also invokes during a START_STICKY auto-restart, even when the
+        // user has revoked the permission) throws SecurityException and
+        // crashes the whole process. We promote inside onStartCommand only
+        // after a permission re-check.
     }
 
     @SuppressLint("MissingPermission")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (_isRecording.value) return START_STICKY
+        // Permission gate: if the user revoked location access between two
+        // app sessions, bail out cleanly instead of crashing.
+        val granted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        } catch (sec: SecurityException) {
+            // Race: permission revoked or FGS rules changed. Fail soft.
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        if (_isRecording.value) return START_NOT_STICKY
         startedAt = System.currentTimeMillis()
         _isRecording.value = true
         try {
@@ -79,8 +106,13 @@ class TrackRecordingService : Service() {
             )
         } catch (sec: SecurityException) {
             stopSelf()
+            return START_NOT_STICKY
         }
-        return START_STICKY
+        // START_NOT_STICKY: we explicitly do not want the OS to auto-restart
+        // this service after a process death. Track recording is initiated
+        // intentionally from the Track tab; auto-restarts would silently
+        // start GPS listening without the user's consent.
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {

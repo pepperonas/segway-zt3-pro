@@ -5,6 +5,7 @@ import com.celox.segway.core.ble.BleScanner
 import com.celox.segway.core.ble.GattClient
 import com.celox.segway.core.data.AppDatabase
 import com.celox.segway.core.data.AppDatabaseProvider
+import com.celox.segway.core.data.RideSessionDao
 import com.celox.segway.core.data.TrackDao
 import com.celox.segway.core.data.VehicleDao
 import com.celox.segway.core.util.BleLog
@@ -36,4 +37,7 @@ object AppModule {
 
     @Provides
     fun trackDao(db: AppDatabase): TrackDao = db.trackDao()
+
+    @Provides
+    fun rideSessionDao(db: AppDatabase): RideSessionDao = db.rideSessionDao()
 }

@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.ElectricMoped
 import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.MenuBook
@@ -45,6 +46,7 @@ fun MineScreen(
     onProfilesClick: () -> Unit,
     onScooterSettingsClick: () -> Unit = {},
     onManualClick: () -> Unit = {},
+    onTripsClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val feedbackSubject = stringResource(R.string.feedback_email_subject)
@@ -99,6 +101,12 @@ fun MineScreen(
                 supportingContent = { Text(stringResource(R.string.mine_garage_subtitle)) },
                 leadingContent = { Icon(Icons.Outlined.ElectricMoped, null) },
                 modifier = Modifier.clickable { onGarageClick() }
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.mine_trips_title)) },
+                supportingContent = { Text(stringResource(R.string.mine_trips_subtitle)) },
+                leadingContent = { Icon(Icons.Outlined.History, null) },
+                modifier = Modifier.clickable { onTripsClick() }
             )
             ListItem(
                 headlineContent = { Text(stringResource(R.string.mine_firmware_title)) },

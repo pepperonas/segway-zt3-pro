@@ -9,6 +9,7 @@ import com.celox.segway.core.data.UserPreferencesRepository
 import com.celox.segway.core.data.VehicleDao
 import com.celox.segway.core.data.VehicleStateCache
 import com.celox.segway.core.ota.FirmwareUpdater
+import com.celox.segway.core.profile.RideSessionRecorder
 import com.celox.segway.core.repo.FirmwareTarget
 import com.celox.segway.core.util.BleLog
 import com.celox.segway.core.vehicle.Vehicle
@@ -45,6 +46,7 @@ class ActiveVehicleHolder @Inject constructor(
     private val userPrefs: UserPreferencesRepository,
     private val stateCache: VehicleStateCache,
     private val bleLog: BleLog,
+    private val rideSessionRecorder: RideSessionRecorder,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _activeVehicle = MutableStateFlow<Vehicle?>(null)
@@ -71,6 +73,7 @@ class ActiveVehicleHolder @Inject constructor(
             scope = scope
         )
         _activeVehicle.value = vehicle
+        rideSessionRecorder.attach(vehicle)
 
         // Foreground service keeps the OS from killing our process when the
         // screen turns off — without this, BLE drops within seconds and the
@@ -111,6 +114,7 @@ class ActiveVehicleHolder @Inject constructor(
     fun unbind() {
         reconnectJob?.cancel()
         reconnectJob = null
+        rideSessionRecorder.detach()
         val v = _activeVehicle.value
         scope.launch { v?.disconnect() }
         _activeVehicle.value = null

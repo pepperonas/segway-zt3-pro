@@ -52,6 +52,25 @@
     <string name="vehicle_section_mode">Modus</string>
     <string name="vehicle_section_quick_profiles">Quick-Profile</string>
     <string name="vehicle_section_live">Live-Daten</string>
+    <string name="vehicle_live_trip">Aktive Fahrt</string>
+    <string name="vehicle_live_distance">Strecke</string>
+    <string name="vehicle_live_max">Max</string>
+    <string name="vehicle_live_avg">Ø</string>
+    <string name="vehicle_live_energy">Energie</string>
+
+    <string name="trips_title">Fahrten-Historie</string>
+    <string name="trips_empty">Noch keine Fahrten aufgezeichnet.\nFahr los — Sessions werden automatisch erkannt.</string>
+    <string name="trips_summary_title">Gesamt-Statistik</string>
+    <string name="trips_total_rides">Fahrten</string>
+    <string name="trips_total_distance">Strecke</string>
+    <string name="trips_total_time">Zeit</string>
+    <string name="trips_total_energy">Energie</string>
+    <string name="trips_top_speed">Top-Speed</string>
+    <string name="trips_duration">Dauer</string>
+    <string name="trips_battery_used">Akku</string>
+    <string name="trips_delete">Löschen</string>
+    <string name="mine_trips_title">Fahrten-Historie</string>
+    <string name="mine_trips_subtitle">Strecke, Energie, Max/Ø-Speed pro Fahrt</string>
     <string name="vehicle_lights_on">Licht aus</string>
     <string name="vehicle_lights_off">Licht an</string>
     <string name="vehicle_reading_mode">Lese Modus vom Roller…</string>

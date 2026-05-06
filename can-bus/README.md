@@ -57,6 +57,8 @@ Volle Details in [`WORKFLOW.md`](WORKFLOW.md) und [`FRAMES.md`](FRAMES.md).
 | `0x343[3]+[6]` | Hauptlicht-Status (synchron, 1 = an) | bit |
 | `0x343[4]+[5]` | **Brake-Light** (an beim Bremsen, [5] mit ~500ms Hold) | bit |
 | `0x20C[0]` + `0x342[4]` | **Turn-Signal-Indikator** (toggled 1.25 Hz) | 0=aus, 1=L, 2=R |
+| `0x212[2]` Bit 3 | **Charger-Connected-Flag** | 0x08 wenn an |
+| `0x20C[1]` + `0x342[5]` | **Charging-State** | 0x80=idle, 0x82=lädt aktiv |
 | `0x21A` (one-shot) + `0x344[7]` | **★ Speed-Warning-Beep-Trigger** | event + 200ms-Burst |
 | `0x211[6]` = `0x203[6]` | Wheel-Speed (Echo auf 2 IDs) | analog |
 | `0x483` + `0x484` | Seriennummer-Broadcast (ASCII) | „1K1UA2551P3965" |
@@ -73,6 +75,7 @@ Volle Details in [`WORKFLOW.md`](WORKFLOW.md) und [`FRAMES.md`](FRAMES.md).
 | `mode-switch.csv` | Mode-Knopf 1× | 0x100[4]+[6] |
 | `light-toggle.csv` | Licht an + aus | 0x343[3]+[6] |
 | `brake-light-twice-with-light-on.csv` | 2× Bremsen mit Licht an | 0x343[4]+[5] = Brake-Light, plus 0x212[2] / 0x401[0]+[1] redundant |
+| `charging-start.csv`, `charging-stop.csv` | Charger anstecken / abziehen | 0x212[2]=0x08 connected, 0x20C[1]/0x342[5] = Charging-State |
 | `turn-left.csv`, `turn-right.csv` | Blinker links/rechts | 0x20C[0]=01/02, 0x342[4] echo, 1.25 Hz Toggle |
 | `custom-button.csv` | Custom-Button-Doppel-Tap | nur Effekt sichtbar (Mode-Wechsel auf Walk) |
 | `eco-to-drive.csv` | Mode-Übergang | Eco/Drive-Werte |

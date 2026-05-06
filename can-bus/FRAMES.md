@@ -29,6 +29,9 @@ Beobachtete Frames auf dem **externen VCU-CAN-Bus** des Segway Ninebot ZT3 Pro D
 | `0x211[3]` | „Blinker aktiv"-Flag (set bei links UND rechts) | 0x00 / 0x04 |
 | `0x212[2]` | Brake-Pedal-Pressed-Flag (einfacher Bit-Flag) | 0 / 1 |
 | `0x401[0]+[1]` | Brake-System-Active 16-bit (`00 00` ↔ `FF FF`) | bit-pair |
+| `0x212[2]` | **★ Charger-Connected-Flag** (Bit 3, 0x08) | bit |
+| `0x20C[1]` + `0x342[5]` | **★ Charging-State**: 0xC4/0xE4=normal, 0x80=Charger an idle, 0x82=Charging aktiv | enum |
+| `0x100[2]` Bit 4 | Charge-Status-Change-Event (kurz beim Stecker-Wechsel) | bit |
 | `0x21A` (one-shot) | **★ Speed-Warning-Beep-Event** | erscheint nur bei Beep |
 | `0x344[7]` | Buzzer-Drive-Pulse (~200ms während Beep) | 0x00 / 0xC0 |
 | `0x211[6]` = `0x203[6]` | Wheel-Speed (Echo auf 2 IDs) | analog 0–0xFF+ |
@@ -41,7 +44,8 @@ Beobachtete Frames auf dem **externen VCU-CAN-Bus** des Segway Ninebot ZT3 Pro D
 ```
 Byte 0:  00..C8      THROTTLE (analog, 0–200)
 Byte 1:  00..FF      BREMSDRUCK (sammelt vorne+hinten, nicht unterscheidbar)
-Byte 2:  00 / 04     USER-INPUT-ACTIVE (0x04 = Throttle gedrückt ODER Mode/Licht-Knopf gehalten)
+Byte 2:  Bitfeld     Bit 2 (0x04) = USER-INPUT-ACTIVE (Throttle/Mode/Licht-Knopf gedrückt)
+                     Bit 4 (0x10) = CHARGE-STATUS-CHANGE-EVENT (kurz beim Stecker-Wechsel)
 Byte 3:  40          (konstant in allen Captures, vermutlich globales Mode-Bitfeld)
 Byte 4:  Mode-LABEL  km/h-Bucket: Walk=05, Eco=0F, Drive=19, Sport=23 — statisch, NICHT das echte Limit
 Byte 5:  4F = 79     (vermutlich Battery%)
@@ -96,6 +100,31 @@ sonstige: 00        konstant
 - `[4]+[5]` = Brake-Light (an wenn beide 1) — verifiziert via [`brake-light-twice-with-light-on.csv`](../can-data/brake-light-twice-with-light-on.csv): bei jeder der zwei Bremsungen flippten beide Bytes 0→1, beim Loslassen fiel Byte 4 sofort auf 0, Byte 5 erst ~500ms später (klassisches Brake-Light-Hold-Verhalten für die hinter Fahrenden).
 
 Im Fahrt-Modus tauchen zusätzlich „ride active"-Bits in Bytes 3,4,5,6 auf (alle = 0x01) und Byte 7 trackt den Throttle-Wert (siehe [`driving-40-beep.csv`](../can-data/driving-40-beep.csv)).
+
+### Charging-Detection ⭐
+
+Der Roller signalisiert Charging-Status auf 3 verschiedenen Frames gleichzeitig:
+
+```
+0x212[2]:  0x00 = kein Charger,   0x08 = Charger angeschlossen
+0x20C[1]:  Charging-State (siehe Tabelle unten)
+0x342[5]:  Echo von 0x20C[1] ans Display
+0x100[2]:  Bit 4 (0x10) Burst beim Stecker-Wechsel als Event-Marker
+```
+
+**Charging-State-Werte (0x20C[1] und 0x342[5]):**
+
+| Wert | Bedeutung |
+|------|-----------|
+| `0xC4` / `0xE4` | normaler Betrieb, kein Charger |
+| `0x80` | Charger angeschlossen, idle (lädt nicht aktiv — z.B. fertig oder pausiert) |
+| `0x82` | Charger angeschlossen + lädt aktiv |
+
+Verifiziert via:
+- [`charging-start.csv`](../can-data/charging-start.csv): bei t=3.56s 0x212[2] springt 0x00→0x08 (Charger erkannt), bei t=3.81s wechselt 0x20C[1] auf 0x80.
+- [`charging-stop.csv`](../can-data/charging-stop.csv): startete im Lade-Zustand (0x212[2]=0x08, 0x342[5]=0x82). Bei t=3.61s fiel 0x212[2] auf 0x00 (Charger abgesteckt), bei t=5.13s 0x342[5] auf 0x80, kurz danach 0x100[2] = 0x10 als „Status-Change-Event"-Burst.
+
+**Use-Case App:** der CAN-basierte Charging-Status reagiert in <50ms auf Stecker-Wechsel. Eine Phone-App kann darauf verzichten, BLE alle paar Sekunden zu pollen — und im Dashboard live „lädt gerade / Charger angeschlossen / fährt" anzeigen.
 
 ### Bremse — weitere Frames (außer 0x100[1])
 

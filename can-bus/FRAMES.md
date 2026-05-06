@@ -23,9 +23,12 @@ Beobachtete Frames auf dem **externen VCU-CAN-Bus** des Segway Ninebot ZT3 Pro D
 | `0x100[6]` | Mode-spezifischer 2. Wert (Power/KERS-Bucket) | Walk=0F, Eco=23, Drive=5A, Sport=64 |
 | `0x342[6]` | **★ TATSÄCHLICHER MCU-enforcter Top-Speed in km/h** | live |
 | `0x20C[2]` | Top-Speed in 0.5-km/h-Auflösung (= 0x342[6] × 2) | live |
-| `0x343[3]` + `0x343[6]` | Light-Status (synchron, 1 = an) | bit |
+| `0x343[3]` + `0x343[6]` | Hauptlicht-Status (synchron, 1 = an) | bit |
+| `0x343[4]` + `0x343[5]` | **★ Brake-Light-Status** (geht beim Bremsen an, [5] mit ~500ms Hold-Verzug) | bit |
 | `0x20C[0]` + `0x342[4]` | **★ Turn-Signal-Indikator** (toggled 1.25 Hz) | 0/1=L/2=R |
 | `0x211[3]` | „Blinker aktiv"-Flag (set bei links UND rechts) | 0x00 / 0x04 |
+| `0x212[2]` | Brake-Pedal-Pressed-Flag (einfacher Bit-Flag) | 0 / 1 |
+| `0x401[0]+[1]` | Brake-System-Active 16-bit (`00 00` ↔ `FF FF`) | bit-pair |
 | `0x21A` (one-shot) | **★ Speed-Warning-Beep-Event** | erscheint nur bei Beep |
 | `0x344[7]` | Buzzer-Drive-Pulse (~200ms während Beep) | 0x00 / 0xC0 |
 | `0x211[6]` = `0x203[6]` | Wheel-Speed (Echo auf 2 IDs) | analog 0–0xFF+ |
@@ -77,21 +80,36 @@ Byte 2:   LIVE-LIMIT × 2   gleicher Wert wie 0x342[6], aber in 0.5-km/h-Auflös
 Beispiel Sport+Unlock-40: 0x20C[2] = 0x50 (80) → 80 × 0.5 = 40 km/h ✓
 Beispiel Sport+Lock-22:  0x20C[2] = 0x2C (44) → 44 × 0.5 = 22 km/h ✓
 
-### Frame `0x343` — Light-Status (10 Hz)
+### Frame `0x343` — Lighting-Status komplett (10 Hz)
 
 ```
-Byte 3:  00/01      LIGHT-BIT A
-Byte 6:  00/01      LIGHT-BIT B  (immer synchron mit Byte 3)
-sonstige: 00        konstant im Stand
+Byte 3:  00/01      HAUPTLICHT-BIT A (Front + Heck synchron)
+Byte 4:  00/01      BRAKE-LIGHT-BIT A (geht beim Bremsen an)
+Byte 5:  00/01      BRAKE-LIGHT-BIT B (geht beim Bremsen an, Hold ~500ms nach Loslassen)
+Byte 6:  00/01      HAUPTLICHT-BIT B (synchron mit Byte 3)
+Byte 7:  00..C8     in Fahrt: Throttle-Echo
+sonstige: 00        konstant
 ```
 
-Im Fahrt-Modus zusätzlich: Bytes 3,4,5,6 alle = 0x01 als „ride active"-Bits, Byte 7 trackt den Throttle-Wert.
+`0x343` ist DAS zentrale Lighting-Status-Frame des Rollers. Bytes paaren sich:
+- `[3]+[6]` = Hauptlicht (an wenn beide 1) — verifiziert via [`light-toggle.csv`](../can-data/light-toggle.csv)
+- `[4]+[5]` = Brake-Light (an wenn beide 1) — verifiziert via [`brake-light-twice-with-light-on.csv`](../can-data/brake-light-twice-with-light-on.csv): bei jeder der zwei Bremsungen flippten beide Bytes 0→1, beim Loslassen fiel Byte 4 sofort auf 0, Byte 5 erst ~500ms später (klassisches Brake-Light-Hold-Verhalten für die hinter Fahrenden).
 
-Verifiziert via [`light-toggle.csv`](../can-data/light-toggle.csv): Capture mit 1× Licht an + 1× aus innerhalb 10s zeigt Bytes 3+6 synchron 0→1→0 zu den Toggle-Zeitpunkten.
+Im Fahrt-Modus tauchen zusätzlich „ride active"-Bits in Bytes 3,4,5,6 auf (alle = 0x01) und Byte 7 trackt den Throttle-Wert (siehe [`driving-40-beep.csv`](../can-data/driving-40-beep.csv)).
 
-Beide Bytes wechseln immer **gleichzeitig** — nicht zwei separate Lichter (Front/Heck), sondern zwei redundante Status-Bits (vermutlich Light-Command + Light-Confirmed).
+### Bremse — weitere Frames (außer 0x100[1])
 
-Brake-Light (das beim Bremsen automatisch angeht) wird vermutlich **separat** geführt — dafür braucht's noch einen Capture „Bremsen mit eingeschaltetem Licht".
+Das primäre Brems-Pedal-Signal ist `0x100[1]` (analoge 0–255 Skala, vorne+hinten kombiniert). Zusätzlich wird der Brems-Status redundant in mehreren Frames mitsignalisiert:
+
+| Frame.Byte | Funktion |
+|------------|----------|
+| `0x100[1]` | Analoge Brems-Stärke (0–255) |
+| `0x212[2]` | Brake-Pedal-Pressed-Flag (0/1, einfacher Bit-Flag) |
+| `0x343[4]+[5]` | Brake-Light-Aktiv (siehe oben) |
+| `0x401[0]+[1]` | „Brake-System-Active" 16-bit Status (`00 00` ↔ `FF FF`) |
+| `0x401[3]` | weiteres Brems-Bit |
+
+Die Redundanz erklärt sich über CAN-Architektur: jeder ECU broadcastet was sie über das Bremsen weiß — Display will den Wert für Tacho-Bremspedal-Indikator, Brake-Light-Treiber will den Aktiv-Status, BMS will Bremsen für KERS-Charging-Triggering.
 
 ### Frame `0x21A` + `0x344[7]` — Speed-Warning-Beep ⭐
 
@@ -264,7 +282,7 @@ Erledigt:
 - [x] Seriennummer per ASCII-Decode auf 0x483+0x484
 
 Offen:
-- [ ] Brake-Light-Test: Bremsen bei eingeschaltetem Licht → bestätigt ob Brake-Light separat im Bus signalisiert wird
+- [x] Brake-Light-Test: ✅ 0x343[4]+[5] = Brake-Light, plus 0x212[2] und 0x401[0]+[1] als redundante Brems-Status-Bits (verifiziert via brake-light-twice-with-light-on.csv)
 - [ ] Multi-Beep-Capture: 30 s Fahrt mit 3-4 Beep-Events → bestätigt 1:1 Korrelation 0x21A ↔ Beep
 - [ ] Längeres Idle-Capture (30+ s) → vollständige ID-Liste, Periodizität, seltene Frames
 - [ ] BMS-Probing: Cell-Voltages identifizieren (LiIon-typisch 3000–4200 mV als 16-bit) — vermutlich in 0x209/0x20B/0x310/0x311 versteckt

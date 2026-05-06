@@ -54,7 +54,8 @@ Volle Details in [`WORKFLOW.md`](WORKFLOW.md) und [`FRAMES.md`](FRAMES.md).
 | `0x100[4]` | Mode-LABEL (statischer km/h-Bucket) | Walk=5, Eco=15, Drive=25, Sport=35 |
 | `0x342[6]` | **★ TATSÄCHLICHER Top-Speed-Cap in km/h** (live, app-konfiguriert oder Unlock) | live |
 | `0x20C[2]` | derselbe Cap in 0.5-km/h-Auflösung (= 0x342[6] × 2) | live |
-| `0x343[3]+[6]` | Light-Status (synchron, 1 = an) | bit |
+| `0x343[3]+[6]` | Hauptlicht-Status (synchron, 1 = an) | bit |
+| `0x343[4]+[5]` | **Brake-Light** (an beim Bremsen, [5] mit ~500ms Hold) | bit |
 | `0x20C[0]` + `0x342[4]` | **Turn-Signal-Indikator** (toggled 1.25 Hz) | 0=aus, 1=L, 2=R |
 | `0x21A` (one-shot) + `0x344[7]` | **★ Speed-Warning-Beep-Trigger** | event + 200ms-Burst |
 | `0x211[6]` = `0x203[6]` | Wheel-Speed (Echo auf 2 IDs) | analog |
@@ -71,6 +72,7 @@ Volle Details in [`WORKFLOW.md`](WORKFLOW.md) und [`FRAMES.md`](FRAMES.md).
 | `throttle.csv` | Throttle-Sweep (aufgebockt) | 0x100 Byte 0 |
 | `mode-switch.csv` | Mode-Knopf 1× | 0x100[4]+[6] |
 | `light-toggle.csv` | Licht an + aus | 0x343[3]+[6] |
+| `brake-light-twice-with-light-on.csv` | 2× Bremsen mit Licht an | 0x343[4]+[5] = Brake-Light, plus 0x212[2] / 0x401[0]+[1] redundant |
 | `turn-left.csv`, `turn-right.csv` | Blinker links/rechts | 0x20C[0]=01/02, 0x342[4] echo, 1.25 Hz Toggle |
 | `custom-button.csv` | Custom-Button-Doppel-Tap | nur Effekt sichtbar (Mode-Wechsel auf Walk) |
 | `eco-to-drive.csv` | Mode-Übergang | Eco/Drive-Werte |

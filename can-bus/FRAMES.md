@@ -24,6 +24,8 @@ Beobachtete Frames auf dem **externen VCU-CAN-Bus** des Segway Ninebot ZT3 Pro D
 | `0x342[6]` | **★ TATSÄCHLICHER MCU-enforcter Top-Speed in km/h** | live |
 | `0x20C[2]` | Top-Speed in 0.5-km/h-Auflösung (= 0x342[6] × 2) | live |
 | `0x343[3]` + `0x343[6]` | Light-Status (synchron, 1 = an) | bit |
+| `0x20C[0]` + `0x342[4]` | **★ Turn-Signal-Indikator** (toggled 1.25 Hz) | 0/1=L/2=R |
+| `0x211[3]` | „Blinker aktiv"-Flag (set bei links UND rechts) | 0x00 / 0x04 |
 | `0x21A` (one-shot) | **★ Speed-Warning-Beep-Event** | erscheint nur bei Beep |
 | `0x344[7]` | Buzzer-Drive-Pulse (~200ms während Beep) | 0x00 / 0xC0 |
 | `0x211[6]` = `0x203[6]` | Wheel-Speed (Echo auf 2 IDs) | analog 0–0xFF+ |
@@ -106,12 +108,21 @@ Throttle war zu dieser Zeit auf Max (0xC8 seit 150ms), Roller fuhr über die ~25
 
 **Wichtig für ESP32-Anwendung:** Der Beep ist ein autonomes VCU-Hardware-Ereignis. Das CAN-Frame ist nur Broadcast/Info — den Beep durch Suppress des Frames zu verhindern funktioniert NICHT. Der ESP32 kann das CAN-Event aber als Trigger für einen **Hardware-Buzzer-Cut-MOSFET** nutzen (siehe ESP32-Bridge-Plan Use-Case A).
 
+### Frame `0x20C[0]` und `0x342[4]` — Turn-Signal-Indikator (10/5 Hz) ⭐
+
+```
+0x20C[0]:  00 = aus, 01 = links, 02 = rechts, vermutlich 03 = Warnblinker
+0x342[4]:  Echo desselben Werts ans Display
+0x211[3]:  00 / 04  Generelles "Blinker aktiv"-Bit (links UND rechts setzen es)
+```
+
+**Real-Time-Lampen-Steuerung** — der Wert toggled alle 400 ms zwischen Aktiv und 00 (= 1.25 Hz Blink-Rate). Verifiziert via [`turn-left.csv`](../can-data/turn-left.csv) und [`turn-right.csv`](../can-data/turn-right.csv).
+
+**Wichtige Korrektur zur BLE-Side-Conclusion:** Die Aussage in `python/README.md` *"turn-signal state not exposed as readable registers"* gilt nur für den **BLE-Register-Sweep** — die VCU exposed den Status nicht über die BLE-Read-Register. Auf dem **CAN-Bus** ist er aber sichtbar. ESP32 mit CAN-Sniff kann Blinker-Status in Echtzeit erkennen.
+
 ### Negativ-Befunde — was NICHT auf dem CAN-Bus liegt
 
-Folgende Aktionen erzeugen **keine** sichtbare Frame-Änderung im 0x100 oder anderen primären VCU-Frames:
-
-- **Turn-Signal links / rechts** (Blinker) — siehe [`turn-left.csv`](../can-data/turn-left.csv) + [`turn-right.csv`](../can-data/turn-right.csv): 0x100 komplett konstant. Bestätigt die [BLE-seitige Erkenntnis aus `python/README.md`](../python/README.md): *"turn-signal and brake-pedal state are not exposed as readable registers on this firmware"*. Der Blinker ist auf dem ZT3 ein rein lokal-hardware-getriebenes Feature, das nicht über den CAN-Bus broadcasted wird. Für externe Detektion müsste man einen Sensor an den Blinker-LED-Leitungen anbringen.
-- **Custom-Button** (Doppel-Tap) — siehe [`custom-button.csv`](../can-data/custom-button.csv): nur Knopf-Druck-Pattern (gleiche Variabilität wie Mode-Switch in 0x100[2]+[4]+[6]) sichtbar, kein eigener Custom-Button-Frame. Die Effekt-Aktion (Walk/KERS/Park je nach Profil) ist sichtbar als ihr jeweiliger Effekt (z.B. Mode-Wechsel auf Walk-Werte), aber der Knopf-Druck selbst hat keine eigene Signatur.
+- **Custom-Button-Press-Erkennung** — siehe [`custom-button.csv`](../can-data/custom-button.csv): kein eigener „Custom-Button-pressed"-Frame. Nur die ausgelöste Effekt-Aktion ist sichtbar (Mode-Wechsel auf Walk-Werte = Custom-Button war hier auf Walk-Effect konfiguriert). Wenn man wissen will dass der Knopf gedrückt wurde, muss man die Effekt-Konsequenz beobachten.
 
 ### Mode-Knopf-Logik (Dual-Funktion)
 

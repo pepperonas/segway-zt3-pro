@@ -58,6 +58,20 @@ constexpr uint32_t PATTERN_MODE_WINDOW_MS = 3000;
 // Nach jedem Trigger eine Pause damit nicht direkt nochmal gefeuert wird.
 constexpr uint32_t TRIGGER_COOLDOWN_MS = 3000;
 
+// ── Active-Mode (CAN-Sender) ────────────────────────────────────────────────
+//
+// ⚠ Default OFF wegen Risiko VCU-Konflikt. Erst auf aufgebocktem Roller
+// testen bevor live-aktivieren. Wenn auf true: ESP32 sendet aktiv Frames
+// auf den Bus (Speed-Limit-Override + Cruise-Control).
+constexpr bool ENABLE_ACTIVE_MODE = false;
+
+// Cruise-Control: Default-Engage-Pattern verwendet die existierende
+// Pattern B (5s Throttle-Hold + Brake-Tap), wird aber zu CRUISE_ENGAGE
+// statt CRUISE_REQUEST wenn ENABLE_ACTIVE_MODE = true.
+//
+// Cruise-Disengage triggert auf JEDEN Brake-Press (universal Auto-Standard).
+constexpr uint8_t CRUISE_DISENGAGE_BRAKE_THRESHOLD = 0x20;  // > 32 = "ernst gemeint"
+
 // ── BLE Service ─────────────────────────────────────────────────────────────
 //
 // Eigene NUS-Instance, NICHT die Roller-NUS-UUIDs nachbauen sonst

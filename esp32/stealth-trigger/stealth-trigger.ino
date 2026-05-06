@@ -23,6 +23,7 @@
 #include "config.h"
 #include "triggers.h"
 #include "ble_server.h"
+#include "actuator.h"
 
 // ── Globals ─────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ static BrakeBurstDetector            brake_burst;
 static ThrottleHoldThenBrakeDetector cruise_pattern;
 static ModeChangeBurstDetector       mode_burst;
 static TriggerCooldown               cooldown;
+static CanActuator                   actuator;
 
 static uint32_t can_frames_seen = 0;
 static uint32_t can_errors_seen = 0;
@@ -76,23 +78,45 @@ static void on_frame(const twai_message_t& msg) {
   uint8_t mode_label = msg.data[4];
   uint32_t now = millis();
 
-  // Pattern A — Brake-Burst
+  // ── CRUISE-CONTROL: Disengage on brake (höchste Priorität) ───────────────
+  // Universal-Standard: jeder Brake-Press disengaged Cruise.
+  // Vor Cooldown — Brake muss IMMER funktionieren.
+  if (actuator.is_cruise_active() && brake >= CRUISE_DISENGAGE_BRAKE_THRESHOLD) {
+    actuator.stop_cruise();
+    Serial.println("[cruise] DISENGAGED (brake)");
+    ble.notify_trigger("CRUISE_DISENGAGED");
+    return;
+  }
+
+  // Pattern A — Brake-Burst → STEALTH_LOCK
   if (cooldown.ready(now) && brake_burst.feed(brake, now)) {
     Serial.println("[trigger] STEALTH_LOCK");
     ble.notify_trigger("STEALTH_LOCK");
     cooldown.mark_fired(now);
-    return;  // nicht direkt nochmal feuern im selben Frame
+    return;
   }
 
-  // Pattern B — Throttle-Hold + Brake
+  // Pattern B — Throttle-Hold + Brake-Tap → CRUISE_ENGAGE (oder REQUEST)
   if (cooldown.ready(now) && cruise_pattern.feed(throttle, brake, now)) {
-    Serial.println("[trigger] CRUISE_REQUEST");
-    ble.notify_trigger("CRUISE_REQUEST");
+    if (ENABLE_ACTIVE_MODE && actuator.is_active()) {
+      // Lock-in den letzten Throttle-Wert vor Brake (cruise = "halte was du
+      // gerade getreten hast"). Wir nehmen einen festen Wert weil zum
+      // Trigger-Zeitpunkt ist der Throttle ggf. schon im Loslassen — der
+      // gespeicherte Wert wäre instabil. Default: aktueller Throttle, falls 0
+      // dann fallback auf 80% Sport.
+      uint8_t target = throttle > 0 ? throttle : 0xA0;
+      actuator.start_cruise(target);
+      Serial.printf("[cruise] ENGAGED at throttle=0x%02X\n", target);
+      ble.notify_trigger("CRUISE_ENGAGED");
+    } else {
+      Serial.println("[trigger] CRUISE_REQUEST (active-mode disabled, just notify)");
+      ble.notify_trigger("CRUISE_REQUEST");
+    }
     cooldown.mark_fired(now);
     return;
   }
 
-  // Pattern C — Mode-Change-Burst
+  // Pattern C — Mode-Change-Burst → PROFILE_SWITCH
   if (cooldown.ready(now) && mode_burst.feed(mode_label, now)) {
     Serial.println("[trigger] PROFILE_SWITCH");
     ble.notify_trigger("PROFILE_SWITCH");
@@ -122,7 +146,31 @@ void setup() {
       delay(100);
     }
   }
+
+  // ── Active-Mode opt-in (nur wenn explizit in config aktiviert) ───────────
+  if (ENABLE_ACTIVE_MODE) {
+    Serial.println("[active] enabling TWAI_MODE_NORMAL — ESP32 wird CAN-Sender");
+    if (actuator.enable_active_mode()) {
+      Serial.println("[active] OK — Speed-Limit-Override und Cruise-Control verfügbar");
+    } else {
+      Serial.println("[active] FAILED — verbleibt im LISTEN-ONLY");
+    }
+  } else {
+    Serial.println("[active] disabled (config.h ENABLE_ACTIVE_MODE=false) — passiv only");
+  }
 }
+
+// ── BLE-Command-Handler ─────────────────────────────────────────────────────
+//
+// Phone-App kann via Write auf RX-Char Commands an den ESP32 schicken.
+// Format: ASCII, eine Zeile pro Command.
+//
+//   SET_LIMIT 40       ← Speed-Limit 40 km/h für 1 Sekunde injizieren
+//   SET_LIMIT 22       ← zurück auf 22
+//   CRUISE_OFF         ← falls Cruise aktiv: ausschalten
+//
+// Stub jetzt — BLE-RX-Handler hängt aktuell noch nicht im ble_server.h. Lass
+// das als Placeholder, nachrüsten wenn benötigt.
 
 // ── Main-Loop ───────────────────────────────────────────────────────────────
 

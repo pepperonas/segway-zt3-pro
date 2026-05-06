@@ -131,10 +131,47 @@ Implementation als Follow-Up wenn Hardware-Test der ESP32-Seite durch ist.
 - **Pattern B braucht aufgebockten Roller** zum Testen — Throttle 5s gehalten = der Roller fährt los. Privatgelände only.
 - **Cooldown ist global**, nicht per-Pattern. Nach Pattern-A-Feuer kann B oder C 3 s lang nicht feuern. Das verhindert Ketten-Trigger ist aber bei Bedarf in `triggers.h` per-Pattern aufzubrechen.
 
+## Active-Mode: Speed-Limit-Override und Cruise-Control
+
+⚠ **Default ist OFF** wegen Risiko VCU-Konflikt. Aktivieren via `config.h`:
+
+```cpp
+constexpr bool ENABLE_ACTIVE_MODE = true;
+```
+
+Dann kann der ESP32:
+
+### Speed-Limit live override (one-shot)
+
+Sendet 0x342 + 0x20C-Frames für 1 Sekunde mit eigenem km/h-Wert. Stock-Display sendet 0x342 nur 5 Hz — wir feuern mit 20 Hz, der MCU enforced den letzten gesehenen Wert (= unseren).
+
+```cpp
+actuator.set_speed_limit(40, 1000);  // 40 km/h für 1s
+```
+
+**Nicht persistent** — nach Senden-Ende fällt der Cap nach <1s zurück auf den Stock-Wert. Für persistent: BLE-Write an die VCU (nur Phone-App kann das wegen Crypto-Handshake).
+
+### Cruise-Control
+
+Pattern B (5s Throttle-Hold + Brake-Tap) löst dann **CRUISE_ENGAGE** statt nur CRUISE_REQUEST aus. Eine FreeRTOS-Task sendet ab dann mit 100 Hz `0x100`-Frames mit lockedem Throttle-Wert.
+
+**Disengage** = jeder Brake-Press (≥0x20). Universal-Standard, vor dem Pattern-Cooldown geprüft.
+
+**Safety-Watchdog:** Cruise stoppt automatisch nach 60 Sekunden auch ohne Brake (verhindert Run-away wenn ESP32 hängt).
+
+### Risiken (lies das bevor du flashst!)
+
+- VCU/MCU könnten Watchdog-Fault auslösen wenn doppelte ID detektiert → Roller spontaner Reset während Fahrt
+- Bei Cruise: wenn ESP32 abstürzt → Roller fährt unkontrolliert weiter bis 60s-Watchdog greift oder du bremst
+- Beide Szenarien: **erst auf aufgebocktem Roller testen** (Hinterrad in der Luft)
+- StVZO/ABE: erlischt
+- Versicherung: greift nicht mehr bei Schaden mit aktivem Tuning
+
 ## Folge-Schritte (nach erfolgreichem Test)
 
 - **Phone-App-Integration** in [`app/`](../../app/) — `BleEsp32TriggerClient` bauen, Trigger-Notifications in existierende Lock-/Profile-Logic feeden
+- **BLE-RX-Handler** für Phone→ESP32 Commands (SET_LIMIT 40, CRUISE_OFF, etc.) — Stub im Sketch markiert
 - **Buzzer-Mute-MOSFET** an einem GPIO ergänzen (siehe `ESP32-BRIDGE-PLAN.md` Use-Case A)
 - **OTA-Update via WiFi-AP** für In-Field-Reflash ohne Dashboard-Öffnen
 - **Frame-Stats-Logging** auf SD-Karte oder LittleFS für Trip-Recording
-- **Switch zu `TWAI_MODE_NORMAL`** wenn aktive Frame-Injection nötig (z.B. für Phantom-Cruise-Control)
+- **Active-Mode-Tests:** verifiziere dass VCU keinen Fault wirft bei doppelten 0x342/0x100 IDs (kontrollierte Werkbank-Tests vor live-Fahrt)

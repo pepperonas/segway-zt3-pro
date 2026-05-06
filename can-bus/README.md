@@ -88,11 +88,21 @@ Volle Details in [`WORKFLOW.md`](WORKFLOW.md) und [`FRAMES.md`](FRAMES.md).
 
 ## Status (Stand 2026-05-06)
 
+**Erste Recon-Phase abgeschlossen — alle Kern-Inputs des Rollers sind gemappt:**
+
 - ✅ Bus identifiziert (CAN-Bus statt UART), Bitrate 500 kbit/s, plain bestätigt
-- ✅ Alle primären Fahrer-Inputs gemappt (Throttle, Bremsen, Mode-Knopf, Licht-Knopf)
-- ✅ Mode-Rotation aller 4 Modi dediziert verifiziert (Walk → Eco → Drive → Sport)
+- ✅ Alle primären Fahrer-Inputs (Throttle, Bremsen vorne+hinten, Mode-Knopf, Licht-Knopf, Blinker)
+- ✅ Lighting komplett (Hauptlicht + Brake-Light + Turn-Signals)
+- ✅ Mode-Rotation aller 4 Modi (Walk/Eco/Drive/Sport) dediziert verifiziert
 - ✅ Live-Speed-Limit-Mechanik via unlock-40 + lock-22 doppelt bestätigt
-- ✅ Beep-Trigger gefunden (0x21A + 0x344[7])
-- 🔜 Brake-Light-Test, Multi-Beep-Verifikation, Long-Idle-Capture
-- 🔜 BMS-Frames (Cell-Voltages) identifizieren
+- ✅ Beep-Trigger gefunden (0x21A + 0x344[7]) — direkt nutzbar für ESP32-Buzzer-Mute
+- ✅ Charging-Detection (Connected-Flag + Charging-State + Status-Change-Event)
+
+**Was noch offen ist** — ausführliche Liste aller geplanten Captures + ungeklärten Bytes/Frames in [`FRAMES.md`](FRAMES.md#status). Hauptthemen:
+
+- 🔜 BMS-Frames (Cell-Voltages, Pack-Spannung, Pack-Strom) — vermutlich in 0x209/0x20B/0x310/0x311 versteckt, brauchen Multimeter zur Verifikation
+- 🔜 Tacho-km/h-Skalierungsfaktor für `0x211[6]` Wheel-Speed-Counter
+- 🔜 Battery%-Verifikation für `0x100[5]`
+- 🔜 Long-Idle-Capture für seltene Frames
+- 🔜 Multi-Beep-Verifikation (1:1 Korrelation 0x21A ↔ Beep)
 - 🔜 ESP32-Sniffer-Prototyp (Phase 2 ESP32-Bridge-Plan)

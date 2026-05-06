@@ -298,22 +298,81 @@ Die [`zt3-ble-register-reference.md`](../reverse-engineering/protocol/zt3-ble-re
 
 → Mapping zwischen den BLE-ECU-Adressen und den CAN-IDs muss noch ermittelt werden — möglicherweise unabhängige Adressräume.
 
-## TODOs
+## Status
 
-Erledigt:
-- [x] Throttle-Sweep-Capture → 0x100 Byte 0
-- [x] Brake-Capture (hinten + vorne) → 0x100 Byte 1, vorne/hinten nicht unterscheidbar
-- [x] Mode-Wechsel pro Mode → 0x100[4]+[6] und 0x342[6] alle 4 Modi vermessen
-- [x] Light-Toggle → 0x343[3]+[6]
+### Erledigt (2026-05-06)
+
+- [x] Throttle-Sweep → `0x100[0]`
+- [x] Brake (vorne + hinten) → `0x100[1]`, beide nicht unterscheidbar
+- [x] Mode-Wechsel pro Mode → `0x100[4]+[6]` und `0x342[6]` alle 4 Modi vermessen
 - [x] Mode-Knopf-Dual-Funktion (kurz=Mode, lang=Licht) verifiziert
-- [x] Live-Speed-Limit-Mechanik via unlock-40 + lock-22 doppelt bestätigt
-- [x] Beep-Trigger via 0x21A + 0x344[7] gefunden
-- [x] Seriennummer per ASCII-Decode auf 0x483+0x484
+- [x] Live-Speed-Limit-Mechanik via `unlock-40` + `lock-22` doppelt bestätigt
+- [x] Light-Toggle → `0x343[3]+[6]`
+- [x] Brake-Light → `0x343[4]+[5]` (~500ms Hold-Verzug zwischen den Bytes)
+- [x] Beep-Trigger via `0x21A` + `0x344[7]` gefunden
+- [x] Turn-Signal links/rechts → `0x20C[0]` + `0x342[4]` (1.25 Hz Toggle)
+- [x] Charging-Detection → `0x212[2]` + `0x20C[1]` + `0x342[5]` + `0x100[2]` Bit 4
+- [x] Brems-Status-Redundanz → `0x212[2]`, `0x401[0]+[1]`, `0x401[3]`
+- [x] Seriennummer per ASCII-Decode auf `0x483`+`0x484`
 
-Offen:
-- [x] Brake-Light-Test: ✅ 0x343[4]+[5] = Brake-Light, plus 0x212[2] und 0x401[0]+[1] als redundante Brems-Status-Bits (verifiziert via brake-light-twice-with-light-on.csv)
-- [ ] Multi-Beep-Capture: 30 s Fahrt mit 3-4 Beep-Events → bestätigt 1:1 Korrelation 0x21A ↔ Beep
-- [ ] Längeres Idle-Capture (30+ s) → vollständige ID-Liste, Periodizität, seltene Frames
-- [ ] BMS-Probing: Cell-Voltages identifizieren (LiIon-typisch 3000–4200 mV als 16-bit) — vermutlich in 0x209/0x20B/0x310/0x311 versteckt
-- [ ] Glitch-Frame in `throttle.csv` bei 5.35s untersuchen (`BC 20 02 20 11 A7 B2 19` mit ID 0x100) — vermutlich Bit-Stuffing-Decoder-Glitch
-- [ ] CAN-DBC-Datei generieren sobald genug IDs benannt sind (für cantools/python-can)
+### Offene Captures — low-effort (5–10s, kein Extra-Equipment)
+
+| # | Capture-Name | Aktion | Erwartete Erkenntnis |
+|---|--------------|--------|---------------------|
+| O1 | `multi-beep.csv` | 30s Fahrt mit 3-4 absichtlichen Beep-Events | Bestätigt 1:1 Korrelation `0x21A ↔ Beep`, kritisch für ESP32-Buzzer-Mute-Implementation |
+| O2 | `battery-full.csv` + `battery-50.csv` | Baseline bei 100% und nach Fahrt bei ~50% | Verifiziert `0x100[5] = Battery%`-Hypothese (vermutet 0x4F = 79) |
+| O3 | `idle-30s.csv` | 30s steady idle (Roller an, nichts machen) | Vollständige ID-Liste, seltene Frames, Heartbeat-Periodizität |
+| O4 | `tacho-10kmh.csv`, `tacho-20kmh.csv`, `tacho-30kmh.csv` | jeweils ~5s konstant fahren | Skalierungsfaktor `0x211[6]` (Wheel-Speed-Counter) → km/h |
+| O5 | `cruise-control.csv` | Tempomat aktivieren (falls vorhanden, vermutlich Throttle-5s-Halten) | Cruise-Active-Bit finden — Throttle-Byte = 0 aber Roller fährt weiter |
+| O6 | `walk-active.csv` | Walk-Mode aktiv, Knopf gehalten (Roller schiebt) | Was passiert auf Bus während Walk-Hold-Active |
+| O7 | `error-throttle-disconnect.csv` | Throttle-Stecker während Capture kurz ziehen | Error-Code-Frame (vermutlich neue ID oder `0x100[7]` wechselt) |
+| O8 | `airlock-active.csv`, `findmy-active.csv` | AirLock / Find My aktivieren | Vermutlich neue Frame-IDs oder Bit-Flags |
+| O9 | `odometer-100m.csv` | Vor + nach 100m Fahrt vergleichen | Trip-Counter / Odometer in `0x424` oder `0x480-0x485` finden |
+| O10 | `warn-blinker.csv` | Warnblinker (beide gleichzeitig, falls vorhanden) | Bestätigt `0x20C[0] = 0x03`-Hypothese für Warnblinker |
+
+### Offene Captures — medium-effort (Multimeter / Werkbank-Setup)
+
+| # | Test | Setup | Ziel |
+|---|------|-------|------|
+| O11 | Cell-Voltages identifizieren | Multimeter am Akku-Stecker, Pack-Voltage messen | 16-bit LiIon-Werte (3000–4200 mV) in `0x209` / `0x20B` / `0x310` / `0x311` korrelieren |
+| O12 | Pack-Voltage / Pack-Current | Roller im Stand vs Volllast | Frame-Bytes die unter Last steigen (Phasen-Strom) |
+| O13 | Temperatur (Motor / MCU / BMS) | Kalt-Baseline + 5min Fahrt | 1-Byte °C-encoded Werte (oft als signed int oder offset-encoded) |
+| O14 | Motor-Current / Power | Berg-Fahrt vs Ebene auf Privatgelände | Bytes die mit Last korrelieren |
+
+### Bytes/Frames mit unklarer Bedeutung (passive Spekulation)
+
+| Frame.Byte | Beobachtet | Spekulation |
+|------------|------------|-------------|
+| `0x100[3]` | konstant 0x40 = 64 | globales Mode-Bitfeld? |
+| `0x100[5]` | konstant 0x4F = 79 | Battery%? (zu verifizieren O2) |
+| `0x100[6]` | bekannte Wertepaare | Power/Torque/KERS-Bucket pro Mode (Walk=0F, Eco=23, Drive=5A, Sport=64) |
+| `0x100[7]` | konstant 0x32 = 50 | ? (testen via Error-Provocation O7) |
+| `0x209` | konstant `9F 27 10 04 90 49 00 00` | ECU-Static-Config? Kandidat für BMS-Cell-Voltages O11 |
+| `0x20B` | konstant `BC 02 64 00 01 C8 00 00` | `BC 02` = 700 als 16-bit; vermutlich Pack-Voltage in 0.05V (= 35V)? |
+| `0x301` | meist 0 | ? |
+| `0x302` | konstant `00 FF` (DLC 2!) | Heartbeat? |
+| `0x310` | konstant `F1 0E 78 05 1A 02 01 C8` | Motor-Config? Kandidat für BMS O11 |
+| `0x311` | konstant `39 1E 07 3F 90 01 00 00` | ? |
+| `0x341` | konstant `00 00 00 00 02 00 00 00` | ? |
+| `0x344[0..6]` | gelegentlich Multi-Byte-Events | weitere Status-Events neben dem Buzzer-Drive in [7] |
+| `0x401[2]` | wechselt 0x34/0x35 bei Charging-Stop | Charging-related (Counter? State-Sub-Code?) |
+| `0x420` | Bytes 0,2,3 wechseln häufig | unbekanntes Status-Frame, sehr aktiv |
+| `0x421` | konstant `38 36 31 34 FB 04 62 04` | startet mit ASCII "8614" — vermutlich Hardware-/Modell-ID-Teil |
+| `0x422` | Byte 4 wechselt 0x15/0x55 bei Charging | Charging-related Settings |
+| `0x423` | konstant `BC 02 64 00 3C 00 01 00` | `BC 02` = 700 (Pack-Voltage echo?) |
+| `0x424[0]` | monotoner Counter (~1 Hz) | Tick-Counter / Uptime? Kandidat für Odometer O9 |
+| `0x425` | konstant `01 64 48 58 58 58 01 FF` | dreimal 0x58 = 88 — Cell-Block-Werte? |
+| `0x429` | konstant `20 00 00 00 00 00 00 00` | ? |
+| `0x480` | konstant `00 00 00 00 20 00 00 00` | ? |
+| `0x481` | wechselt komplett mit Mode (4 Bytes auf einmal) | Per-Mode-Display-Settings (Acceleration-Curve, KERS-Stärke, …) |
+| `0x482` | konstant `52 01 02 00 00 00 00 00` | gleiche `52 01` wie `0x212` Anfang — verwandt? |
+| `0x485` | konstant `22 00 00 00 0C 02 48 0C` (wechselt mit Charging) | Charging-related Settings |
+| `0x500` | konstant `47 48 48 FF 48 48 48 FF` | Pattern-bezogen (vier `48` = ASCII 'H'?) |
+| `0x501` + `0x502` | rauschig (~0.4 Hz) | vermutete Crypto-Challenge / Random-Stream |
+
+### Strukturelle Verbesserungen
+
+- [ ] CAN-DBC-Datei generieren sobald genug IDs benannt sind (für `cantools` / `python-can` Standard-Tooling)
+- [ ] Glitch-Frame in [`throttle.csv`](../can-data/throttle.csv) bei 5.35s untersuchen (`BC 20 02 20 11 A7 B2 19` mit ID 0x100) — vermutlich Bit-Stuffing-Decoder-Glitch in KingstVIS, sollte mit Re-Capture verifiziert werden
+- [ ] BLE↔CAN-ECU-Mapping vervollständigen (welche BLE-Adressen aus [`zt3-ble-register-reference.md`](../reverse-engineering/protocol/zt3-ble-register-reference.md) korrespondieren mit welchen CAN-IDs)
+- [ ] Active-Sender-Test: ESP32 als CAN-Node auf den Bus, kann er Frames erfolgreich injizieren ohne dass die VCU zickt? → Phase 2 ESP32-Bridge-Plan

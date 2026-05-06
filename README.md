@@ -13,7 +13,9 @@ Native Android-App + Mac-CLI für den **Segway-Ninebot ZT3 Pro D**, mit komplett
 | [`app/`](app/) | Android-App (Kotlin · Compose · Hilt). Speed-Profile, Stealth-Lock, Live-Telemetrie, OTA, OSM-Track. Setup: [`app/README.md`](app/README.md) |
 | [`python/`](python/) | Mac/Linux BLE-CLI `zt3-cli` — Python-Port der NinebotCrypto. `read`/`write`/`sweep`/`watch`/`hunt` zur Register-Discovery. Setup: [`python/README.md`](python/README.md) |
 | [`esp32/`](esp32/) | (geplant) Stem-Bus-Bridge — ESP32-C3 im Dashboard-Gehäuse, sniffed Single-wire UART zwischen Dashboard und VCU, BLE-Central für Lock-Trigger, optional 2. Knoten im Deck via ESP-NOW. Roadmap: [`ESP32-BRIDGE-PLAN.md`](ESP32-BRIDGE-PLAN.md) |
-| [`reverse-engineering/`](reverse-engineering/) | Wire-Format-Doku, BLE-Capture-Methodik, SHU-Crypto-Analyse |
+| [`can-bus/`](can-bus/) | **Externer VCU-CAN-Bus Reverse-Engineering** — Logic-Analyzer-Workflow, Frame-Reference, Python-Parser. Plain-CAN, keine Crypto. Status: Throttle/Bremse/Speed gemappt. Index: [`can-bus/README.md`](can-bus/README.md) |
+| [`can-data/`](can-data/) | KingstVIS CSV-Captures (eine Datei pro isolierter Aktion am Roller) |
+| [`reverse-engineering/`](reverse-engineering/) | BLE-Wire-Format-Doku, Capture-Methodik, SHU-Crypto-Analyse |
 | [`FLASH-NOTES.md`](FLASH-NOTES.md) | SHU-Beta-Workflow für 40 km/h + Region-Change US (so habe ich es selbst gemacht) |
 
 ## Quick-Reference — ZT3 Pro D BLE-Stack

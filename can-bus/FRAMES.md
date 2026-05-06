@@ -1,0 +1,261 @@
+# ZT3 CAN-Bus Frame Reference
+
+Beobachtete Frames auf dem **externen VCU-CAN-Bus** des Segway Ninebot ZT3 Pro D (gelb=CAN-H, grün=CAN-L, schwarz=GND).
+
+> **Status:** Erst-Recon abgeschlossen 2026-05-06. Alle primären Fahrer-Inputs gemappt + Beep-Trigger gefunden + Live-Speed-Limit-Mechanik verstanden.
+
+## Bus-Parameter
+
+- **Bitrate:** 500 kbit/s
+- **Format:** Standard CAN 2.0A (11-bit IDs)
+- **Verschlüsselung:** keine (plain) — bestätigt die Hypothese aus [`ESP32-BRIDGE-PLAN.md`](../ESP32-BRIDGE-PLAN.md): der interne Bus spricht plain, der `5A A5` + Encryption2-Wrapper ist nur das BLE-Transport-Layer.
+- **Frame-Rate:** ~210 Frames/s im Idle, 35 unique CAN-IDs gesehen
+
+## Kompakt-Übersicht aller bestätigten Mappings
+
+| Frame.Byte | Funktion | Range / Werte |
+|------------|----------|---------------|
+| `0x100[0]` | Throttle | 0 – 0xC8 (0–200) |
+| `0x100[1]` | Bremse (vorne+hinten kombiniert) | 0 – 0xFF |
+| `0x100[2]` | User-Input-Active-Flag | 0x04 wenn Throttle/Knopf gedrückt |
+| `0x100[4]` | Mode-LABEL (km/h-Bucket, statisch pro Mode) | Walk=05, Eco=0F, Drive=19, Sport=23 |
+| `0x100[5]` | Battery%? (vermutet) | 0x4F = 79 |
+| `0x100[6]` | Mode-spezifischer 2. Wert (Power/KERS-Bucket) | Walk=0F, Eco=23, Drive=5A, Sport=64 |
+| `0x342[6]` | **★ TATSÄCHLICHER MCU-enforcter Top-Speed in km/h** | live |
+| `0x20C[2]` | Top-Speed in 0.5-km/h-Auflösung (= 0x342[6] × 2) | live |
+| `0x343[3]` + `0x343[6]` | Light-Status (synchron, 1 = an) | bit |
+| `0x21A` (one-shot) | **★ Speed-Warning-Beep-Event** | erscheint nur bei Beep |
+| `0x344[7]` | Buzzer-Drive-Pulse (~200ms während Beep) | 0x00 / 0xC0 |
+| `0x211[6]` = `0x203[6]` | Wheel-Speed (Echo auf 2 IDs) | analog 0–0xFF+ |
+| `0x483` + `0x484` (ASCII) | Seriennummer-Broadcast | „1K1UA2551P3965" |
+
+## Bestätigte Frame-Details
+
+### Frame `0x100` — VCU-Status (50 Hz)
+
+```
+Byte 0:  00..C8      THROTTLE (analog, 0–200)
+Byte 1:  00..FF      BREMSDRUCK (sammelt vorne+hinten, nicht unterscheidbar)
+Byte 2:  00 / 04     USER-INPUT-ACTIVE (0x04 = Throttle gedrückt ODER Mode/Licht-Knopf gehalten)
+Byte 3:  40          (konstant in allen Captures, vermutlich globales Mode-Bitfeld)
+Byte 4:  Mode-LABEL  km/h-Bucket: Walk=05, Eco=0F, Drive=19, Sport=23 — statisch, NICHT das echte Limit
+Byte 5:  4F = 79     (vermutlich Battery%)
+Byte 6:  Mode-B      Walk=0F, Eco=23, Drive=5A, Sport=64 — vermutlich Power/Torque/KERS-Bucket
+Byte 7:  32 = 50     (?)
+```
+
+Verifiziert via:
+- [`brake-left.csv`](../can-data/brake-left.csv) (hinterer Bremshebel) und [`brake-right.csv`](../can-data/brake-right.csv) (vorderer): identisches Pattern auf Byte 1, **vorne und hinten auf dem CAN-Bus nicht unterscheidbar**. Die VCU OR'd beide Sensoren zu einem einzigen Brake-Intent-Wert. Für separate Detektion müsste man die analogen Sensor-Leitungen direkt an den Hebeln anzapfen.
+- [`throttle.csv`](../can-data/throttle.csv): Byte 0 stieg linear `00 → C8` und zurück, Byte 2 ging in `04` während Throttle gedrückt war.
+
+### Frame `0x342` — Display-Echo + LIVE-Speed-Limit (5 Hz)
+
+```
+Byte 0:   Mode-Label  Echo von 0x100[4]
+Byte 2:   Mode-B      Echo von 0x100[6]
+Byte 5:   C4/E4       wechselt mit Mode (Bedeutung unklar)
+Byte 6:   ★ LIVE-LIMIT  TATSÄCHLICH vom MCU enforcter Top-Speed in km/h
+Byte 7:   34          konstant
+```
+
+**`0x342[6]` ist der wahre Speed-Cap, nicht das Mode-Label.** Er weicht vom Label ab wenn:
+- Per-Mode-Limits in der App reduziert wurden (z.B. Drive=20 statt nominal 25)
+- Ein Speed-Unlock aktiv ist (z.B. Sport mit 0x342[6]=40 trotz Mode-Label "35")
+
+Verifiziert via:
+- [`unlock-40.csv`](../can-data/unlock-40.csv): bei aktivem 40-km/h-Unlock im Sport-Mode wechselt 0x342[6] live von 0x16 (22) auf 0x28 (40), während 0x100[4] auf 0x23 (Sport-Label) bleibt.
+- [`lock-22.csv`](../can-data/lock-22.csv): umgekehrt — beim Lock auf 22 fällt 0x342[6] zurück von 0x28 (40) auf 0x16 (22), 0x100[4] unverändert. Damit doppelt bestätigt.
+
+### Frame `0x20C` — Live-Speed-Limit High-Resolution (10 Hz)
+
+```
+Byte 2:   LIVE-LIMIT × 2   gleicher Wert wie 0x342[6], aber in 0.5-km/h-Auflösung
+```
+
+Beispiel Sport+Unlock-40: 0x20C[2] = 0x50 (80) → 80 × 0.5 = 40 km/h ✓
+Beispiel Sport+Lock-22:  0x20C[2] = 0x2C (44) → 44 × 0.5 = 22 km/h ✓
+
+### Frame `0x343` — Light-Status (10 Hz)
+
+```
+Byte 3:  00/01      LIGHT-BIT A
+Byte 6:  00/01      LIGHT-BIT B  (immer synchron mit Byte 3)
+sonstige: 00        konstant im Stand
+```
+
+Im Fahrt-Modus zusätzlich: Bytes 3,4,5,6 alle = 0x01 als „ride active"-Bits, Byte 7 trackt den Throttle-Wert.
+
+Verifiziert via [`light-toggle.csv`](../can-data/light-toggle.csv): Capture mit 1× Licht an + 1× aus innerhalb 10s zeigt Bytes 3+6 synchron 0→1→0 zu den Toggle-Zeitpunkten.
+
+Beide Bytes wechseln immer **gleichzeitig** — nicht zwei separate Lichter (Front/Heck), sondern zwei redundante Status-Bits (vermutlich Light-Command + Light-Confirmed).
+
+Brake-Light (das beim Bremsen automatisch angeht) wird vermutlich **separat** geführt — dafür braucht's noch einen Capture „Bremsen mit eingeschaltetem Licht".
+
+### Frame `0x21A` + `0x344[7]` — Speed-Warning-Beep ⭐
+
+`0x21A`: DLC 4, Payload `00 00 00 00`. **Erscheint nur während eine Über-Speed-Warnung (Beep) gefeuert wird.** In keinem anderen Capture (Idle, Brake, Throttle ohne Beep, Mode-Switch, Light-Toggle, Stand-Unlock, Stand-Lock) gesehen.
+
+`0x344[7]` springt korreliert auf `0xC0` für ~200ms und fällt dann auf `0x00` zurück — vermutlich der eigentliche Buzzer-Drive-Pulse vom VCU.
+
+Verifiziert via [`driving-40-beep.csv`](../can-data/driving-40-beep.csv):
+- t=7.89s: 0x21A erscheint
+- t=7.91s (+20ms): 0x344[7] = 0xC0
+- t=8.11s (+200ms): 0x344[7] = 0x00
+
+Throttle war zu dieser Zeit auf Max (0xC8 seit 150ms), Roller fuhr über die ~25-km/h-Warnschwelle.
+
+**Wichtig für ESP32-Anwendung:** Der Beep ist ein autonomes VCU-Hardware-Ereignis. Das CAN-Frame ist nur Broadcast/Info — den Beep durch Suppress des Frames zu verhindern funktioniert NICHT. Der ESP32 kann das CAN-Event aber als Trigger für einen **Hardware-Buzzer-Cut-MOSFET** nutzen (siehe ESP32-Bridge-Plan Use-Case A).
+
+### Negativ-Befunde — was NICHT auf dem CAN-Bus liegt
+
+Folgende Aktionen erzeugen **keine** sichtbare Frame-Änderung im 0x100 oder anderen primären VCU-Frames:
+
+- **Turn-Signal links / rechts** (Blinker) — siehe [`turn-left.csv`](../can-data/turn-left.csv) + [`turn-right.csv`](../can-data/turn-right.csv): 0x100 komplett konstant. Bestätigt die [BLE-seitige Erkenntnis aus `python/README.md`](../python/README.md): *"turn-signal and brake-pedal state are not exposed as readable registers on this firmware"*. Der Blinker ist auf dem ZT3 ein rein lokal-hardware-getriebenes Feature, das nicht über den CAN-Bus broadcasted wird. Für externe Detektion müsste man einen Sensor an den Blinker-LED-Leitungen anbringen.
+- **Custom-Button** (Doppel-Tap) — siehe [`custom-button.csv`](../can-data/custom-button.csv): nur Knopf-Druck-Pattern (gleiche Variabilität wie Mode-Switch in 0x100[2]+[4]+[6]) sichtbar, kein eigener Custom-Button-Frame. Die Effekt-Aktion (Walk/KERS/Park je nach Profil) ist sichtbar als ihr jeweiliger Effekt (z.B. Mode-Wechsel auf Walk-Werte), aber der Knopf-Druck selbst hat keine eigene Signatur.
+
+### Mode-Knopf-Logik (Dual-Funktion)
+
+Der Mode-Knopf am Lenker hat Dual-Funktion:
+- **Kurz drücken** → Mode-Wechsel (rotiert 0x100[4] und 0x100[6])
+- **Lang drücken** → Licht-Toggle (kippt 0x343[3] und [6])
+
+Long-Press triggert intern beides nacheinander: erst Mode-Switch (~80–560ms vor Light-Toggle), dann Licht. Beide Events sind im Bus sichtbar.
+
+**Mode-Rotation per Short-Press — alle 4 Übergänge dediziert verifiziert:**
+
+| Mode | 0x100[4] (Label km/h) | 0x100[6] | 0x342[6] (echtes Limit) | Capture |
+|------|----------------------|----------|-------------------------|---------|
+| Walk | 0x05 (5) | 0x0F (15) | 0x05 (5) | sport-to-walk |
+| Eco | 0x0F (15) | 0x23 (35) | 0x0F (15) | walk-to-eco / eco-to-drive |
+| Drive | 0x19 (25) | 0x5A (90) | 0x14 (20) | eco-to-drive / drive-to-sport |
+| Sport | 0x23 (35) | 0x64 (100) | 0x16 (22) | drive-to-sport / sport-to-walk |
+| **Sport+Unlock-40** | 0x23 (35) | 0x64 (100) | **0x28 (40)** ★ | unlock-40 |
+| **Sport+Lock-22** | 0x23 (35) | 0x64 (100) | **0x16 (22)** | lock-22 |
+
+Rotations-Reihenfolge: **Walk → Eco → Drive → Sport → Walk** (zyklisch).
+
+Bei diesem Roller (SHU-getuned) sind Drive=20 und Sport=22 **app-konfigurierte Reduktionen** vom nominellen Mode-Bucket (25/35). Sport+Unlock-40 hebt es temporär auf 40 km/h.
+
+### Frames `0x211` und `0x203` — Wheel-Speed-Echo (je 10 Hz)
+
+```
+0x211 Byte 6:  WHEEL-SPEED (0x00–0xE5+ analog)
+0x203 Byte 6:  WHEEL-SPEED (identisch zu 0x211 Byte 6, time-aligned)
+```
+
+Beide replizieren denselben Sensor-Wert. Bei Throttle-Max (0xC8) erreicht der Wert 0xE5. Konversionsfaktor zu km/h unbekannt (vermutlich interner RPM-Counter, nicht direkt km/h).
+
+### Frames `0x483` + `0x484` — Seriennummer (1 Hz, broadcast)
+
+ASCII-Decode der konstanten Bytes:
+- `0x483`: `31 4B 31 55 41 32 35 35` = `"1K1UA255"`
+- `0x484`: `31 50 33 39 36 35 00 00` = `"1P3965"`
+
+Konkateniert: **`1K1UA2551P3965`** = vermutlich VIN/Seriennummer-Broadcast, alle 1s gesendet.
+
+### Frames `0x501` + `0x502` — vermutlich Crypto-Challenge
+
+Bytes wirken vollständig zufällig, niedrige Frame-Rate (~0.4 Hz). Sehr wahrscheinlich der Encryption2-Handshake-Traffic vom BLE-Modul.
+
+## Vollständige ID-Liste (alle 35 IDs aus 5s-Capture)
+
+| ID | DLC | Rate (Hz) | Bedeutung |
+|----|-----|-----------|-----------|
+| `0x100` | 8 | 50 | **VCU-Status** (Throttle, Brake, Mode, State-Flag) ✅ |
+| `0x203` | 8 | 10 | BMS / Wheel-Speed-Echo (Byte 6) ✅ |
+| `0x204` | 8 | 10 | reserved/diag (alle 0) |
+| `0x205` | 8 | 10 | reserved/diag (alle 0) |
+| `0x209` | 8 | 10 | konstant `9F 27 10 04 90 49 00 00` |
+| `0x20A` | 8 | 10 | reserved/diag (alle 0) |
+| `0x20B` | 8 | 10 | konstant `BC 02 64 00 01 C8 00 00` |
+| `0x20C` | 8 | 10 | **Live-Speed-Limit × 2** (Byte 2) ✅ |
+| `0x211` | 8 | 10 | **Wheel-Speed** (Byte 6) ✅ |
+| `0x212` | 8 | 10 | konstant `52 01 00 C9 00 00 00 29` |
+| `0x21A` | 4 | one-shot | **Beep-Event** ⭐ |
+| `0x301` | 8 | 5 | meist 0 |
+| `0x302` | 2 | 5 | konstant `00 FF` |
+| `0x310` | 8 | 5 | konstant `F1 0E 78 05 1A 02 01 C8` |
+| `0x311` | 8 | 5 | konstant `39 1E 07 3F 90 01 00 00` |
+| `0x341` | 8 | 5 | konstant `00 00 00 00 02 00 00 00` |
+| `0x342` | 8 | 5 | **Display-Echo + Live-Limit** (Byte 6) ✅ |
+| `0x343` | 8 | 10 | **Light-Status** + Ride-Aktivität (Bytes 3,6) ✅ |
+| `0x344` | 8 | 5 | **Buzzer-Drive** (Byte 7) ⭐ + andere Events |
+| `0x401` | 8 | 2 | konstant `00 00 34 00 05 2A 00 00` |
+| `0x420` | 8 | 2 | Bytes 2+3 variabel |
+| `0x421` | 8 | 2 | konstant `38 36 31 34 FB 04 62 04` |
+| `0x422` | 8 | 2 | konstant `00 00 20 00 15 00 02 00` |
+| `0x423` | 8 | 2 | konstant `BC 02 64 00 3C 00 01 00` |
+| `0x424` | 8 | 1 | Byte 0 = Counter (steigt monoton) |
+| `0x425` | 8 | 2 | konstant `01 64 48 58 58 58 01 FF` |
+| `0x429` | 8 | 2 | konstant `20 00 00 00 00 00 00 00` |
+| `0x480` | 8 | 1 | konstant `00 00 00 00 20 00 00 00` |
+| `0x481` | 8 | 1 | wechselt mit Mode (Multi-Byte-Settings) |
+| `0x482` | 8 | 1 | konstant `52 01 02 00 00 00 00 00` |
+| `0x483` | 8 | 1 | **ASCII-Seriennummer Teil 1** ✅ |
+| `0x484` | 8 | 1 | **ASCII-Seriennummer Teil 2** ✅ |
+| `0x485` | 8 | 5 | konstant `22 00 00 00 0C 02 48 0C` |
+| `0x500` | 8 | 0.6 | konstant `47 48 48 FF 48 48 48 FF` |
+| `0x501` | 8 | 0.4 | rauschig — **vermutete Crypto-Challenge** |
+| `0x502` | 8 | 0.4 | rauschig — **vermutete Crypto-Challenge** |
+
+## Workflow zur ID-Identifikation
+
+Parser hat keine externen Abhängigkeiten (nur stdlib), läuft direkt mit System-Python:
+
+```bash
+cd can-bus
+
+# Übersicht: welche IDs wurden gesehen, wie oft, wie variabel
+python3 parser/can_parser.py ../can-data/brake-left.csv
+
+# Eine ID über die Zeit beobachten — Diff-Modus
+python3 parser/can_parser.py ../can-data/throttle.csv --watch 0x100
+
+# Welche Bytes ändern sich überhaupt
+python3 parser/can_parser.py ../can-data/throttle.csv --diff
+
+# Zwei Captures vergleichen — was ändert sich bei Bremsen vs Idle
+python3 parser/can_parser.py ../can-data/brake-left.csv ../can-data/throttle.csv --compare
+```
+
+## Mapping-Strategie
+
+Pro isolierter Aktion am Roller einen Capture machen, dann diffen. Bewährtes Pattern:
+- 5–10 s Capture
+- 3 s Idle-Vorlauf, 1 Aktion, Rest Idle-Nachlauf
+- Auto-Restart-Sampling AUS — sonst überschreibt jeder Capture den vorherigen
+- Pro Aktion eigene CSV → `can_parser.py --compare` macht das Diffing trivial
+
+## Cross-Reference zur ECU-Tabelle (BLE-Layer)
+
+Die [`zt3-ble-register-reference.md`](../reverse-engineering/protocol/zt3-ble-register-reference.md) listet ECU-Adressen für BLE/UART:
+
+| BLE-Adresse | ECU | mögliche CAN-ID? |
+|-------------|-----|------------------|
+| `0x02` | MCU | ? |
+| `0x07` | BMS | `0x203` ? |
+| `0x16` | VCU | `0x100` ? |
+| `0x23` | TFT/Display | `0x342` ? |
+| `0x04` | BLE | ? |
+
+→ Mapping zwischen den BLE-ECU-Adressen und den CAN-IDs muss noch ermittelt werden — möglicherweise unabhängige Adressräume.
+
+## TODOs
+
+Erledigt:
+- [x] Throttle-Sweep-Capture → 0x100 Byte 0
+- [x] Brake-Capture (hinten + vorne) → 0x100 Byte 1, vorne/hinten nicht unterscheidbar
+- [x] Mode-Wechsel pro Mode → 0x100[4]+[6] und 0x342[6] alle 4 Modi vermessen
+- [x] Light-Toggle → 0x343[3]+[6]
+- [x] Mode-Knopf-Dual-Funktion (kurz=Mode, lang=Licht) verifiziert
+- [x] Live-Speed-Limit-Mechanik via unlock-40 + lock-22 doppelt bestätigt
+- [x] Beep-Trigger via 0x21A + 0x344[7] gefunden
+- [x] Seriennummer per ASCII-Decode auf 0x483+0x484
+
+Offen:
+- [ ] Brake-Light-Test: Bremsen bei eingeschaltetem Licht → bestätigt ob Brake-Light separat im Bus signalisiert wird
+- [ ] Multi-Beep-Capture: 30 s Fahrt mit 3-4 Beep-Events → bestätigt 1:1 Korrelation 0x21A ↔ Beep
+- [ ] Längeres Idle-Capture (30+ s) → vollständige ID-Liste, Periodizität, seltene Frames
+- [ ] BMS-Probing: Cell-Voltages identifizieren (LiIon-typisch 3000–4200 mV als 16-bit) — vermutlich in 0x209/0x20B/0x310/0x311 versteckt
+- [ ] Glitch-Frame in `throttle.csv` bei 5.35s untersuchen (`BC 20 02 20 11 A7 B2 19` mit ID 0x100) — vermutlich Bit-Stuffing-Decoder-Glitch
+- [ ] CAN-DBC-Datei generieren sobald genug IDs benannt sind (für cantools/python-can)

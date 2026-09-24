@@ -16,10 +16,10 @@ Beobachtete Frames auf dem **externen VCU-CAN-Bus** des Segway Ninebot ZT3 Pro D
 | Frame.Byte | Funktion | Range / Werte |
 |------------|----------|---------------|
 | `0x100[0]` | Throttle | 0 – 0xC8 (0–200) |
-| `0x100[1]` | Bremse (vorne+hinten kombiniert) | 0 – 0xFF |
+| `0x100[1]` | Bremse (vorne+hinten kombiniert) | 0 bis 0x82 beobachtet, in Ruhe exakt 0 |
 | `0x100[2]` | User-Input-Active-Flag | 0x04 wenn Throttle/Knopf gedrückt |
 | `0x100[4]` | Mode-LABEL (km/h-Bucket, statisch pro Mode) | Walk=05, Eco=0F, Drive=19, Sport=23 |
-| `0x100[5]` | Battery%? (vermutet) | 0x4F = 79 |
+| `0x100[5]` | unbekannt (Battery% fraglich, bleibt beim Laden 0x4F) | 0x4F = 79 |
 | `0x100[6]` | Mode-spezifischer 2. Wert (Power/KERS-Bucket) | Walk=0F, Eco=23, Drive=5A, Sport=64 |
 | `0x342[6]` | **★ TATSÄCHLICHER MCU-enforcter Top-Speed in km/h** | live |
 | `0x20C[2]` | Top-Speed in 0.5-km/h-Auflösung (= 0x342[6] × 2) | live |
@@ -27,14 +27,15 @@ Beobachtete Frames auf dem **externen VCU-CAN-Bus** des Segway Ninebot ZT3 Pro D
 | `0x343[4]` + `0x343[5]` | **★ Brake-Light-Status** (geht beim Bremsen an, [5] mit ~500ms Hold-Verzug) | bit |
 | `0x20C[0]` + `0x342[4]` | **★ Turn-Signal-Indikator** (toggled 1.25 Hz) | 0/1=L/2=R |
 | `0x211[3]` | „Blinker aktiv"-Flag (set bei links UND rechts) | 0x00 / 0x04 |
-| `0x212[2]` | Brake-Pedal-Pressed-Flag (einfacher Bit-Flag) | 0 / 1 |
+| `0x212[2]` | Brake-Pedal-Pressed-Flag, reagiert nicht in allen Captures (siehe [Analyse](ANALYSIS-0x100.md#bremse-byte-1)) | 0 / 1 |
 | `0x401[0]+[1]` | Brake-System-Active 16-bit (`00 00` ↔ `FF FF`) | bit-pair |
 | `0x212[2]` | **★ Charger-Connected-Flag** (Bit 3, 0x08) | bit |
 | `0x20C[1]` + `0x342[5]` | **★ Charging-State**: 0xC4/0xE4=normal, 0x80=Charger an idle, 0x82=Charging aktiv | enum |
 | `0x100[2]` Bit 4 | Charge-Status-Change-Event (kurz beim Stecker-Wechsel) | bit |
-| `0x21A` (one-shot) | **★ Speed-Warning-Beep-Event** | erscheint nur bei Beep |
+| `0x21A` (one-shot) | **★ Beep-Event** (Auslöser offen, nicht Speed > 25 km/h) | erscheint nur bei Beep |
 | `0x344[7]` | Buzzer-Drive-Pulse (~200ms während Beep) | 0x00 / 0xC0 |
-| `0x211[6]` = `0x203[6]` | Wheel-Speed (Echo auf 2 IDs) | analog 0–0xFF+ |
+| `0x211[6..7]` = `0x203[6..7]` | Geschwindigkeit, **u16 little-endian**, Hypothese 0,1 km/h/LSB | 0 bis 405 beobachtet |
+| `0x420[0..1]` / `[2..3]` | Hypothese: Packspannung 10 mV (u16le) / Packstrom mit Vorzeichen (s16le) | 2 Hz |
 | `0x483` + `0x484` (ASCII) | Seriennummer-Broadcast | „1K1UA2551P3965" |
 
 ## Bestätigte Frame-Details
@@ -48,10 +49,17 @@ Byte 2:  Bitfeld     Bit 2 (0x04) = USER-INPUT-ACTIVE (Throttle/Mode/Licht-Knopf
                      Bit 4 (0x10) = CHARGE-STATUS-CHANGE-EVENT (kurz beim Stecker-Wechsel)
 Byte 3:  40          (konstant in allen Captures, vermutlich globales Mode-Bitfeld)
 Byte 4:  Mode-LABEL  km/h-Bucket: Walk=05, Eco=0F, Drive=19, Sport=23 — statisch, NICHT das echte Limit
-Byte 5:  4F = 79     (vermutlich Battery%)
+Byte 5:  4F = 79     (unbekannt, bleibt auch beim Laden 4F)
 Byte 6:  Mode-B      Walk=0F, Eco=23, Drive=5A, Sport=64 — vermutlich Power/Torque/KERS-Bucket
-Byte 7:  32 = 50     (?)
+Byte 7:  32 = 50     (?, einmalig 36 vor einem Beep)
 ```
+
+Analyse vom 2026-09-24 (Details und Messvorschläge in [`ANALYSIS-0x100.md`](ANALYSIS-0x100.md)):
+- Periode 20,00 ms, Jitter ±0,3 ms, DLC konstant 8. Einzelne Lücken von 45 ms nur in Captures mit Zustandsänderung.
+- **Kein Rolling Counter, keine inhaltsabhängige Checksumme.** Byte 0 und 1 variieren, Bytes 3, 5, 7 bleiben dabei konstant.
+- Byte 1 (Bremse) ist ohne Betätigung in jedem Frame exakt 0, beobachtetes Maximum 0x82.
+- Byte 3 ist einmalig `00` in einem Lade-Ereignis-Frame, Byte 7 einmalig `36` etwa 100 ms vor einem `0x21A`-Beep. Bedeutung offen.
+- **Wer 0x100 sendet, ist offen.** Der Name „VCU-Status“ ist eine Annahme. Messmethode in der Analyse.
 
 Verifiziert via:
 - [`brake-left.csv`](../can-data/brake-left.csv) (hinterer Bremshebel) und [`brake-right.csv`](../can-data/brake-right.csv) (vorderer): identisches Pattern auf Byte 1, **vorne und hinten auf dem CAN-Bus nicht unterscheidbar**. Die VCU OR'd beide Sensoren zu einem einzigen Brake-Intent-Wert. Für separate Detektion müsste man die analogen Sensor-Leitungen direkt an den Hebeln anzapfen.
@@ -138,6 +146,8 @@ Das primäre Brems-Pedal-Signal ist `0x100[1]` (analoge 0–255 Skala, vorne+hin
 | `0x401[0]+[1]` | „Brake-System-Active" 16-bit Status (`00 00` ↔ `FF FF`) |
 | `0x401[3]` | weiteres Brems-Bit |
 
+**Einschränkung (2026-09-24):** Die Flags `0x212[2]`, `0x343[4..5]` und `0x401` reagieren nur in [`brake-light-twice-with-light-on.csv`](../can-data/brake-light-twice-with-light-on.csv), dort schon ab `0x100[1]` = 3. In [`brake-left.csv`](../can-data/brake-left.csv) und [`brake-right.csv`](../can-data/brake-right.csv) bleiben sie trotz `0x100[1]` bis 116 auf 0. Die Bedingung ist offen. Als verlässliches Bremssignal gilt deshalb nur `0x100[1]`.
+
 Die Redundanz erklärt sich über CAN-Architektur: jeder ECU broadcastet was sie über das Bremsen weiß — Display will den Wert für Tacho-Bremspedal-Indikator, Brake-Light-Treiber will den Aktiv-Status, BMS will Bremsen für KERS-Charging-Triggering.
 
 ### Frame `0x21A` + `0x344[7]` — Speed-Warning-Beep ⭐
@@ -151,7 +161,7 @@ Verifiziert via [`driving-40-beep.csv`](../can-data/driving-40-beep.csv):
 - t=7.91s (+20ms): 0x344[7] = 0xC0
 - t=8.11s (+200ms): 0x344[7] = 0x00
 
-Throttle war zu dieser Zeit auf Max (0xC8 seit 150ms), Roller fuhr über die ~25-km/h-Warnschwelle.
+Throttle war zu dieser Zeit auf Max (0xC8 seit 150ms). **Korrektur 2026-09-24:** Die Geschwindigkeit in `0x211[6..7]` lag beim Beep bei 44 = 4,4 km/h (Hinterrad vermutlich in der Luft). Die frühere Deutung „über die 25-km/h-Warnschwelle“ passt dazu nicht, der Auslöser des Beeps ist offen.
 
 **Wichtig für ESP32-Anwendung:** Der Beep ist ein autonomes VCU-Hardware-Ereignis. Das CAN-Frame ist nur Broadcast/Info — den Beep durch Suppress des Frames zu verhindern funktioniert NICHT. Der ESP32 kann das CAN-Event aber als Trigger für einen **Hardware-Buzzer-Cut-MOSFET** nutzen (siehe ESP32-Bridge-Plan Use-Case A).
 
@@ -194,14 +204,16 @@ Rotations-Reihenfolge: **Walk → Eco → Drive → Sport → Walk** (zyklisch).
 
 Bei diesem Roller (SHU-getuned) sind Drive=20 und Sport=22 **app-konfigurierte Reduktionen** vom nominellen Mode-Bucket (25/35). Sport+Unlock-40 hebt es temporär auf 40 km/h.
 
-### Frames `0x211` und `0x203` — Wheel-Speed-Echo (je 10 Hz)
+### Frames `0x211` und `0x203`: Geschwindigkeit (je 10 Hz)
 
 ```
-0x211 Byte 6:  WHEEL-SPEED (0x00–0xE5+ analog)
-0x203 Byte 6:  WHEEL-SPEED (identisch zu 0x211 Byte 6, time-aligned)
+0x211 Byte 6..7:  GESCHWINDIGKEIT, u16 little-endian
+0x203 Byte 6..7:  derselbe Wert, andere Sendephase im 100-ms-Raster
 ```
 
-Beide replizieren denselben Sensor-Wert. Bei Throttle-Max (0xC8) erreicht der Wert 0xE5. Konversionsfaktor zu km/h unbekannt (vermutlich interner RPM-Counter, nicht direkt km/h).
+**Korrektur 2026-09-24:** Der Wert ist 16 Bit breit. In [`driving-40-beep.csv`](../can-data/driving-40-beep.csv) läuft er bis `0x0195` = 405 und damit in Byte 7 über. Die frühere Angabe „Byte 6, max 0xE5“ las nur das untere Byte.
+
+**Hypothese 0,1 km/h pro LSB:** Das Plateau bei Vollgas liegt bei 220 bis 229 mit Limit 22 km/h ([`throttle.csv`](../can-data/throttle.csv)) und bei 400 bis 405 mit Limit 40 km/h ([`driving-40-beep.csv`](../can-data/driving-40-beep.csv)). In beiden Captures drehte das Hinterrad sehr wahrscheinlich in der Luft (Anstieg um 36 km/h in 1,2 s). Bestätigung im Fahrbetrieb per GPS steht aus, siehe Messung M5 in [`ANALYSIS-0x100.md`](ANALYSIS-0x100.md).
 
 ### Frames `0x483` + `0x484` — Seriennummer (1 Hz, broadcast)
 
@@ -239,7 +251,7 @@ Bytes wirken vollständig zufällig, niedrige Frame-Rate (~0.4 Hz). Sehr wahrsch
 | `0x343` | 8 | 10 | **Light-Status** + Ride-Aktivität (Bytes 3,6) ✅ |
 | `0x344` | 8 | 5 | **Buzzer-Drive** (Byte 7) ⭐ + andere Events |
 | `0x401` | 8 | 2 | konstant `00 00 34 00 05 2A 00 00` |
-| `0x420` | 8 | 2 | Bytes 2+3 variabel |
+| `0x420` | 8 | 2 | Hypothese: Packspannung [0..1] + Packstrom [2..3] |
 | `0x421` | 8 | 2 | konstant `38 36 31 34 FB 04 62 04` |
 | `0x422` | 8 | 2 | konstant `00 00 20 00 15 00 02 00` |
 | `0x423` | 8 | 2 | konstant `BC 02 64 00 3C 00 01 00` |
@@ -268,6 +280,12 @@ python3 parser/can_parser.py ../can-data/brake-left.csv
 
 # Eine ID über die Zeit beobachten — Diff-Modus
 python3 parser/can_parser.py ../can-data/throttle.csv --watch 0x100
+
+# Periode, Byte-Statistik, Counter- und Checksummen-Suche über mehrere Captures
+python3 parser/can_parser.py ../can-data/*.csv --analyze 0x100
+
+# Latenz von Gasflanken zu Antwortsignalen (ID:Byte:Typ)
+python3 parser/can_parser.py ../can-data/throttle.csv --step --response 0x211:6:u16le
 
 # Welche Bytes ändern sich überhaupt
 python3 parser/can_parser.py ../can-data/throttle.csv --diff
@@ -322,7 +340,7 @@ Die [`zt3-ble-register-reference.md`](../reverse-engineering/protocol/zt3-ble-re
 | O1 | `multi-beep.csv` | 30s Fahrt mit 3-4 absichtlichen Beep-Events | Bestätigt 1:1 Korrelation `0x21A ↔ Beep`, kritisch für ESP32-Buzzer-Mute-Implementation |
 | O2 | `battery-full.csv` + `battery-50.csv` | Baseline bei 100% und nach Fahrt bei ~50% | Verifiziert `0x100[5] = Battery%`-Hypothese (vermutet 0x4F = 79) |
 | O3 | `idle-30s.csv` | 30s steady idle (Roller an, nichts machen) | Vollständige ID-Liste, seltene Frames, Heartbeat-Periodizität |
-| O4 | `tacho-10kmh.csv`, `tacho-20kmh.csv`, `tacho-30kmh.csv` | jeweils ~5s konstant fahren | Skalierungsfaktor `0x211[6]` (Wheel-Speed-Counter) → km/h |
+| O4 | `tacho-10kmh.csv`, `tacho-15kmh.csv`, `tacho-20kmh.csv` | jeweils ~10s konstant fahren, GPS parallel | Bestätigt die Hypothese 0,1 km/h/LSB für `0x211[6..7]` im Fahrbetrieb (Messung M5) |
 | O5 | `cruise-control.csv` | Tempomat aktivieren (falls vorhanden, vermutlich Throttle-5s-Halten) | Cruise-Active-Bit finden — Throttle-Byte = 0 aber Roller fährt weiter |
 | O6 | `walk-active.csv` | Walk-Mode aktiv, Knopf gehalten (Roller schiebt) | Was passiert auf Bus während Walk-Hold-Active |
 | O7 | `error-throttle-disconnect.csv` | Throttle-Stecker während Capture kurz ziehen | Error-Code-Frame (vermutlich neue ID oder `0x100[7]` wechselt) |
@@ -356,7 +374,7 @@ Die [`zt3-ble-register-reference.md`](../reverse-engineering/protocol/zt3-ble-re
 | `0x341` | konstant `00 00 00 00 02 00 00 00` | ? |
 | `0x344[0..6]` | gelegentlich Multi-Byte-Events | weitere Status-Events neben dem Buzzer-Drive in [7] |
 | `0x401[2]` | wechselt 0x34/0x35 bei Charging-Stop | Charging-related (Counter? State-Sub-Code?) |
-| `0x420` | Bytes 0,2,3 wechseln häufig | unbekanntes Status-Frame, sehr aktiv |
+| `0x420` | Bytes 0,1,2,3 wechseln unter Last | Hypothese Packspannung/Packstrom, siehe [Analyse](ANALYSIS-0x100.md#nebenbefund-0x420-hypothese) |
 | `0x421` | konstant `38 36 31 34 FB 04 62 04` | startet mit ASCII "8614" — vermutlich Hardware-/Modell-ID-Teil |
 | `0x422` | Byte 4 wechselt 0x15/0x55 bei Charging | Charging-related Settings |
 | `0x423` | konstant `BC 02 64 00 3C 00 01 00` | `BC 02` = 700 (Pack-Voltage echo?) |

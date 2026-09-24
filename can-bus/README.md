@@ -23,8 +23,11 @@ can-bus/
 ├── README.md           ← du bist hier
 ├── WORKFLOW.md         Setup-Anleitung Logic Analyzer + Capture-Workflow
 ├── FRAMES.md           Frame-Reference: alle bekannten CAN-IDs mit Byte-Mapping
+├── ANALYSIS-0x100.md   Analyse von 0x100 für den Wheelie-Assist, offene Messungen
 └── parser/
-    └── can_parser.py   Python-Parser für KingstVIS-CSV-Exports
+    ├── can_parser.py       Python-Parser für KingstVIS-CSV-Exports (--watch, --diff, --compare, --analyze, --step)
+    ├── can_analysis.py     Heuristiken: Periode, Counter, Checksumme, Stufenantwort
+    └── test_can_analysis.py  Host-Tests (python3 -m unittest)
 
 ../can-data/            CSV-Captures (außerhalb dieses Verzeichnisses)
 ```
@@ -40,7 +43,11 @@ can-bus/
    ```bash
    python3 parser/can_parser.py ../can-data/<aktion>.csv --watch 0x100
    ```
-4. Erkenntnis in [`FRAMES.md`](FRAMES.md) eintragen
+4. Statistik einer ID über mehrere Captures (Periode, Counter, Checksumme):
+   ```bash
+   python3 parser/can_parser.py ../can-data/*.csv --analyze 0x100
+   ```
+5. Erkenntnis in [`FRAMES.md`](FRAMES.md) eintragen
 
 Volle Details in [`WORKFLOW.md`](WORKFLOW.md) und [`FRAMES.md`](FRAMES.md).
 
@@ -49,7 +56,7 @@ Volle Details in [`WORKFLOW.md`](WORKFLOW.md) und [`FRAMES.md`](FRAMES.md).
 | Frame.Byte | Funktion | Range |
 |------------|----------|-------|
 | `0x100[0]` | Throttle | 0–0xC8 |
-| `0x100[1]` | Bremse (vorne+hinten kombiniert) | 0–0xFF |
+| `0x100[1]` | Bremse (vorne+hinten kombiniert) | 0 bis 0x82 beobachtet, in Ruhe exakt 0 |
 | `0x100[2]` | User-Input-Active-Flag | 0x04 / 0x00 |
 | `0x100[4]` | Mode-LABEL (statischer km/h-Bucket) | Walk=5, Eco=15, Drive=25, Sport=35 |
 | `0x342[6]` | **★ TATSÄCHLICHER Top-Speed-Cap in km/h** (live, app-konfiguriert oder Unlock) | live |
@@ -59,8 +66,8 @@ Volle Details in [`WORKFLOW.md`](WORKFLOW.md) und [`FRAMES.md`](FRAMES.md).
 | `0x20C[0]` + `0x342[4]` | **Turn-Signal-Indikator** (toggled 1.25 Hz) | 0=aus, 1=L, 2=R |
 | `0x212[2]` Bit 3 | **Charger-Connected-Flag** | 0x08 wenn an |
 | `0x20C[1]` + `0x342[5]` | **Charging-State** | 0x80=idle, 0x82=lädt aktiv |
-| `0x21A` (one-shot) + `0x344[7]` | **★ Speed-Warning-Beep-Trigger** | event + 200ms-Burst |
-| `0x211[6]` = `0x203[6]` | Wheel-Speed (Echo auf 2 IDs) | analog |
+| `0x21A` (one-shot) + `0x344[7]` | **★ Beep-Trigger** (Auslöser offen) | event + 200ms-Burst |
+| `0x211[6..7]` = `0x203[6..7]` | Geschwindigkeit, u16le, Hypothese 0,1 km/h/LSB | 0 bis 405 |
 | `0x483` + `0x484` | Seriennummer-Broadcast (ASCII) | „1K1UA2551P3965" |
 
 → siehe [`FRAMES.md`](FRAMES.md) für die vollständige Liste aller 35 bekannten IDs + Details zu Frame-Layout.
@@ -101,7 +108,8 @@ Volle Details in [`WORKFLOW.md`](WORKFLOW.md) und [`FRAMES.md`](FRAMES.md).
 **Was noch offen ist** — ausführliche Liste aller geplanten Captures + ungeklärten Bytes/Frames in [`FRAMES.md`](FRAMES.md#status). Hauptthemen:
 
 - 🔜 BMS-Frames (Cell-Voltages, Pack-Spannung, Pack-Strom) — vermutlich in 0x209/0x20B/0x310/0x311 versteckt, brauchen Multimeter zur Verifikation
-- 🔜 Tacho-km/h-Skalierungsfaktor für `0x211[6]` Wheel-Speed-Counter
+- 🔜 Bestätigung der Skalierung 0,1 km/h/LSB für `0x211[6..7]` im Fahrbetrieb (GPS)
+- 🔜 Messungen M1 bis M7 für den Wheelie-Assist, siehe [`ANALYSIS-0x100.md`](ANALYSIS-0x100.md)
 - 🔜 Battery%-Verifikation für `0x100[5]`
 - 🔜 Long-Idle-Capture für seltene Frames
 - 🔜 Multi-Beep-Verifikation (1:1 Korrelation 0x21A ↔ Beep)

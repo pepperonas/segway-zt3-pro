@@ -12,6 +12,9 @@ Usage:
     python can_parser.py path/to/capture.csv --watch 0x100      # show one ID over time
     python can_parser.py path/to/capture.csv --diff             # byte-by-byte change report
     python can_parser.py a.csv b.csv --compare                  # two-capture diff (which IDs differ)
+    python can_parser.py a.csv [b.csv ...] --analyze 0x100      # Periode, Bytes, Counter, Checksumme
+    python can_parser.py a.csv --step                           # Latenz Gasflanke -> Antwortsignale
+    python can_parser.py a.csv --step --input 0x100:0 --response 0x211:6:u16le
 """
 
 from __future__ import annotations
@@ -23,6 +26,11 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
+
+try:  # als Skript gestartet
+    import can_analysis as ca
+except ImportError:  # pragma: no cover - als Paket importiert
+    from . import can_analysis as ca
 
 
 @dataclass
@@ -50,7 +58,8 @@ def _parse_int(s: str) -> int | None:
 
 def parse_kingst_csv(path: Path) -> list[Frame]:
     """Auto-detect KingstVIS CAN export layout and yield Frames."""
-    rows = list(csv.reader(path.open()))
+    with path.open(newline="") as fh:
+        rows = list(csv.reader(fh))
     if not rows:
         return []
 
@@ -291,13 +300,102 @@ def compare(frames_a: list[Frame], frames_b: list[Frame]) -> None:
             print(f"   0x{cid:03X}: {len(only_a)} A-only, {len(only_b)} B-only")
 
 
+def analyze(captures: list[tuple[str, list[Frame]]], target: int) -> None:
+    """Analyse einer CAN-ID ueber einen oder mehrere Captures.
+
+    Periode je Capture, Byte-Statistik / Counter / Checksumme ueber alle
+    Captures zusammen (mehr Wertevielfalt = aussagekraeftigere Checksummen-Suche).
+    """
+    print(f"# Analyse 0x{target:03X}")
+    all_datas: list[list[int]] = []
+    dlcs: set[int] = set()
+    print(f"{'capture':<38} {'n':>5} {'ungueltig':>9} {'mittel':>8} {'min':>6} {'max':>6} {'stdev':>6} {'luecken':>7}")
+    for name, frames in captures:
+        raw = [f for f in frames if f.can_id == target]
+        good = ca.valid_frames(raw)
+        dlcs |= {f.dlc for f in raw}
+        all_datas.extend(f.data for f in good)
+        ps = ca.period_stats([f.time_s for f in good])
+        if ps is None:
+            print(f"{name:<38} {len(good):>5} {len(raw) - len(good):>9}   (zu wenige Frames)")
+            continue
+        print(f"{name:<38} {len(good):>5} {len(raw) - len(good):>9} {ps.mean_ms:>6.2f}ms {ps.min_ms:>6.1f} {ps.max_ms:>6.1f} "
+              f"{ps.stdev_ms:>6.2f} {ps.gaps:>7}")
+    if not all_datas:
+        print("# keine gueltigen Frames")
+        return
+    print(f"\n# DLC: {sorted(dlcs)} ({'konstant' if len(dlcs) == 1 else 'VARIABEL'}), {len(all_datas)} gueltige Frames gesamt")
+
+    print("\n# Bytes (Korrelation = Pearson gegen Byte 0, '-' = eine Reihe konstant)")
+    for b in ca.byte_stats(all_datas, ref_index=0):
+        corr = "   -" if b.corr_ref is None else f"{b.corr_ref:+.2f}"
+        vals = sorted({d[b.index] for d in all_datas})
+        vstr = " ".join(f"{v:02X}" for v in vals[:10]) + (f" (+{len(vals) - 10})" if len(vals) > 10 else "")
+        print(f"   byte {b.index}: {b.min:02X}..{b.max:02X}  distinct={b.distinct:>3}  corr={corr}  [{vstr}]")
+
+    print("\n# Rolling-Counter-Kandidaten (Inkrement konstant in >= 90 % der Uebergaenge)")
+    # Counter nur innerhalb eines Captures pruefen, Grenzen zwischen Captures sind keine Uebergaenge
+    found = False
+    for name, frames in captures:
+        datas = [f.data for f in ca.valid_frames(frames, target)]
+        for c in ca.find_counters(datas):
+            found = True
+            print(f"   {name}: byte {c.index} ({c.field}) step={c.step} rate={c.hit_rate:.2f} wraps={c.wraps}")
+    if not found:
+        print("   keine")
+
+    print("\n# Checksummen-Kandidaten (Trefferquote >= 98 %, Ziel und Eingaenge variabel)")
+    var = ca.varying_bytes(all_datas)
+    print(f"   variierende Bytes: {var}")
+    cands = ca.find_checksums(all_datas, can_id=target)
+    if not cands:
+        print("   keine")
+    for c in cands:
+        print(f"   byte {c.target} = {c.algo}({'ID + ' if c.with_id else ''}{c.inputs}) "
+              f"rate={c.hit_rate:.3f} distinct ziel={c.distinct_targets} eingaenge={c.distinct_inputs}")
+
+
+DEFAULT_RESPONSES = ["0x211:6:u16le", "0x203:6:u16le", "0x420:2:s16le", "0x343:7"]
+
+
+def step(frames: list[Frame], input_spec: str, responses: list[str], min_delta: int) -> None:
+    """Latenz zwischen Flanken im Eingangssignal und den Antwortsignalen."""
+    inp = ca.SignalSpec.parse(input_spec)
+    series = ca.extract(frames, inp)
+    edges = ca.find_edges(series, min_delta)
+    print(f"# Stufenantwort: Eingang {inp}, {len(edges)} Flanken (|Delta| >= {min_delta})")
+    specs = [ca.SignalSpec.parse(r) for r in responses]
+    resp = {str(s): ca.extract(frames, s) for s in specs}
+    for e in edges:
+        kind = "fallend" if e.falling else "steigend"
+        print(f"\n  [{e.time_s:8.4f}s] {kind}: {e.before} -> {e.after}")
+        for name, ser in resp.items():
+            r = ca.step_response(e, ser, name)
+            res = "?" if r.resolution_ms is None else f"{r.resolution_ms:.0f}"
+            if r.latency_ms is None:
+                print(f"     {name:<16} {r.note}")
+            else:
+                flag = "  < Aufloesung, nicht aussagekraeftig" if r.resolution_ms and r.latency_ms < r.resolution_ms else ""
+                print(f"     {name:<16} erste Reaktion nach {r.latency_ms:6.1f} ms (Aufloesung {res} ms){flag}")
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("csv", nargs="+", type=Path)
     ap.add_argument("--watch", type=lambda s: int(s, 0), help="show all frames of one CAN ID")
     ap.add_argument("--diff", action="store_true", help="report which bytes change per ID")
     ap.add_argument("--compare", action="store_true", help="compare two captures")
+    ap.add_argument("--analyze", type=lambda s: int(s, 0), metavar="ID",
+                    help="Periode, Byte-Statistik, Counter- und Checksummen-Suche fuer eine ID (mehrere CSVs moeglich)")
+    ap.add_argument("--step", action="store_true", help="Latenz zwischen Eingangsflanken und Antwortsignalen")
+    ap.add_argument("--input", default="0x100:0", help="Eingangssignal fuer --step (ID:Byte[:Typ])")
+    ap.add_argument("--response", action="append", help=f"Antwortsignal fuer --step, mehrfach (Default {DEFAULT_RESPONSES})")
+    ap.add_argument("--min-delta", type=int, default=50, help="Mindestsprung einer Flanke fuer --step")
     args = ap.parse_args(argv[1:])
+
+    if args.analyze is not None:
+        analyze([(p.name, parse_kingst_csv(p)) for p in args.csv], args.analyze)
+        return 0
 
     if args.compare and len(args.csv) == 2:
         a = parse_kingst_csv(args.csv[0])
@@ -308,7 +406,9 @@ def main(argv: list[str]) -> int:
         return 0
 
     frames = parse_kingst_csv(args.csv[0])
-    if args.watch is not None:
+    if args.step:
+        step(frames, args.input, args.response or DEFAULT_RESPONSES, args.min_delta)
+    elif args.watch is not None:
         watch(frames, args.watch)
     elif args.diff:
         diff(frames)

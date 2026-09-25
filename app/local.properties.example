@@ -1,0 +1,12 @@
+# Copy to `local.properties` (not committed) and set your machine paths.
+# Without `sdk.dir`, Gradle fails with: "SDK location not found" (lint/compile need the SDK).
+
+# Required: Android SDK location. Examples:
+# Linux:   sdk.dir=/home/<user>/Android/Sdk
+# macOS:   sdk.dir=/Users/<user>/Library/Android/sdk
+# Windows: sdk.dir=C\:\\Users\\<user>\\AppData\\Local\\Android\\Sdk
+sdk.dir=
+
+# Recommended (CLI on Linux): pin JDK 17 so Gradle does not pick a JRE-only java-21 tree
+# and hit "does not provide the required capabilities: [JAVA_COMPILER]".
+# org.gradle.java.home=/usr/lib/jvm/java-17-openjdk-amd64

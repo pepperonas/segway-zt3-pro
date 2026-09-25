@@ -7,7 +7,6 @@ import com.celox.segway.core.ble.GattClient
 import com.celox.segway.core.data.PairingPrefs
 import com.celox.segway.core.data.UserPreferencesRepository
 import com.celox.segway.core.data.VehicleDao
-import com.celox.segway.core.data.VehicleStateCache
 import com.celox.segway.core.ota.FirmwareUpdater
 import com.celox.segway.core.profile.RideSessionRecorder
 import com.celox.segway.core.repo.FirmwareTarget
@@ -44,7 +43,6 @@ class ActiveVehicleHolder @Inject constructor(
     private val pairingPrefs: PairingPrefs,
     private val vehicleDao: VehicleDao,
     private val userPrefs: UserPreferencesRepository,
-    private val stateCache: VehicleStateCache,
     private val bleLog: BleLog,
     private val rideSessionRecorder: RideSessionRecorder,
 ) {
@@ -68,7 +66,6 @@ class ActiveVehicleHolder @Inject constructor(
             gatt = gatt,
             pairing = pairing,
             pairingPrefs = pairingPrefs,
-            stateCache = stateCache,
             bleLog = bleLog,
             scope = scope
         )

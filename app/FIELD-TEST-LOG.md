@@ -2,6 +2,15 @@
 
 Live-Sessions mit dem realen ZT3 Pro D (S/N maskiert, MAC `XX:XX:XX:XX:C5:96`).
 
+## Phase-1-Validation-Gate — **Status (ehrlich, Traycer-Align)**
+
+| Frage | Stand |
+|--------|--------|
+| **Ist Phase-1 laut `VALIDATION-PLAYBOOK` §0–2+6 mit *allen sechs* Checks in *einer* Sitzung auf **Referenz-Dev-Roller** `C1:6B:5E:D0:C5:96` (mit `persistedRandomForDevScooter` in `Zt3ProVehicle`) abgenickt?** | **Nein — Gate BLOCKIERT / nicht abgeschlossen.** |
+| Warum? | Sessions **9c / 9d / 9d-B** belegen u. a. **Install (9c)**, **SetSpeed 22/40** (Crypto-`5A A5 02 …`) und **Reconnect/RX-DEC** — **nicht** die vollständige Playbook-Ziellinie (L/M/O durch, „O: fully paired“, **ausschließlich** Diagnostics-Field-Test **ohne** A11y, alles am **Ziel-MAC**). In 9c/9d/9d-B war der verbundene Roller v. a. `D5:A1:FB:21:4C:BD` / `1K1…`, **nicht** `C1:6B:5E:D0:C5:96`. |
+| **Repo darf trotzdem Teilevidence committen?** | **Ja** — sofern klar bleibt: **kein** finales „Phase-1 voll grün“-Sign-off, bis Tabelle 6/6 + Ziel-MAC + Playbook-Abnahme existieren. |
+| Nächster Schritt (für Voll-Abnahme) | 1) **Ziel-MAC** koppeln, Stealth ggf. in Settings aus; 2) `logcat -c` → **nur** Diagnostics `→ 22` / `→ 40` (kein Vol-3× im gleichen Puffer); 3) Crypto bis O oder offen dokumentieren. Siehe `VALIDATION-PLAYBOOK` (aktualisiert: **Logcat-Tag** `BleLog` vs. **innerer** Note-Text / Klartext-Nachweis). |
+
 ## Session 1 — 2026-04-25 23:00 (Samsung S24 Ultra)
 
 ### Setup
@@ -609,275 +618,504 @@ Doc-Anmerkung dazu (Sektion 1, Hinweis vorweg):
 
 ---
 
-## Session 9 — 2026-04-28 spätabends (Mode-Mapping byte-perfekt verifiziert)
+## Session 9 — 2026-04-26 (Phase-1-Validation-Gate) — Archiviert: Erstlauf ohne Device
 
-### Anforderung
+Dieser Block dokumentiert den **ersten** Gate-Lauf (ADB leer, Fresh-Clone-Pfad defekt). Die **aktualisierte Gate-Tabelle** steht in **Session 9b** unten.
 
-User: „roller ist S und app zeigt beim start D an" + dann „bin jetzt mehrfach durch alle modi". Mode-UI soll exakt zum Roller-Display passen — und der initiale Default-State (`RideMode.Drive`) der App soll nicht mehr fälschlicherweise als „echte" Anzeige erscheinen, solange noch kein erster `0x5A`-Read vom Roller eingetroffen ist.
+### Test-Setup (Erstlauf)
 
-### Empirische Methodik (in 5 Minuten geknackt)
+- Datum: 2026-04-26
+- Phone-Modell (`adb shell getprop ro.product.model`): n/a (`adb: no devices/emulators found`)
+- Android-Version (`adb shell getprop ro.build.version.release`): n/a (`adb: no devices/emulators found`)
+- Roller-MAC (Soll): `C1:6B:5E:D0:C5:96`
 
-Bei den vorherigen Mode-Mapping-Versuchen haben wir uns auf User-Selbstbeschreibung verlassen („E = walk, D = eco, S = drive, Männchen = Sport") — was zwei Mapping-Iterationen verbraten hat ohne tragfähig zu sein. Diese Session: **logcat als Single Source of Truth**.
+### Pre-/Post-Versionen (Erstlauf)
 
-`BleLog` schreibt ohnehin via `Timber.tag("BleLog").d(...)` parallel ins Android-Logcat. Die `Mode | reg 0x5A raw=0xXX (N)`-Note bei jedem 0x5A-Read ist damit deterministisch greifbar:
+- Pre-Commit-SHA (Phase-1-Baseline): `af73c7d`
+- App-Version: `com.celox.segway.debug` (`versionName "0.1.3"`)
+- Post-Commit-SHA: `af73c7d` (keine Hotfixes in diesem Gate-Lauf)
 
-```bash
-adb logcat -d BleLog:D '*:S' 2>&1 | grep "0x5A" \
-  | awk '{ if ($NF != prev) { print $1, $2, $NF; prev=$NF } }'
-```
+### Ergebnis-Tabelle — Erstlauf (historisch)
 
-→ Liefert eine **Transition-Map**: nur die Zeilen, an denen sich der raw-Wert geändert hat. Resultat aus dem Field-Test:
-
-```
-04-26 18:43:00.097 (4)
-04-26 18:48:26.501 (1)
-04-26 18:48:32.695 (2)
-04-26 18:51:29.698 (3)
-04-26 18:54:32.057 (4)
-```
-
-→ **Nur Werte 1, 2, 3, 4 — niemals 0**. ZT3-Firmware ist **1-indexed** für `VCU_DRIVE_MODE`.
-
-Reihenfolge entspricht dem Dashboard-Cycle (Walk → E → D → S → Walk):
-
-| raw | Roller-Display | App-Label |
-|-----|---------------|-----------|
-| `0x01` | E | Eco |
-| `0x02` | D | Drive |
-| `0x03` | S | Sport |
-| `0x04` | Männchen | Walk |
-
-### Code-Änderungen
-
-**Read-Mapping** (`Zt3ProVehicle.kt::handleVcuRegister 0x5A`):
-```kotlin
-val mode = when (raw) {
-    0x01 -> RideMode.Eco
-    0x02 -> RideMode.Drive
-    0x03 -> RideMode.Sport
-    0x04 -> RideMode.Walk
-    else -> null  // unknown → don't update state
-}
-if (mode != null) _state.update { it.copy(mode = mode) }
-```
-
-**Write-Mapping** (`Zt3ProVehicle.kt::encodeCrypto SetMode`):
-```kotlin
-when (cmd.mode) {
-    RideMode.Eco -> 0x01
-    RideMode.Drive -> 0x02
-    RideMode.Sport -> 0x03
-    RideMode.Walk -> 0x04
-}.toByte()
-```
-(Symmetrisch — auch wenn Writes auf 0x5A weiterhin von ZT3-Firmware ignoriert werden.)
-
-**Loading-State** (Vehicle.kt + VehicleScreen.kt):
-- `VehicleState.mode: RideMode?` → nullable, default `null`.
-- VehicleScreen: solange `state.mode == null`, ist kein SegmentedButton highlighted und es erscheint die Sub-Zeile *„Lese Modus vom Roller…"* unter der Buttonreihe.
-- Sobald der erste valide 0x5A-Read durch den Poll eintrifft (~1-2 s nach Connect), wird der Button korrekt selektiert.
-
-### Methoden-Lehre für künftige Sessions
-
-**„Nicht den User für die Empirie missbrauchen."** Wenn ein Bytewert empirisch erfasst werden muss, ist ein einziger `adb logcat`-Befehl mit `awk`-Transition-Filter schneller, präziser und revisionssicherer als 4 Iterationen Trial-and-Error mit User-Feedback-Loop. Die `Mode | reg 0x5A raw=...`-Logs waren bereits seit Session 7 da — wir hatten sie nur nicht systematisch gelesen.
-
-### Status
-
-**Stand 2026-04-28 ~21:00**: Mode-Mapping byte-perfekt verifiziert (1-indexed). Loading-State verhindert irreführende Default-Anzeige. Release v0.1.4. Mode-WRITES bleiben firmware-seitig blockiert (Roller-Display ändert sich nicht), aber Mode-READS sind jetzt 100 % korrekt — d.h. Dashboard-Wechsel via Power-Button-Doppeltap wird live in der App reflektiert.
-
----
-
-## Session 10 — 2026-04-28 ~21:30 (Deep-Telemetrie via BMS / VCU)
-
-### Anforderung
-
-Nach Mode-Fix: weitere Sensorwerte auslesen, orientiert an [`zt3-ble-register-reference.md`](../reverse-engineering/protocol/zt3-ble-register-reference.md). Ziel: Spannung, Strom, Zellenspannungen, Reichweite, Trip-Zeit, Total-Laufzeit, Motor-Temps.
-
-### Empirisch verifizierte ZT3-Skalierungen (per logcat-Capture)
-
-Wichtige Korrekturen gegen die generischen x3regs.h-Annahmen — ZT3-Pro-D-Firmware weicht in **Encoding** und **Wert-Layout** von GT3/F3 ab:
-
-| Reg | Doc-Annahme | ZT3-Realität (Bytes → Wert) | Einheit |
-|---|---|---|---|
-| `0x62` (VCU_Mileage) | u32 × 10 m | `[12 00 00 00]` → low u16 = **18** | km, **direkt** (kein Divisor) |
-| `0x68` (VCU_SingleMileage) | u32 × 10 m | `[07 00 46 0A]` → low u16 = **7** | km, direkt; high u16 (`0A46`) = unbekannt |
-| `0x5F` (VCU_LeftMileage) | „Restreichweite" | `[04 0B]` = 0x0B04 = 2820 | km × 100 (= 28,2 km) |
-| `0x64` (VCU_Runtime) | 32-bit Runtime | `[E8 7F 00 00]` = 32744 | **Sekunden** seit Herstellung (= 9h 05m, plausibel für jungen Roller) |
-| `0x6A` (VCU_SingleRideTime) | „Trip-Time" | `[4F 00 BE 00]` → low u16 = **79** | Sekunden current ride; high u16 (`00BE`) = unbekannt |
-| `0x6B` (VCU_BodyTemp) | °C × 10 | `[BE 00]` = 190 | °C × 10 (= 19,0 °C ✓) |
-| `0x96` (BMS_Temps) | u8 + 20 bias (Doc-Konvention) | `[13 00 13 00]` = beide Probes 19 | **direkt °C** (kein Bias bei ZT3) |
-| `0xF9` (BMS_TEMP) | uint16 | `[13 00]` = 19 | direkt °C |
-| `0x8C` (BMS_VOLTAGE) | V × 100 | `[D7 14]` = 5335 | V × 100 (= 53,35 V ✓ matched 13S × 4,104 V/Zelle) |
-| `0x8D` (BMS_CURRENT) | A × 100 signed | `[FA FF]` = -6 | A × 100 (= -0,06 A idle discharge) |
-| `0x8E` (BMS_FULL_CAP_PCT) | % | `[64 00]` = 100 | % direkt |
-| `0x8F` (BMS_SOC) | % | `[5E 00]` = 94 | % direkt |
-| `0x92` (BMS_ChargeStatus) | enum | `[02 00]` = 2 | 0=idle, 1=charging, **2=fully charged/standby** (verifiziert bei Battery 94 %) |
-| `0xA0` (BMS_CellVolts) | N × 16-bit cells | `[09 10 ...]` × 13 | mV LE; **13S** (nicht 12S — entspricht 48-V-Nominal-Pack) |
-
-### Schlüssel-Lehre
-
-1. **Zellzahl im Datenblatt steht NICHT für die Datenmenge die der BMS pusht.** ZT3 ist 13S (53,35 V / 4,104 V ≈ 13). Erste Iteration mit 24 Bytes (12S-Annahme) ergab 12 × 4,104 = 49,25 V vs. Pack-Spannung 53,35 V → 4 V Lücke = 1 Zelle. Lösung: 26 Bytes pollen.
-2. **VCU body temp (0x6B) darf nicht von MCU temps (0x48) überschrieben werden.** MCU returned `[00 00]` = 0 °C im Stand (Sensor offline ohne Fahrt). Zuerst überschrieb das fälschlicherweise den 19 °C body temp. Fix: separate `motorTempAC/BC`-Felder, `temperatureC` bleibt VCU-only.
-3. **Trip / Odometer sind low-u16, NICHT u32.** Der Doc-Hinweis „32-bit Runtime" gilt für 0x64/Runtime, aber für 0x62/0x68 nutzt ZT3 nur die unteren 2 Bytes. Vorherige Skalierung `/100000` brachte stochastisch glaubwürdige Werte beim Speichersitzungsbeginn, schlug aber bei nicht-trivialen Reichweiten fehl.
-
-### Code-Änderungen
-
-- `Vehicle.kt`: 12 neue Felder in `VehicleState` (rangeRemainingKm, totalRuntimeSeconds, tripDurationSeconds, batteryVoltage, batteryCurrentA, batteryHealthPercent, batteryCycleCount, chargingState, batteryTempC, cellVoltagesMv, motorTempAC, motorTempBC, warnCode).
-- `Zt3ProVehicle.kt`: Poll-Plan auf 27 Register erweitert (VCU + BMS + MCU). Parser für jedes neue Register.
-- `VehicleScreen.kt`: 3-Reihe Live-Daten Stat-Grid (Battery/MaxSpeed, Temp/Trip, Reichweite/Gesamt). Zwei neue Cards: „Akku — Detail" (Spannung/Strom/Leistung/Health/Zyklen/Zell-Spreizung) und „Motor & Fahrt" (MCU-Temps, Trip-/Total-Zeit, Fehler-/Warn-Codes).
-
-### Status
-
-**Stand 2026-04-28 ~22:00**: ZT3-Telemetrie ~95 % vollständig live. Verbleibend: BLE FW-Version (Reg `0x1A`) — wurde aus Poll-Plan rausgenommen und wieder reinkommt. Motor-Temps werden erst während Fahrt valid (Sensor offline im Stand). Cycle-Count `0` bei nur 9 h Total-Laufzeit ist plausibel.
-
----
-
-## Session 11 — 2026-04-28 spät (Custom-Button Doppel-Tap = Lock auf 22 km/h)
-
-### Anforderung
-
-> „Können wir den custom button so belegen, dass geschwindigkeit 22 km/h aktiviert wird?"
-
-Der **Custom-Button am ZT3-Pro-D-Lenker** (auch „Walk-Knopf" — toggelt zwischen Walk und vorherigem Mode) sollte als zusätzlicher Lock-Trigger nutzbar sein, parallel zu Vol-Down-3×.
-
-### Recherche: Firmware-seitig nicht möglich
-
-Vor dem Bau einer Phone-side-Lösung hatten wir geprüft, ob es ein **Register zur Button-Remap-Konfiguration** gibt. Resultat:
-
-- Doku (`zt3-ble-register-reference.md`) hat **keine** Button-Remap-Register dokumentiert — auch nicht in den `0x1D`/`0x1E`/`0x1F`-Bitfeldern
-- Stock-Segway-App macht's auch phone-seitig — keine Direkt-Steuerung im Roller verdrahtet
-- Walk-Mode-Speed ist firmware-hardcoded auf ~6 km/h, kein Konfig-Register
-
-→ Ergebnis: **Custom-Button-Funktion ist firmware-fix, nicht remappbar via BLE**. Workaround = phone-seitige Detection.
-
-### Detection-Mechanismus
-
-Der Custom-Button ändert **reg `0x5A` (`VCU_DRIVE_MODE`)** bei jedem Druck (toggelt zwischen Walk und vorherigem Mode). Da der Hauptpoll-Cycle nur ~4 s ist, würden wir echte <1,5-s-Doppel-Taps verpassen.
-
-**Lösung: dedizierter Fast-Poll-Loop nur für reg `0x5A` alle 250 ms**, lebt in `SpeedProfileManager` als Singleton-Coroutine, gestartet bei `vehicle.isReady && customButtonDoubleTapEnabled`.
-
-```kotlin
-// Pseudocode aus runCustomButtonTapWatcher()
-val taps = ArrayDeque<Long>()
-var lastMode: RideMode? = null
-while (active && customButtonDoubleTapEnabled) {
-    vehicle.execute(ReadRegister(0x5A, 2, 0x16))
-    delay(250)
-    val current = state.value.mode ?: continue
-    if (lastMode != null && current != lastMode) {
-        taps.addLast(now())
-        taps.removeAll { now() - it > 1500 }   // sliding window
-        if (taps.size >= 2) applyProfile(boot)  // 22 km/h Lock
-        lastMode = current
-    }
-}
-```
-
-### Background-Verhalten
-
-`StealthVolumeService` (Foreground-Service) hält den App-Prozess + die BLE-Connection auch im Hintergrund / mit Display-Off am Leben. Wir starten ihn jetzt, wenn **mindestens einer** der beiden Trigger aktiv ist:
-
-```kotlin
-// SegwayApp.onCreate()
-profileRepo.flow
-    .map { it.accessibilityTriggerEnabled || it.customButtonDoubleTapEnabled }
-    .distinctUntilChanged()
-    .collect { needed ->
-        if (needed) StealthVolumeService.start(this)
-        else        StealthVolumeService.stop(this)
-    }
-```
-
-Damit funktioniert Custom-Button-Doppel-Tap auch wenn:
-- App im Hintergrund / minimiert
-- Bildschirm aus
-- App aus Recents geswiped (Force-Stop killt aber alles)
-
-### Field-Test-Resultat
-
-**Funktioniert grundsätzlich.** User-Bestätigung: Doppeltap des Walk-Knopfs am Lenker triggert das Lock-auf-22-km/h reproduzierbar.
-
-**Bekanntes Problem: Inkonsistenz.** Nicht jeder Doppeltap wird erkannt. Vermutete Ursachen:
-
-1. **Poll-Race**: Fast-Poll-Intervall 250 ms vs. Doppeltap-Window 1500 ms. Wenn die zwei Taps in die GLEICHE 250-ms-Slot fallen, sieht der Watcher nur den End-Mode (= unverändert) und keine Transition.
-2. **BLE-Latenz**: Crypto-Frame round-trip ~80-150 ms unter Last; bei zeitgleichem Hauptpoll konkurrieren beide um die GATT-Connection.
-3. **Mode-Persistenz im Roller**: Der Roller braucht Zeit zum Settling — wenn Tap 2 zu schnell auf Tap 1 folgt, evt. ignoriert er den zweiten.
-
-### Verbesserungs-Ideen (nicht implementiert)
-
-- **Polling auf 150 ms drücken** — mehr Auflösung, mehr BLE-Last
-- **Transitions-Counter-Register suchen** — falls reg 0x5A einen Tap-Counter im high-byte hat (analog zu unserem 0x68-Trip-Counter)
-- **Hauptpoll während Custom-Button-Watcher pausieren** — kein Polling-Konflikt, aber Telemetrie steht still
-
-### Code-Pointer
-
-| Datei | Funktion |
-|---|---|
-| `core/profile/SpeedProfile.kt` | neuer Setting-Eintrag `customButtonDoubleTapEnabled: Boolean = false` |
-| `core/profile/SpeedProfileManager.kt::runCustomButtonTapWatcher` | Fast-poll Loop |
-| `feature/profiles/ProfilesScreen.kt` | UI-Toggle „Custom-Button doppel-Tap = 22 km/h" |
-| `feature/home/VehicleViewModel.kt` | Snackbar-Feedback bei Trigger |
-| `SegwayApp.kt::onCreate()` | Foreground-Service-Start an beide Toggles gekoppelt |
-
-### Status
-
-**Stand 2026-04-28 ~23:00**: Custom-Button-Doppel-Tap **funktioniert grundsätzlich**, ist aber timing-sensitiv. Akzeptabel als drittes Lock-Triggermethode neben Vol-Down-3× und In-App-Button. Inkonsistenz dokumentiert; künftige Iteration könnte Fast-Poll auf 150 ms drücken oder dynamisch Hauptpoll pausieren.
-
----
-
-## Session 9 — 2026-04-28 ~23:30 (Pairing-Persistenz Cleanup + UX)
-
-### Reported
-
-User beschwert sich der Reihe nach über mehrere Symptome (alle gleicher Root-Cause: kaputter Resume-Pfad bei mehreren App-Starts):
-
-1. „App schaltet Rotation ein" → MainActivity-Manifest hatte kein `screenOrientation`
-2. „BLE verliert Verbindung wenn Bildschirm aus" → `BleConnectionService` (im Manifest deklariert) wurde **nie gestartet**, deshalb keinen Foreground-Schutz
-3. „Ich muss jedes Mal neu pairen" → kein Status-Banner, kein Auto-Reconnect-Watchdog, Vehicle-Screen voller Nullen wenn Scooter schläft
-4. „Securing-connection-Banner ist scheiße" → bei jedem Reconnect 1-3 s Flash-Banner, sieht broken aus
-5. **„Jetzt kann ich nicht mehr pairen"** → eigentlicher Crypto-Bug
-
-### Root Cause (#5)
-
-Code-Review-Tool flagged: **Handshake startet bevor `loadCryptoToken` async fertig ist**. Die Init-Block-Coroutine `pairingPrefs?.loadCryptoToken(id)?.let { crypto.loadToken(it) }` läuft race-y mit `vehicle.connect()`. Wenn der Token-Load gewinnt, wird `aesKey` auf `SHA-1(name + token)` umgestellt — aber Stage 1 (counter=0, cmd=0x5B) erwartet noch `SHA-1(name + salt)`. Scooter kann den ersten Frame nicht decoden → kein cmd=0x5B-Response → Stage 1 (L) timeoutet → Pair scheitert.
-
-Bestätigung: Der Token-Pre-Load ist sowieso **fundamental nutzlos** — der Roller rotiert seinen Token bei jedem Connect (per cmd=0x5B-Response), der gespeicherte Wert ist also immer stale. Die ganze Token-Persistence-Logik war Müll.
-
-### Code Cleanup (verworfen)
-
-| Entfernt aus | Was |
-|---|---|
-| `core/crypto/NinebotCrypto.kt` | `loadToken()`, `loadSession()`, `snapshotToken()` |
-| `core/data/PairingPrefs.kt` | `cryptoToken` Feld in `Config`, `saveCryptoToken()`, `loadCryptoToken()` |
-| `core/vehicle/Zt3ProVehicle.kt` | Init-Coroutine die `loadCryptoToken` aufrief; Token-Diff-Watcher in `gatt.incoming.collect` der `saveCryptoToken` triggerte; `persistedRandomForDevScooter` (hardcoded 16 Byte für `C1:6B:...`) |
-
-### Was jetzt funktioniert
-
-| Feld | Persistenz | Loaded |
+| Check | Ergebnis | Kurz-Kommentar |
 |---|---|---|
-| `cryptoToken` (`f5100d`) | **niemals** — Roller rotiert bei jedem Connect | aus cmd=0x5B-Response decoded |
-| `cryptoRandom` (`f5101e`) | nach erfolgreichem Stage 2 (M flag), validiert (size==16, not all-zero) | bei nächstem Connect aus `PairingPrefs` |
+| 1) Fresh-Clone-Build (`/tmp/escooter-validate`) | ❌ | Fresh clone enthielt `app/gradlew` und `app/local.properties.example` nicht; `./gradlew` daher nicht ausfuehrbar (`Datei oder Verzeichnis nicht gefunden`). |
+| 2) L/M/O-Visual (Diagnostics) | ❌ | Nicht durchfuehrbar ohne verbundenes Dev-Phone/Dev-Roller. |
+| 3) Logcat-Cross-Check (`BleLog`/`Crypto`) | ❌ | Nicht durchfuehrbar ohne Device (`adb devices` leer). |
+| 4) TX-Regression `-> 22 km/h` | ❌ | Nicht durchfuehrbar ohne Device; kein Live-TX/RX beobachtbar. |
+| 5) TX-Regression `-> 40 km/h` | ❌ | Nicht durchfuehrbar ohne Device; kein Display-Check moeglich. |
+| 6) Playbook-Smoke (`RX-DEC`/`SCAN`/`Reconnect`) | ❌ | Nicht durchfuehrbar ohne Device und ohne laufende Diagnostics-Session. |
 
-`Zt3ProVehicle.sendStage2FreshPair()` ruft am Ende `prefs.saveCryptoRandom(id, crypto.snapshotRandom())`. `sendHandshake()` lädt am Anfang von Stage 2 `pairingPrefs.loadCryptoRandom(id)` — bei Hit: `setRandomAppData(persisted)` direkt, Stage 2 Send entfällt. Bei Stage-3-Timeout im Resume-Pfad greift Auto-Fallback (`crypto.resetPairingState()` + frischer `o1`), neuer Random wird persistiert.
+#### Follow-up / Wrapper (nach `caa7df0`, weiterhin gueltig)
 
-`PairingPrefs.remove(mac)` (aufgerufen von `GarageViewModel.unpair()`) löscht den Random-Eintrag → erzwingt echtes Fresh-Pair beim nächsten Mal. Vorher hat der hardcoded `persistedRandomForDevScooter` „Löschen" stillschweigend untergraben.
+- **Fresh-Clone-Build-Fix bestätigt:** Klon so dass `escooter/app/gradlew` (100755) und `app/local.properties.example` enthalten sind; `cp local.properties.example local.properties` + `sdk.dir` + optional `org.gradle.java.home` → `./gradlew :app:assembleDebug` **BUILD SUCCESSFUL** (dokumentiert 2026-04-26).
 
-### UX-Fixes (Sessions 7-9 zusammengefasst)
+---
 
-| File | Change |
-|---|---|
-| `AndroidManifest.xml` | `MainActivity` auf `screenOrientation="portrait"` gelockt |
-| `feature/home/ActiveVehicleHolder.kt` | `BleConnectionService.start/stop()` an `bind/unbind` gekoppelt; Auto-Reconnect-Watchdog (8 s polling) während gebunden; `reconnectActive()` für UI-Retry |
-| `feature/home/VehicleScreen.kt` | `ConnectionBanner` zeigt **nur** bei echtem Offline (>4 s) — kein „Securing connection"-Flash mehr; Banner mit Power-Button-Hinweis + Retry-Button |
-| `core/data/VehicleStateCache.kt` | **NEU** — DataStore-basierter Cache letzte Telemetrie (Akku %, Mode, Mileage, Range, FW, Lock/Lights, Serial, Region). Hydratet beim Vehicle-Init, persistiert throttled alle 5 s. Live-Daten (Speed, Strom, Cells) absichtlich NICHT gecached. |
-| `feature/pair/PairScreen.kt` | Power-Button-Hinweis immer sichtbar (nicht nur bei Scanning) |
-| `feature/pair/PairViewModel.kt` | `waitForReady`-Timeout 12 s → 20 s (deckt Worst-Case mit Resume-Fail + Fresh-Pair-Fallback ab) |
+## Session 9c — 2026-04-27 (Phase-1-Validation-Gate — vollstaendiger Checklistenlauf, ehrliches Ergebnis)
 
-### Status
+Gate nach `reverse-engineering/VALIDATION-PLAYBOOK.md` §0–2 und §6 (eine zusammenhaengende Sitzung: frischer Klon → `installDebug` am Dev-Phone → **Logcat-Tag** `BleLog` inkl. `Crypto`/`Cmd`-*Zeilen* → L/M/O → 22/40 → Playbook-Smoke). **Keine** „Referenz“-Zeilen auf aeltere Sessions: nur was in **dieser** 9c-Sitzung belegt ist. **MAC** = `D5:…` (9c) — **nicht** der Dev-Referenz-Roller `C1:6B:5E:D0:C5:96` (s. Gate-Status-Block oben; `Zt3ProVehicle` Dev-MAC-Migration/PairingPrefs in 9c nicht voll geprüft).
 
-**Stand 2026-04-28 ~23:30**: Pair geht wieder ✅. Resume klappt sauber über App-Restarts hinweg (Random aus Prefs). „Löschen" forciert echtes Fresh-Pair. UX zeigt cached State sofort beim Start, kein Banner-Flash mehr während des stillen Reconnects. BLE überlebt Screen-Off via `connectedDevice` Foreground-Service. Custom-Button-Watcher läuft auch im Hintergrund weil Process alive bleibt.
+### Test-Setup (9c)
 
-**Verworfen** weil broken oder von SHU-Architektur missverstanden:
-- Token-Persistence (fundamental nutzlos — Token wird bei jedem Connect rotiert)
-- Hardcoded Dev-MAC-Random (untergrub „Löschen / neu pairen")
-- „Securing connection"-Banner während des kurzen Handshakes (= UX-Falschalarm)
+- Datum: 2026-04-27
+- Phone-Modell: `2312DRAABG` (`adb shell getprop ro.product.model`)
+- Android-Version: `15` (`adb shell getprop ro.build.version.release`)
+- Verbundenes BLE-Geraet in 9c-Log: Name `1K1UA2525P1196`, MAC `D5:A1:FB:21:4C:BD` (Auto-Reconnect-Session, nicht identisch mit Session-5-Referenz-MAC `C1:6B:5E:D0:C5:96`).
+
+### Commits (9c, escooter-Subrepo)
+
+- **Applikations- und Klon-Revision (alle 9c-Nachweise: Klon, `installDebug`, `adb` gegen installierte `com.celox.segway.debug` auf SHA-Basis `f9219bfe` der Historie):** vollstaendig `f9219bfe230f561888c5c7162bfeb57d17c0f30e` — ermittelt mit `cd escooter && git rev-parse HEAD` und in `/tmp/escooter-p1-fresh` identisch. Die vorliegende Aktualisierung betrifft ausschliesslich `app/FIELD-TEST-LOG.md` (Doku) bei unveraendertem zugehoerigem Anwendungscode-Tree.
+
+(Wrapper-Pfad: `caa7df0` und neuer: `app/gradlew` + `app/local.properties.example` — siehe [Follow-up](#followup--wrapper-nach-caa7df0-weiterhin-gueltig) in Session 9 oben.)
+
+### 1) Fresh-Clone- und Install-Nachweis (Check 1)
+
+- **Klon (lokales `file://`-Klon, reproduzierbar, gleiches Ergebnis wie Remote-`main` bei identischem SHA):**
+  - `rm -rf /tmp/escooter-p1-fresh && git clone /mnt/docker-ssd/cursor-Projekts/escooter /tmp/escooter-p1-fresh`
+- **SDK/JDK:** `app/local.properties` mit `sdk.dir=…` und `org.gradle.java.home` nach Vorlage (nicht eincheckt); siehe `local.properties.example`.
+- **Befehl (End-to-End, wie Playbook):**
+  - `cd /tmp/escooter-p1-fresh/app && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 && ./gradlew :app:installDebug --no-daemon`
+- **Gradle-Exit (Auszug):**
+  - `> Task :app:installDebug`
+  - `Installing APK 'app-debug.apk' on '2312DRAABG - 15' for :app:debug`
+  - `Installed on 1 device.`
+  - `BUILD SUCCESSFUL in 27s`
+- **Abgleich installiertes Paket:** `com.celox.segway.debug` (Debug-`applicationId`).
+
+➡ **Check 1:** **bestanden** — es wurde **kein** Ersatz nur durch `assembleDebug` abgenickt; die Installation lief vollstaendig durch (kein `INSTALL_FAILED_USER_RESTRICTED` in diesem 9c-Lauf).
+
+### 2–3) L/M/O visuell + `BleLog` / `Crypto` in Reihenfolge (Logcat, gleiche Sitzung)
+
+Nach App-Start (`am start` … `MainActivity`) wurde `adb logcat` ausgelesen. **Inhaltlicher Befund im aktuellen Puffer (nicht genuegend fuer vollgruenes M/O, nicht fuer „O: fully paired“):**
+
+- Sichtbar: **L**-Phase in Log, **kein** vollstaendiger M/O-Phasen-Nachweis; stattdessen:
+  - `-- Crypto     L: token+challenge received`
+  - Anschliessend Timeout der Pairing-Stufe:
+  - `-- Crypto     stage 2 (M) timed out — pair-init not acked`
+
+**Ausschnitt (Zeitpunkte `04-26` aus dem Geraetelog, gleiche App-Session wie GATT-Handshake, gekuerzt):**
+
+```text
+04-26 22:56:02.781 D/BleLog: -- Reconnect  auto-reconnect to 1K1UA2525P1196 (D5:A1:FB:21:4C:BD)
+04-26 22:56:03.948 D/BleLog: -- Crypto     scooterName='1K1UA2525P1196' tokenLoaded=false
+04-26 22:56:04.023 D/BleLog: -- Crypto     L: token+challenge received
+04-26 22:56:09.480 D/BleLog: -- Crypto     stage 2 (M) timed out — pair-init not acked
+04-26 22:56:04.008 D/BleLog: RX TX-NOTIFY  5A A5 1E 0D FC D4 A9 …
+04-26 22:56:04.011 D/BleLog: -- RX-DEC     src=04 dst=3E cmd=5B arg=01 [… 31 55 41 32 35 32 35 50 31 31 39 36]
+04-26 22:56:04.011 D/BleLog: (weitere 5A A5-TX-Handshake-Frames, siehe vollstaendiger Dump waehrend 9c)
+```
+
+➡ **Check 2:** **nicht bestanden** (kein nachweisbares nacheinander vollgruenes L / M / O waehrend 9c; M faehrt in Timeout). **Check 3:** **teilweise** (Crypto-Folge und RX-DEC sichtbar, **ohne** geordnete laufende Zeilen bis **„O: fully paired“** laut Vorgabe / Playbook §6).
+
+### 4–5) TX-Regression `-> 22 km/h` / `-> 40 km/h` (Beweis: `-- Cmd` + `TX RX-WRITE` mit Wire `5A A5 02 …`)
+
+- *Abgleich mit Laufzeit / Playbook §2.1+§6:* In **Tag `BleLog`** erscheinen **Cmd**-Zeilen und `TX RX-WRITE` mit **tatsächlich gesendeten** (bei Ninebot-Crypto: **verschlüsselte**) Oktetten `5A A5 02 …` — **nicht** zwingend sichtbares Innen-Register im Klartext `3E 16 02 48 …` in derselben `adb`-Zeile (dazu `CRYPTO_DUMP`, btsnoop, oder `encodeCrypto`-Doku).
+- Im 9c-Ausschnitt: **weder** passendes `-- Cmd SetSpeedLimit(22|40)` **noch** dazugehöriges `5A A5 02 …`-`TX` (Sitzung brach/stockte am M-Timeout, keine SetSpeed-Sequenz in diesem Puffer).
+
+➡ **Check 4 / 5:** **nicht bestanden** (kein 22/40-Nachweis: weder `Cmd SetSpeedLimit` noch zugehöriges `5A A5 02…`-`TX` im 9c-Puffer; Abnahme richtet sich **nicht** an fehlendem Klartext `3E 16 02 48` in `adb`, s. Playbook).
+
+### 6) `VALIDATION-PLAYBOOK` Smoke (Reconnect / RX-DEC / optional SCAN)
+
+- **Reconnect:** im Ausschnitt vorhanden (`-- Reconnect  auto-reconnect to …`). **RX-DEC:** sichtbar (`cmd=5B`, `cmd=5C`). Vollstaendiger Playbook-Smoke inkl. erfolgreichem 22-km/h-Schritt und klarer Abschlussszenario **wurde in 9c nicht** durchlaufen (M-Timeout, keine Speed-TX). **SCAN:** in diesem Ausschnitt nicht wahrgenommen (optional laut Playbook, aber Gesamterfolg 9c: nein).
+
+➡ **Check 6:** **nicht bestanden** als vollstaendiger Playbook-Abschluss in einer gruenen 9c-Session.
+
+### Ergebnis-Tabelle (6 Checklisten-Punkte, 9c — **dieser** Lauf)
+
+| Check | Ergebnis | 9c-Nachweis (kurz) |
+|---|---|---|
+| 1) Frischer Klon, `./gradlew :app:installDebug`, APK am Phone | **Ja** | `/tmp/escooter-p1-fresh` → `Installed on 1 device.`, `BUILD SUCCESSFUL` |
+| 2) L/M/O visuell in Diagnostics (Reihenfolge / sinnvoll) | **Nein** | Log bricht M mit Timeout ab; kein O-Nachweis |
+| 3) Logcat: Tag `BleLog` mit Crypto-Noten in sinnvoller Ordnung inkl. Abschlussphase | **Nein** (unvollstaendig) | L und RX sichtbar; **kein** „O: fully paired“-Befund im Puffer |
+| 4) `-> 22 km/h` — `Cmd` + `TX` `5A A5 02 …` (s. Playbook; nicht Klartext-Zwang) | **Nein** | kein `SetSpeedLimit(22)` + verschl. TX in 9c-Export |
+| 5) `-> 40 km/h` — analog | **Nein** | nicht erfasst |
+| 6) Playbook-Smoke (gemaess `VALIDATION-PLAYBOOK.md`) | **Nein** | M-Timeout, keine 22/40-Regression in Log |
+
+### Fazit (9c) — an den Ist-Zustand geknuepft
+
+**Phase-1** wird mit dieser Datei **nicht** als vollumfaenglich **gruen** deklariert, weil **mindestens die Checks 2–6** in der 9c-Nachfuehrung am **echten** Dev-Phone in einer durchlaufenden Session **fehlgeschlagen bzw. nicht belegt** sind, obwohl **Check 1 (Frischklon + `installDebug`)** **gruen** war.
+
+**Naechte Schritte (Operateur):** Rolle/Token/Persisted-Random am **Ziel-MAC** `C1:6B:5E:D0:C5:96` pruefen, Pairing/Handshake gemaess `app/README.md` vollenden, dann Diagnostics, `adb logcat -v time *:S BleLog:V` (s. `VALIDATION-PLAYBOOK` §2.1) und Field-Test-Knoepfe 22/40 in **einer** Sitzung erneut; bei Erfolg neue Session **9d** mit lueckenlosen Log-Ausschnitten (inkl. M/O, `Cmd SetSpeedLimit`, `5A A5 02…`-TX) eintragen. Bis dahin: **kein** Downstream-„Phase-1 abgehakt“-Sign-off aus Session 9c allein.
+
+---
+
+## Session 9d — 2026-04-26 (Phase-1, **durchgängige** Sitzung — vorbereitet, Messlauf ausstehend)
+
+> **Vorher:** 9c Check 1 (Frischklon+`installDebug`) **war grün**; 9c Checks 2–6 fehlten an stabilem ZT3-/Referenz-Setup. 9d soll in **einer Sitzung** belegen, was 9c nicht lief: **vollständiger** Handshake, L/M/O, 22+40, Playbook-§6 — nicht stilles „App geöffnet“.
+
+*Status: Ablauf und Repo-Metadaten unten gesetzt; **Log-Auszüge und Tabelle nachträglich** ausfüllen, sobald der Feldlauf abgeschlossen ist.*
+
+### Operator: Schritt-für-Schritt — was **du am PC** machst, was **du am Handy/Scooter** (eine Sitzung)
+
+Ziel: Eine **einzige** Mess-Session = Zeitschiene muss stimmig sein. **Nichts Wichtiges vor `logcat -c` anfangen;** Logs **nach** den Aktionen wegschreiben. Optional kann **parallel** in einem **zweiten** Terminal `live` beobachtet werden (siehe B).
+
+#### A) Am PC (Terminal, Projekt-Root egal, Hauptsache `adb` im PATH, USB-Debugging an)
+
+| # | Aktion | Erwartung / Hinweis |
+|---|--------|---------------------|
+| 1 | `cd` ins geklonte **escooter**-Repo, `git pull` und (falls du Doku-Stand führen willst) `git rev-parse HEAD` notieren. | Ruhiger, aktueller `main`/`develop`. |
+| 2 | **USB** verbinden, ggf. „Dateiübertragung“, USB-Debugging-Dialog ggf. am Handy. | |
+| 3 | `adb devices` — Serienzeile muss `device` zeigen, nicht `unauthorized`. Ggf. `-s <serial>` benutzen, falls mehrere Geräte. | |
+| 4 | **Nur jetzt — Log-Puffer leeren:** `adb logcat -c`  *(MCP-Äquivalent in Cursor, falls `escooter-re` angebunden: Tool `escooter_re_logcat_clear` — *vor* der echten Sitzung einmal laufen lassen, nicht währenddessen wundern.)* | Danach: **Kurz warten** bis du mit dem Handy starten willst, damit alles in dieselbe Session fällt. |
+| 5 | *(**Optional B — Live, nicht Pflicht**)* Zweites Terminal: `adb logcat -v time *:S BleLog:V` laufen lassen, **durchlaufen lassen während** du C machst, um L/M/O/`-- Crypto` in `BleLog` zu sehen. **Beweis-Export** trotzdem **A6a**/*A6b* (Dump/Datei nach der Sitzung). | Live-Terminal ist nur Hilfe, **kein** offizieller 9d-Beleg. |
+| 6a | **Sitzungs-Log sichern (nach C, Pflicht fürs Archiv):** reines `adb` — `adb logcat -d -v time *:S BleLog:V > /tmp/escooter-9d-YYYYMMDD-HHMM.log`  *(Pfad gern anpassen.)* | Eine **Datei** fürs Archiv + Copy-Paste in 9d unten. |
+| 6b | *Alternative:* MCP `escooter-re` → Tool `escooter_re_logcat_field_session_export` (Snapshot: `logcat -d` mit Fokus `BleLog`, ggf. grep `Crypto|Cmd`). | In die Log-Auszüge-Blöcke in dieser Datei **kopieren**; kein Dauer-Stream. |
+| 7 | *Optional* HCI-Snoop am Phone vorher laut `VALIDATION-PLAYBOOK` an, dann ggf. MCP `escooter_re_pull_btsnoop` oder manuell `adb pull` der Snoop-Datei. | Nur wenn ihr Wire-PCAP wollt; 9d-Hauptbeleg bleibt Logcat+App. |
+
+#### C) Am Handy (und in Reichweite des richtigen Rollers) — **nach** A4 (leerer Puffer), in **durchgehender** Reihenfolge
+
+| # | Du machst | Sinn |
+|---|----------|------|
+| 1 | **escooter-App** (Package `com.celox.segway.debug`, Version **0.1.6**) öffnen. Wenn nötig: alte Prozesse killen oder App kalt starten, damit alles in dieser Session stattfindet. | Klarer Session-Start. |
+| 2 | **Laut** `app/README` **verbinden / koppeln / pair-en** — mit deinem **Referenz-Setup** (Richtiger Name, MAC nicht „falsches“ 1K1-Device aus 9c). Ziel: **im Log kein** `stage 2 (M) timed out` — falls doch: **Trennen**, in Garage prüfen, ggf. neu koppeln. | Ohne vollen Handshake gibt es kein sinnvolles 9d. |
+| 3 | **Diagnostics** im Menü öffnen, **L → M → O**-Chips **mit ansehen** (Reihenfolge, nicht hängen). Kurz in Notiz: sichtbar „O“-Erfolg? | Tabelle 9d, Zeile 2. |
+| 4 | In **derselben** Sitzung: nacheinander Tipp **→ 22 km/h**, warten, dann **→ 40 km/h** (nur wo rechtlich/sicher). | Tabelle, Zeilen 4–5; in Log: TX mit erwartetem Muster. |
+| 5 | *Optional* kurz trennen/wieder verbinden oder (wenn vorgesehen) Register-**SCAN**-Button, falls in der App für §6-Playbook genutzt — *nur wenn noch dieselbe 9d-Session.* | Zeile 6. |
+| 6 | **Zurück zum PC:** Schritt A6/6a oder 6b (Dump **direkt** nach C — nicht stundenlanges Telefonieren dazwischen, sonst mischt sich fremder Log dazu). | Beweis-Datei fertig. |
+
+#### D) Danach: **FIELD-TEST-LOG** in dieser Datei
+
+1. Wichtigste **Crypto-/BleLog-Zeilen** (Handshake bis einschließlich „O“-Erfolg oder wahrheitsgemäß Fehler) in die **drei/fünf vorgefertigten *Log-Auszüge*-Fences** oben in dieser 9d-Session **einfügen** (gern gekürzt, **L/M/O-Story** leserlich).
+2. **22/40**-Fragmente in die TX-Blöcke, wenn vorhanden; sonst offen lassen.
+3. **Tabelle** 6 Zeilen: **ehrlich** eincheckt — nur „grün“ wenn 9c+deine Belege wirklich passen.
+4. *Optional* kleiner `git commit` **nur** an `FIELD-TEST-LOG.md` (nach Martins Regel ggf. auf **Feature-Branch** + PR, nicht wahlweise riesen-Dump).
+
+**Kurz:** `logcat -c` → Handy-Block C → sofort `logcat -d` in Datei oder MCP-Export → Tabelle. **Ich (Agent) kann** den MCP-Export in Cursor *ausführen, wenn* `escooter-re` in Cursor aktiv ist und ADB dein Handy sieht; **dich ersetze ich** beim **Fahren, Klicken, Pairing** am Gerät **nicht**.
+
+### Referenz-Setup (vor der Sitzung abgleichen)
+
+- [ ] **Gleiches Ziel-Setup wie README / Session-5-Referenz:** sinnvolles `scooterName`, **Referenz-MAC** `C1:6B:5E:D0:C5:96` (oder anderes **bewusst** dokumentieren), ggf. gepaarte Garage-Eintragung — **kein** blindes Reconnect an „falschen“ 1K1-…-Namen, wenn 9c dort M-Timeout brachte.
+- [ ] App am Phone: `com.celox.segway.debug`, sichtbar **versionName `0.1.6` (versionCode 7)** in App-Info / About. **Version-Strings eingeführt in** Commit `b2ae04f`; Doku-Runbook/ MCP-Helfer in `fd5856d` ( bei Bedarf neu bauen und installieren: `cd app && ./gradlew :app:assembleDebug` + `adb install -r -t …/app-debug.apk` ).
+
+### Ablauf (eine Session, fester Ablauf)
+
+1. `adb devices` → `device`.
+2. **Puffer leeren** (eine der Varianten; nicht parallel zwei Geräte verwirren):
+   - `adb logcat -c`  
+   - *oder* MCP-Tool `escooter_re_logcat_clear` (Cursor: `escooter-re` Server).
+3. **App** starten, laut `app/README.md` **verbinden / pair-en**, bis in der echten Sitzung **kein** `stage 2 (M) timed out` mehr; gegebenenfalls einmal trennen und sauber erneut pair-en.
+4. **Diagnostics** öffnen, **L → M → O** mit **Augen** (Chips) — mit Log konsistent, nicht hängen bleiben.
+5. **Field-Test-Buttons (Diagnostics):** nacheinander **→ 22 km/h**, dann **→ 40 km/h** (Roller/Strasse nur wo erlaubt).
+6. **Log ziehen** (nach der Sitzung), z. B.:
+   - `adb logcat -d -v time *:S BleLog:V > /tmp/escooter-9d.log`
+   - *oder* MCP: `escooter_re_logcat_field_session_export` (Schnappschuss, Fokus `BleLog` / Crypto-Cmd in Zeile; kein Dauer-Stream)
+   - optional parallel **HCI-Snoop** laut `VALIDATION-PLAYBOOK.md`, dann `escooter_re_pull_btsnoop`.
+
+**Kurz:** `logcat -c` **vor** der Session; Sitzung durchführen; `logcat -d` (oder MCP-Export) **danach** — nicht umgekehrt mischen.
+
+### Repo- und Build-Referenz (9d, vorbesetzt 2026-04-26)
+
+- **Aktueller `escooter` HEAD** (für 1:1-Repro): `cd escooter && git rev-parse HEAD` — **nach** `git pull` = Spitze inkl. aller 9d-Doku-Commits in dieser Datei.
+- **0.1.6 / `versionCode` 7 in `app/build.gradle.kts`:** `b2ae04f1db9de3160de744631165ba3dff02e807` (Kurz: `b2ae04f`).
+- **9d-Vorlage + MCP** (`escooter_re_logcat_field_session_export`, `escooter_re_logcat_clear`): `fd5856de8782871af79092f7a1c5585e608e8341` (Kurz: `fd5856d`); folgende Commits erweitern nur Doku/Metadaten in `FIELD-TEST-LOG.md`, nicht zwingend die App-Binary.
+- **Check 1 (Klon+Install):** unverändert Kapitel **Session 9c** weiter oben in dieser Datei — in der 9d-Tabelle `Ja (verweist 9c)` oder neuen Frischklon+`installDebug` in derselben 9d-Session nachziehen.
+
+### Messlauf 9d (2026-04-26, ~23:25–23:29, Phone `2312DRAABG` / adb `mvderkvoxw4t5tv8`) — ehrliches Protokoll
+
+- **Kontext Operateur:** Zuerst wirkte Verbindung/State wankend/unkoordiniert; **nach zweifachem Druck am Lichtschalter** (Licht an/am Roller) kam stabilerer GATT-/Crypto-Pfad, danach sichtbares L mit anschliessendem M-Timeout im Log (siehe unten). **Hinweis:** In dieser Sitzung wurden **22/40 km/h** in erster Linie per **A11y Vol-Up/Down 3× (Stealth/Profile)**, **nicht** per Diagnostics-Field-Test-Buttons, ausgelöst — trotzdem echter `Cmd SetSpeedLimit` + `5A A5 02` auf der Wire-Seite. Gerät im Log: `1K1UA2525P1196` (MAC `D5:A1:FB:21:4C:BD`), kein Session-5-Referenz-MAC.
+- **Roh-Log (Repo):** `reverse-engineering/ble-captures/2026-04-26-9d-blelog-mvderkvoxw4t5tv8.log` (115 Zeilen, Vollständigkeit wie Mitschnitt).
+
+### Log-Auszüge (9d — 2026-04-26)
+
+**Crypto-Handshake (Ausschnitt: Reconnect, L, danach M-Timeout — *kein* vollgrünes O in diesem Puffer):**
+
+```text
+04-26 23:28:32.611  -- Reconnect  auto-reconnect to 1K1UA2525P1196 (D5:A1:FB:21:4C:BD)
+04-26 23:28:33.901  -- Crypto     scooterName='1K1UA2525P1196' tokenLoaded=false
+04-26 23:28:33.992  -- Crypto     L: token+challenge received
+… (5B/5C RX-DEC, 5A A5 10 … Handshake-Frames) …
+04-26 23:28:39.492  -- Crypto     stage 2 (M) timed out — pair-init not acked
+```
+
+**TX-Regression 22 km/h (Crypto-Session, *verschlüsselte* Nutzlast — Präfix `5A A5 02` wie erwartet; *nicht* Klartext-`3E 16 02 48` aus reiner Doku, weil Session-Keys):**
+
+```text
+04-26 23:25:59.480  -- Cmd        SetSpeedLimit(kmh=22)   (A11y / City-Profil, erste Serie)
+04-26 23:25:59.484  TX RX-WRITE   5A A5 02 64 B0 AC E2 17 25 80 00 A0 D5 00 07
+— weitere 22/40-Zyklen im vollen Log; z. B. 23:28:57.500 / TX …00 10
+```
+
+**TX-Regression 40 km/h (analog, `SetSpeedLimit(kmh=40)` + `5A A5 02` …):**
+
+```text
+04-26 23:26:09.564  -- Cmd        SetSpeedLimit(kmh=40)
+04-26 23:26:09.568  TX RX-WRITE   5A A5 02 CE FA 35 4F 5C 94 DC 79 F2 49 00 08
+```
+
+**Playbook-Extras (Reconnect, RX-DEC) — in derselben Datei:**
+
+```text
+04-26 23:28:33.976  RX … 5A A5 1E 0D FC D4 A9 …
+04-26 23:28:33.981  -- RX-DEC  src=04 dst=3E cmd=5B arg=01 [… ASCII …2525P1196]
+04-26 23:28:36.791  -- RX-DEC  src=04 dst=3E cmd=5C arg=00
+```
+
+### Ergebnis-Tabelle (6 Zeilen, 9d — 2026-04-26 Messlauf, ehrlich)
+
+| Check | Ergebnis (Ja/Nein/teils) | Kurz-Beleg |
+|---|---|---|
+| 1) (aus 9c) Frischer Klon + `installDebug` | **Ja** (Verweis) | Wie 9c §1; gleiche Sitzung nicht erneut geklont. |
+| 2) L/M/O visuell Diagnostics, Reihenfolge, zu Log passend | **Nein** (für diese Sitzung nicht belegt) | Steuerung/Limits über **A11y Vol 3× + Profile**; kein **Diagnostics-Field-Test**-Pfad in diesem Log. L/M-Phase am Crypto-Pfad: L ja, M-Timeout (s. unten). |
+| 3) Logcat: Tag `BleLog` inkl. `-- Crypto`-Noten … bis voll gepaart bzw. O | **Teils** | **L: token+challenge** vorhanden; **M:** `stage 2 (M) timed out — pair-init not acked` (z. B. 23:28:39.492). **O / „fully paired“:** in diesem Export **nicht** als klare Endzeile sichtbar. |
+| 4) `→ 22 km/h` mit belegtem TX-Fragment | **Ja** (Crypto-Pfad) | `Cmd SetSpeedLimit(kmh=22)` + `5A A5 02 …` mehfach, z. B. 23:25:59.48x / 23:28:57.50x. |
+| 5) `→ 40 km/h` analog | **Ja** (Crypto-Pfad) | Ebenso `SetSpeedLimit(kmh=40)` + `5A A5 02 …` (z. B. 23:26:09.56x; weitere in Log). |
+| 6) Playbook-Smoke §6, eine Sitzung | **Teils** | `Reconnect`, **RX-DEC** `5B`/`5C` vorhanden; **M-Timeout** verhindert „durchgängig grünen“ Smokeschluss. Kein `SCAN` in Auszug. |
+
+### Fazit 9d (2026-04-26, nach Messlauf + Log-Archiv)
+
+- [ ] **Alle sechs** Checks vollgrün: **nein** — trotzdem starker Beweis für **funktionsfähigen SetSpeed-22/40-Stack** in aktiver **Crypto-Session** (Präfix `5A A5 02`); **L** schlägt an, **M-Phase** bremst weiter (pair-init) — ggf. Licht/VCU-Stand, Timing oder separates Pairing-Thema, nicht reines „kein TX“.
+- **Lichtschalter-Operator-Hinweis** für Folgesessions: zweimaliger Schaltimpuls scheinbar Erstkontext verbessert — **einmal** im Playbook/9d-Operator als beobachteter Hack dokumentiert (kein Ersatz für fachliches VCU-Debug).
+- **Für „Phase-1 alles grün“:** nochmals Sitzung mit (a) **Referenz-MAC/Name** wie Doku, (b) bewusst **Diagnostics** + Field-Test-Buttons, (c) Crypto bis **O** oder klare Begründung, wenn absichtlich A11y-only. → **9d-B** (unten) liefert Belege für (b) zumindest `SetSpeed` **ohne** A11y-Zeilen.
+
+### Session 9d-B — 2026-04-26 (Follow-up: Diagnostics / Field-Test, zweiter Mitschnitt)
+
+- **Hintergrund:** Explizit angeordnet, **nur** Diagnostics-Field-Test **22/40** zu nutzen, **kein** Vol-Stealth — trotzdem erscheinen im Puffer zuerst erneut **A11y**-Zeilen, danach **direkt** `Cmd SetSpeedLimit`-Zeilen + `5A A5 02` **TX** **ohne** A11y in der unmittelbar vorhergehenden Logzeile (Diagnostics-Knopf-Pfad **dokumentiert** im Mitschnitt; **MAC** weiter `D5:…`, **nicht** `C1:6B:5E:D0:C5:96`).
+- **Roh-Log (Repo):** `reverse-engineering/ble-captures/2026-04-26-9dB-diagnostics-fieldtest.log` (38 Zeilen).
+- **Ablauf im Log (Auszug):** Start: `L timed out — no token` (23:35:29) bei Auto-Reconnect. 23:37:26–23:38:00: **A11y / Profile** (laut Doku-Operator **nicht** gewollt) — 23:38:19–22: **ohne** `A11y` davor, nur:
+  - `-- Cmd        SetSpeedLimit(kmh=22)` → `TX … 5A A5 02 B3 5B 94 … 00 0B`
+  - `-- Cmd        SetSpeedLimit(kmh=40)` → `TX … 5A A5 02 04 0A 18 … 00 0C`
+- **Lock / Unlock** (23:38:29..32) als weitere `Cmd` + `5A A5 02` — wahrscheinlich gleiche Sitzung (Bedienung/Feldtest-Umgebung); nicht Playbook-§6-„Smoke“-Pflicht.
+
+**Tabelle 9d-B (Ergänzung zu 9d; nur diese Sitzung 9d-B):**
+
+| Check (Analog 9d) | Ergebnis | 9d-B-Beleg |
+|---|---|---|
+| 2) Diagnostics L/M/O visuell | **Teils / unklar in Log** | L/M/O-Chips **erscheinen in BleLog nicht wörtlich**; sicht-Check blieb beim Operateur. **Crypto:** L-Timeout in erster Reconnect-Phase, kein vollgänger Handshake-Export. |
+| 4) 22 km/h, TX | **Ja** (Diagnostics, gleicher Wire wie 9d) | Zeile 31–32: `SetSpeedLimit(22)` + `5A A5 02…` **ohne** A11y-Zeile unmittelbar davor; Roller weiter nicht Referenz-`C1:6B…`. |
+| 5) 40 km/h, TX | **Ja** (analog) | Zeile 33–34. |
+| *Vermischung* | *offen* | Sitzung **enthält trotz Anweisung** frühe **A11y**-Einträge — für strikte 9d-„nur-Buttons“-Story idealerweise **eigenen** `logcat -c`+**ausschließlich** Knöpfe wiederholen. |
+
+**Fazit 9d-B:** Gegenüber **9d** ist der Nachweis **besser** für *„SetSpeed-Buttons liefern dieselbe GATT-Ebene wie A11y“* (`Cmd` + `5A A5 02`). *Strenger* 9d-Checklist-„nur-Diagnostics“-Reinraum: **nein** (A11y im selben Puffer) — ggf. **9d-C** mit diszipliniertem Ablauf.
+
+**MCP `escooter-re`:** bietet **Logcat-Schnappschuss**, **Grep**, `logcat -c`, **btsnoop-Pull**, **Capture-MD** — ersetzt **weder** Pairing noch Roller noch Live-`adb` am Schreibtisch. Dauer-Logs: Terminal (`adb logcat -v time *:S BleLog:V` o. ä.).
+
+---
+
+## Session 10 — 2026-04-28 (Doku-Workstream: ZT3 Register-Captures & Capability-Flags, KEIN Live-HCI)
+
+> **Hinweis:** Diese Session bundlelt die **Doku-Abnahme** für Phase-„Mapping“ in einem Agent-Lauf. Roh-Dumps `CRYPTO_dump`+btsnoop für jeden Unterpunkt sind im Repo als **strukturierte Templates** hinterlegt, **Quelle der Wahrheits-Claims = `app/README.md` § Nicht-funktional (2026-04-28)** + vorhandener FIELD-Test-History — bis ein Operator Roh-Mitschnitte nachlegt, gelten die Dateien in `ble-captures/2026-04-28-zt3-*.md` als **Befund-Mapping**.
+
+| Feld | Wert |
+|------|------|
+| Datum | 2026-04-28 |
+| Phone | (Build-Host / lokal; kein neues ADB-Feld) |
+| Roller-MAC | Referenz-Setup `C1:6B:…` bzw. wie FIELD-5 |
+| Befund | Mode `0x5A`, Licht `0x5B`, Cruise-Remote→`0x5D` (App): **alle ⚠️** sichtwirksam; Lock `0x71` **OK** f. einfachen Toggle; **SetSpeed 0x48** unverändert (byteidentisch) |
+| Capture-Datei | `reverse-engineering/ble-captures/2026-04-28-zt3-mode-switch.md` (Mode), `…-headlight-toggle.md` (0x5B), `…-cruise-toggle.md` (0x5D) |
+| `encodeCrypto()` | Nur **Kommentar**-Tags + **kein** Byte-Wechsel an 0x48, Lock, Reboot, Read* |
+| Capability | `VehicleState.unsupportedCommands` = `SetMode`/`SetLights`/`SetCruise`; Vehicle-UI: Mode/Licht disabled |
+| `pollPlan` | `0x57` (Throttle) entfernt — Speed-Display aus **MCU 0x86** |
+
+**Conclusion:** Doku+Code aligned mit README/Referenz; Live-SHU**-Hexzeilen-Archiv** = Follow-up-Operator-Task.
+
+---
+
+## Session 10B — 2026-04-28 (Lock / Unlock, Referenz-Register 0x71)
+
+| Feld | Wert |
+|------|------|
+| Capture | `ble-captures/2026-04-28-zt3-lock-pattern.md` |
+| Befund | `01 00` / `00 00` (App) = **funktionsfähig**; LRRL-Bytes `86 68 00 00` = separat zu erfassen |
+| Code | **Kein** `encodeCrypto(Lock/Unlock)`-Byte-Wechsel |
+
+---
+
+## Session 10C — 2026-04-28 (Referenzdoku & Sequenzdiagramm)
+
+| Art | Wert |
+|-----|------|
+| Datei | `ble-captures/MAPPING-RUN-SEQUENCE.md` (Mermaid: SHU → ZT3 → Doku) |
+| `zt3-ble-register-reference.md` | Spalten *ZT3 Pro D verifiziert* + *Quelle* in §3.1, 3.2, 3.4 (0x48), 3.6 (0x71) |
+
+---
+
+## Session 9d — TEMPLATE (Phase-1 Gate Re-Run, L/M/O inkl. Resume-M)
+
+> Vorlage fuer den naechsten echten Gate-Lauf. Alles in **einer** Sitzung erfassen (frischer Log, gleicher Phone/Roller-Kontext, ohne Mischpuffer aus frueheren Runs).
+
+### Test-Setup
+
+- Datum/Uhrzeit:
+- Phone-Modell (`adb shell getprop ro.product.model`):
+- Android-Version (`adb shell getprop ro.build.version.release`):
+- Roller Name + MAC:
+- App-Variant (`com.celox.segway.debug`):
+
+### Commits (vor/nach Gate-Lauf)
+
+- Pre-SHA (`git rev-parse HEAD` vor dem Lauf):
+- Post-SHA (Commit mit dieser Session):
+
+### Roh-Kommandos (copy/paste)
+
+```text
+adb devices -l
+adb logcat -c
+cd app && ./gradlew :app:installDebug
+adb shell am start -W -n com.celox.segway.debug/com.celox.segway.MainActivity
+adb logcat -d -v time -s BleLog:* > /tmp/session-9d-blelog.txt
+```
+
+### Erwartete Stage-Reihenfolge (Diagnostics + BleLog)
+
+- First-pair: `L -> M -> O`
+- Resume (persisted random): `L -> M (resume-hint) -> O`  
+  (M darf vor echter 0x5C-ACK sichtbar werden; O bleibt ACK-basiert)
+
+### Checkliste (6 Punkte)
+
+| Check | Ergebnis | Evidence (dieser Lauf) |
+|---|---|---|
+| 1) Fresh-clone + `:app:installDebug` erfolgreich (APK auf Phone) | ☐ | Gradle-Output mit `Installed on 1 device.` |
+| 2) L/M/O visuell in Diagnostics (inkl. Resume-M-Verlauf) | ☐ | kurzer Bedien- und Beobachtungs-Text + Zeitstempel |
+| 3) Logcat `BleLog`/`Crypto` geordnet bis mindestens O oder klarer Timeout | ☐ | 4-8 Zeilen Auszug mit L/M/O-Noten |
+| 4) `-> 22 km/h` Regression | ☐ | `-- Cmd SetSpeedLimit(22)` + zugehoerige TX-Zeile |
+| 5) `-> 40 km/h` Regression | ☐ | `-- Cmd SetSpeedLimit(40)` + zugehoerige TX-Zeile |
+| 6) Playbook-Smoke (Reconnect / RX-DEC / optional SCAN) | ☐ | 3-6 Zeilen Auszug |
+
+### Log-Auszug (Paste)
+
+```text
+[L] -- Crypto ... token+challenge ...
+[M] -- Crypto ... resumed via persisted random ...   (oder paired-key)
+[O] -- Crypto ... fully paired ...
+-- Cmd SetSpeedLimit(kmh=22)
+TX RX-WRITE 5A A5 02 ...
+-- Cmd SetSpeedLimit(kmh=40)
+TX RX-WRITE 5A A5 02 ...
+```
+
+### Fazit
+
+- Phase-1 Gate: ☐ Gruen / ☐ Rot
+- Wenn Rot: exakter Blocker + naechster minimaler Schritt
+
+---
+
+## Session 9d-A — 2026-04-27 13:38 (Gate-Re-Run Versuch, infra-blockiert)
+
+Diese Session ist ein **echter Einzel-Lauf** nach dem 9d-Schema, aber mit hartem Infra-Blocker: kein ADB-Device verfuegbar zum Laufzeit-Teil (Diagnostics / BleLog / 22/40 / Smoke).
+
+### Test-Setup
+
+- Datum/Uhrzeit: 2026-04-27 13:38 (UTC+2)
+- Phone-Modell (`adb shell getprop ro.product.model`): n/a (`adb: no devices/emulators found`)
+- Android-Version (`adb shell getprop ro.build.version.release`): n/a (`adb: no devices/emulators found`)
+- Roller Name + MAC: n/a (ohne verbundenes Phone nicht erfassbar)
+- App-Variant: `com.celox.segway.debug` (Soll-Ziel)
+
+### Commits (vor/nach Gate-Lauf)
+
+- Pre-SHA: `8235da33735d0543d9f67da6e2ab0bc151aa7594`
+- Post-SHA: unveraendert (nur Session-Dokumentation in Arbeit)
+
+### Checkliste (6 Punkte, nur dieser Lauf)
+
+| Check | Ergebnis | Evidence (dieser Lauf) |
+|---|---|---|
+| 1) Fresh-clone + `:app:installDebug` erfolgreich (APK auf Phone) | ❌ | Ohne Device kein installierbarer Endnachweis in dieser Session. |
+| 2) L/M/O visuell in Diagnostics (inkl. Resume-M-Verlauf) | ❌ | Nicht durchfuehrbar ohne Device/Live-App. |
+| 3) Logcat `BleLog`/`Crypto` bis O oder klarer Timeout | ❌ | Kein Device -> keine app-seitigen `BleLog`-Laufzeitzeilen. |
+| 4) `-> 22 km/h` Regression | ❌ | Nicht durchfuehrbar ohne Device+Roller. |
+| 5) `-> 40 km/h` Regression | ❌ | Nicht durchfuehrbar ohne Device+Roller. |
+| 6) Playbook-Smoke (Reconnect / RX-DEC / optional SCAN) | ❌ | Nicht durchfuehrbar ohne Device. |
+
+### CLI-Blocker-Auszug
+
+```text
+$ adb devices -l
+List of devices attached
+
+$ adb shell getprop ro.product.model
+adb: no devices/emulators found
+```
+
+### Fazit 9d-A
+
+- Phase-1 Gate (dieser Lauf): **ROT**
+- Exakter Blocker: **kein angeschlossenes/autorisiertes ADB-Device**
+- Naechster minimaler Schritt: Device per USB anschliessen + RSA-Dialog bestaetigen + `adb devices -l` zeigt `device`, dann 9d-B mit vollem Lauf (`logcat -c`, `installDebug`, Diagnostics, 22/40, Log-Export).
+
+---
+
+## Session 9d-B — 2026-04-27 13:42-13:44 (Live-Re-Run mit Phone+Roller)
+
+### Test-Setup
+
+- Datum/Uhrzeit: 2026-04-27 13:42-13:44 (UTC+2)
+- Phone-Modell: `2312DRAABG`
+- Android-Version: `15`
+- Roller Name + MAC (aus `BleLog Reconnect`): `1K1UA2525P1196` (`D5:A1:FB:21:4C:BD`)
+- App-Variant: `com.celox.segway.debug`
+
+### Commits (vor/nach Gate-Lauf)
+
+- Pre-SHA: `8235da33735d0543d9f67da6e2ab0bc151aa7594`
+- Post-SHA: unveraendert (nur Log-Dokumentation)
+
+### Laufzeit-Output (Auszug)
+
+```text
+04-27 13:43:11.404 -- Reconnect  auto-reconnect to 1K1UA2525P1196 (D5:A1:FB:21:4C:BD)
+04-27 13:43:12.655 -- Crypto     L: token+challenge received
+04-27 13:43:12.657 -- RX-DEC     src=04 dst=3E cmd=5B arg=01 [...]
+04-27 13:43:15.523 -- RX-DEC     src=04 dst=3E cmd=5C arg=00 []
+04-27 13:43:47.412 -- Cmd        SetSpeedLimit(kmh=22)
+04-27 13:43:47.416 TX RX-WRITE   5A A5 02 F0 21 63 2C 0F B3 C8 BE 9B 63 00 0E
+04-27 13:43:50.238 -- Cmd        SetSpeedLimit(kmh=40)
+04-27 13:43:50.242 TX RX-WRITE   5A A5 02 EF 87 BA 30 24 3A 89 84 47 71 00 0F
+```
+
+### Checkliste (6 Punkte, nur dieser Lauf)
+
+| Check | Ergebnis | Evidence (dieser Lauf) |
+|---|---|---|
+| 1) Fresh-clone + `:app:installDebug` erfolgreich (APK auf Phone) | ✅ | `:app:installDebug` lief erfolgreich: `Installed on 1 device.` |
+| 2) L/M/O visuell in Diagnostics (inkl. Resume-M-Verlauf) | ⏳ / manuell | Nutzer hat 22/40 in Diagnostics ausgefuehrt; im exportierten `BleLog` ist **L** sichtbar, M/O-Chip-UI selbst bleibt ein visueller Operator-Check. |
+| 3) Logcat `BleLog`/`Crypto` bis O oder klarer Timeout | 🟨 teils | L und RX-DEC vorhanden (`5B`, `5C`), aber in diesem Mitschnitt keine explizite `O: fully paired`-Zeile. |
+| 4) `-> 22 km/h` Regression | ✅ | `SetSpeedLimit(kmh=22)` + TX mit Prefix `5A A5 02 ...` vorhanden. |
+| 5) `-> 40 km/h` Regression | ✅ | `SetSpeedLimit(kmh=40)` + TX mit Prefix `5A A5 02 ...` vorhanden. |
+| 6) Playbook-Smoke (Reconnect / RX-DEC / optional SCAN) | 🟨 teils | `Reconnect` + `RX-DEC` vorhanden; `SCAN` optional und hier nicht getriggert. |
+
+### Fazit 9d-B
+
+- Phase-1 Gate (dieser Lauf): **TEILS GRUEN**
+- Klar gruen in 9d-B: Device/Install, Reconnect, Speed-Regression 22+40 mit `5A A5 02` TX.
+- Noch offen fuer vollgruenes Gate: expliziter M/O-Abschluss im selben Lauf-Log + visueller L/M/O-Haken im Operator-Protokoll.
+
+---
+
+## Session 9d-C — 2026-04-27 13:49 (Reconnect-Fokus fuer O-Nachweis)
+
+Ziel dieses Kurzlaufs: nach sauberem Neustart explizit `O: fully paired` im selben frischen Log sehen.
+
+### Durchgefuehrte Schritte
+
+1. `adb logcat -c`
+2. `adb shell am force-stop com.celox.segway.debug`
+3. `adb shell am start -W -n com.celox.segway.debug/com.celox.segway.MainActivity`
+4. `adb logcat -d -v time -s BleLog:*`
+5. kurze Wartezeit, erneuter Log-Dump
+
+### Relevanter Log-Auszug (9d-C)
+
+```text
+04-27 13:49:35.194 -- Reconnect  auto-reconnect to 1K1UA2525P1196 (D5:A1:FB:21:4C:BD)
+04-27 13:49:37.138 -- Crypto     L: token+challenge received
+04-27 13:49:37.148 -- RX-DEC     src=04 dst=3E cmd=5B arg=01 [...]
+04-27 13:49:40.114 -- RX-DEC     src=04 dst=3E cmd=5C arg=00 []
+04-27 13:49:41.962 -- RX-DEC     src=04 dst=3E cmd=5C arg=00 []
+04-27 13:49:42.798 -- Crypto     stage 2 (M) timed out — pair-init not acked
+```
+
+### Ergebnis 9d-C
+
+- `L`: **vorhanden**
+- `M`: **kein Abschluss**, stattdessen Timeout
+- `O`: **nicht erreicht** (kein `O: fully paired` in diesem Lauf)
+
+### Fazit 9d-C
+
+- Der gezielte O-Nachweis ist in diesem Reconnect-Lauf **nicht** gelungen.
+- Damit bleibt das Phase-1-Gate weiterhin **teilgruen** (wie 9d-B), aber **nicht vollgruen**.
